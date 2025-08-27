@@ -4,7 +4,29 @@ Goal: Develop a Python package that simulates and analyzes haloscope data follow
 
 The pipeline starts from raw power spectra (simulated Gaussian noise with optional axion signals) and produces a final exclusion limit plot, replicating the procedure used by HAYSTAC for its first axion search results [1]. 
 
-The design is modular – each step of the analysis is encapsulated in separate functions/modules with clear interfaces and documentation. 
+The design is modular – each step of the analysis is encapsulated in separate functions/modules with clear interfaces and documentation.
+
+Current repository structure
+my-axion-project/          <-- project root (where pyproject.toml lives)
+├── axion_haloscope/       <-- the Python package (imported in code/tests)
+│   ├── __init__.py
+│   ├── simulation.py
+│   ├── baseline.py
+│   ├── combine.py
+│   ├── rebin.py
+│   ├── lineshape.py
+│   ├── detection.py
+│   ├── limit.py
+│   └── cli.py
+├── tests/                 <-- unit & integration tests
+├── scripts/               <-- <-- put run scripts here
+│   └── simulate_run.py    <-- NEW: end-to-end demo/runner
+├── output/                <-- generated results (gitignored)
+├── pyproject.toml
+└── README.md
+
+
+
 
 Below we outline each stage of the analysis and how it is implemented:
 1. Simulated Power Spectrum Input
