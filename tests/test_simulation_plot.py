@@ -6,6 +6,7 @@ import matplotlib.pyplot as plt
 
 from axion_haloscope.simulation import simulate_spectra, AxionParams
 
+
 def test_simulated_spectrum_plot(tmp_path):
     # Small, fast config for a unit test
     n_spectra = 3
@@ -52,3 +53,23 @@ def test_simulated_spectrum_plot(tmp_path):
     # File should exist and be non-empty
     assert out.exists()
     assert out.stat().st_size > 0
+    print ("Saved to:", out)
+
+
+
+
+def test_plot_first_spectrum(tmp_path):
+    specs, fper, rf, rf_map = simulate_spectra(
+        n_spectra=3, n_bins=3000, bin_width_hz=100.0,
+        f_start_hz=5.70e9, tune_step_bins=80, rng_seed=42,
+        axion=AxionParams(5.705e9, 2500.0, 20.0)
+    )
+    fig, ax = plt.subplots(figsize=(8,3))
+    ax.plot(fper[0]/1e9, specs[0], lw=0.7)
+    ax.set(xlabel="Frequency [GHz]", ylabel="Power [arb.]",
+           title="Simulated spectrum (toy)")
+    out = tmp_path / "sim_spectrum.png"
+    fig.tight_layout(); fig.savefig(out, dpi=140); plt.close(fig)
+    assert out.exists() and out.stat().st_size > 0
+    print ("Saved to:", out)
+    

@@ -1,0 +1,35 @@
+[build-system]
+requires = ["setuptools>=61", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "axion-haloscope"
+version = "0.1.0"
+description = "Axion haloscope analysis pipeline"
+readme = "README.md"
+authors = [
+  { name = "Elena Gramellini", email = "elena.gramellini@manchester.ac.uk" }
+]
+license = { text = "MIT" }
+requires-python = ">=3.9"
+dependencies = [
+  "numpy",
+  "scipy",
+  "matplotlib"
+]
+
+[project.optional-dependencies]
+dev = ["pytest", "black", "mypy"]
+
+[project.scripts]
+axion-haloscope = "axion_haloscope.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["axion_haloscope*"]
+
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]                 # list of dirs
+python_files = ["test_*.py"]          # list of patterns
+python_functions = ["test_*"]         # list of patterns

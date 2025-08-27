@@ -1,0 +1,48 @@
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Distribution / packaging
+build/
+dist/
+*.egg-info/
+*.egg
+.eggs/
+
+# Virtual environments
+.venv/
+venv/
+env/
+.micromamba/
+conda_env/
+
+# pytest / coverage
+.pytest_cache/
+.coverage
+htmlcov/
+.tox/
+
+# IDE/editor cruft
+*.swp
+*.swo
+*.idea/
+.vscode/
+.DS_Store
+
+# Jupyter notebooks
+.ipynb_checkpoints/
+
+# Project outputs
+/output/*
+/trash/
+/test_output/*
+artifacts/
+*.png
+*.csv
+
+# Logs
+*.log
+
+# temp files
+*~
