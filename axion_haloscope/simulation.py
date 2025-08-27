@@ -7,8 +7,8 @@ from typing import List, Tuple
 @dataclass
 class AxionParams:
     """Parameters for an injected axion-like signal."""
-    f_axion_hz: float      # central frequency [Hz]
-    sigma_hz: float        # spectral width (1-sigma) [Hz]
+    f_axion_hz : float     # central frequency [Hz]
+    sigma_hz   : float     # spectral width (1-sigma) [Hz]
     total_power: float     # integrated power in spectrum units (arb.)
 
 def make_frequency_axes(
