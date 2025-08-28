@@ -11,8 +11,8 @@ def main():
     p = argparse.ArgumentParser(description="Simulate a haloscope scan (toy HAYSTAC-like)")
     p.add_argument("--n-spectra"     , type=int  , default=    10) # number of acquired spectra
     p.add_argument("--n-bins"        , type=int  , default=  8000) # number of bins in the acquired spectra
-    p.add_argument("--bin-width"     , type=float, default= 100.0) # bin width of the power spectra
-    p.add_argument("--f-start"       , type=float, default=5.70e9) # Starting frequency
+    p.add_argument("--bin-width"     , type=float, default= 100.0) # bin width of the power spectra in Hz
+    p.add_argument("--f-start"       , type=float, default=5.70e9) # Starting frequency in Hz
     p.add_argument("--tune-step-bins", type=int  , default=     0) # 100 Hz is probably more suitable when we want to actually do a scan
     p.add_argument("--save-n-spectra", type=int  , default=     2) # number of saved plots
     p.add_argument('--save-data', action=argparse.BooleanOptionalAction)
@@ -20,7 +20,7 @@ def main():
     args = p.parse_args()
     
     
-    # timestamped output folder
+    # output folder timestamped for simulation bookeeping
     outdir = pathlib.Path("output/sim_spectra/") / f"run_{datetime.datetime.now():%Y%m%d_%H%M%S}"
     outdir.mkdir(parents=True, exist_ok=True)
 
@@ -35,6 +35,8 @@ def main():
         bin_width_hz=args.bin_width, f_start_hz=args.f_start,
         tune_step_bins=args.tune_step_bins, rng_seed=1234, axion=ax
     )
+
+
 
     
 
