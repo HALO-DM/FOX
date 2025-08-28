@@ -4,6 +4,7 @@ Run a full simulated axion haloscope scan and save results in ./output/run_<time
 """
 import argparse, datetime, pathlib
 import matplotlib.pyplot as plt
+import numpy as np
 from axion_haloscope.simulation import simulate_spectra, AxionParams
 
 def main():
@@ -14,9 +15,11 @@ def main():
     p.add_argument("--f-start"       , type=float, default=5.70e9) # Starting frequency
     p.add_argument("--tune-step-bins", type=int  , default=     0) # 100 Hz is probably more suitable when we want to actually do a scan
     p.add_argument("--save-n-spectra", type=int  , default=     2) # number of saved plots
+    p.add_argument('--save-data', action=argparse.BooleanOptionalAction)
     p.add_argument("--axion", action="store_true", help="Inject an axion signal")
     args = p.parse_args()
-
+    
+    
     # timestamped output folder
     outdir = pathlib.Path("output/sim_spectra/") / f"run_{datetime.datetime.now():%Y%m%d_%H%M%S}"
     outdir.mkdir(parents=True, exist_ok=True)
@@ -55,6 +58,13 @@ def main():
             fig.savefig(outdir / f"spectrum_{i:03d}.png", dpi=150)
             plt.close(fig)
             count += 1
+
+    if args.save_data:
+        # compact binary for analysis
+        np.savez(outdir/"spectra.npz",
+                 spectra=np.array(specs),   # (n_spectra, n_bins)
+                 freqs=fper,                # (n_spectra, n_bins)
+                 rf_grid=rf)                # (total_rf_bins,)
 
 
     print(f"Raw spectra simulation finished, results in {outdir}")

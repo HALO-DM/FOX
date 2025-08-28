@@ -15,7 +15,8 @@ requires-python = ">=3.9"
 dependencies = [
   "numpy",
   "scipy",
-  "matplotlib"
+  "matplotlib",
+  "h5py"
 ]
 
 [project.optional-dependencies]
