@@ -8,6 +8,7 @@ Load spectra.npz and run the full HAYSTAC-like pipeline:
 - candidate search
 - 95% CL exclusion curve
 """
+
 import argparse, json, pathlib, re
 import numpy as np
 import matplotlib
