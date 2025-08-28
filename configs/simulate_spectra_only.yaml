@@ -11,11 +11,11 @@ injection:
   enabled: true
   # f_axion_hz: 5.725e9   # optional; if omitted, placed at mid-span
   sigma_hz: 2500.0
-  total_power: 20.0
+  total_power: 200.0
 
 
 output:
-  save_data: true       # save per-spectrum PNGs + spectra.npz
+  save_data: false      # save per-spectrum PNGs + spectra.npz
   plots_step: 1         # plot every Nth spectrum
   # max_plots: 100      # optional cap
   root: "output"        # base output folder
