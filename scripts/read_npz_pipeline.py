@@ -22,7 +22,7 @@ from axion_haloscope.rebin     import rebin_ml, grand_spectrum_ml
 from axion_haloscope.lineshape import shm_maxwell_template
 from axion_haloscope.detection import threshold_for_detection, find_candidates
 from axion_haloscope.limit     import compute_local_snr_template, coupling_limit, plot_exclusion
-
+from axion_haloscope.data_quality import filter_spectrum_set, too_noisy
 
 def main():
     p = argparse.ArgumentParser(description="Run pipeline on spectra.npz")
@@ -63,6 +63,11 @@ def main():
     sset = read_npz(args.npz_file)
     n_spec = sset.n_spectra()
     print(f"Loaded {n_spec} spectra; RF span {sset.rf_grid[0]/1e9:.6f}–{sset.rf_grid[-1]/1e9:.6f} GHz")
+
+
+    # --- Data clean-up ---
+    sset, kept, bad = filter_spectrum_set(sset, predicate=lambda s,f,i: too_noisy(s,f,i, rms_max=3.0))
+    print(f"[QC] kept {len(kept)} spectra; dropped {len(bad)}: {bad}")
 
     # --- Baseline removal ---
     proc = []

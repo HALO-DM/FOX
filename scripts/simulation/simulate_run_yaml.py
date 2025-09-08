@@ -21,6 +21,11 @@ from axion_haloscope.rebin      import rebin_ml, grand_spectrum_ml
 from axion_haloscope.lineshape  import shm_maxwell_template
 from axion_haloscope.detection  import threshold_for_detection, find_candidates
 from axion_haloscope.limit      import compute_local_snr_template, coupling_limit, plot_exclusion
+from axion_haloscope.data_quality import filter_spectrum_set, too_noisy
+from axion_haloscope.io import SpectrumSet
+from axion_haloscope.data_quality import filter_spectrum_set, too_noisy
+from axion_haloscope.io import SpectrumSet
+
 
 
 def _get(d, key, default):
@@ -30,12 +35,13 @@ def _get(d, key, default):
 def load_yaml_config(path: pathlib.Path) -> dict:
     with path.open("r", encoding="utf-8") as fh:
         raw = yaml.safe_load(fh) or {}
-    sim = raw.get("simulation", {}) or {}
-    inj = raw.get("injection",  {}) or {}
+    sim  = raw.get("simulation", {}) or {}
+    inj  = raw.get("injection",  {}) or {}
+    qc   = cfg.get("quality", {}) or {}
     base = raw.get("baseline",   {}) or {}
-    rb  = raw.get("rebin",       {}) or {}
-    det = raw.get("detection",   {}) or {}
-    out = raw.get("output",      {}) or {}
+    rb   = raw.get("rebin",       {}) or {}
+    det  = raw.get("detection",   {}) or {}
+    out  = raw.get("output",      {}) or {}
 
     cfg = {
         "simulation": {
@@ -139,6 +145,15 @@ def main():
             count += 1
         np.savez(run_dir/"spectra.npz", spectra=np.array(specs), freqs=fper, rf_grid=rf)
 
+
+    # QC: drop bad spectra (default thresholds; adjust if desired)
+    sset = SpectrumSet(spectra=list(specs), freqs_per_spec=list(fper), rf_grid=rf, rf_index_map=list(rf_map))
+    sset_qc, kept, bad = filter_spectrum_set(sset, predicate=lambda s,f,i: too_noisy(s,f,i, rms_max=3.0))
+    print(f"[QC] kept {len(kept)}/{sset.n_spectra()} spectra; dropped: {bad}")
+    # replace arrays with filtered ones for the rest of the chain
+    specs, fper, rf, rf_map = sset_qc.spectra, sset_qc.freqs_per_spec, sset_qc.rf_grid, sset_qc.rf_index_map
+
+        
     # 2) baseline removal
     proc = [remove_baseline(s, window_length=base["sg_window"], polyorder=base["sg_poly"], subtract_one=True)[0]
             for s in specs]

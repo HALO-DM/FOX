@@ -2,7 +2,7 @@ simulation:
   n_spectra: 10
   n_bins: 8000
   bin_width_hz: 100.0
-  f_start_hz: 5.70e9
+  f_start_hz: 10.70e9
   tune_step_bins: 100
   rng_seed: 1234
   noise_sigma: 1.0
@@ -15,7 +15,7 @@ injection:
 
 
 output:
-  save_data: false      # save per-spectrum PNGs + spectra.npz
+  save_data: true       # save per-spectrum PNGs + spectra.npz
   plots_step: 1         # plot every Nth spectrum
   # max_plots: 100      # optional cap
   root: "output"        # base output folder
