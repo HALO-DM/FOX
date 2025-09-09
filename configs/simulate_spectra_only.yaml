@@ -15,8 +15,9 @@ injection:
 
 
 output:
-  save_data: true       # save per-spectrum PNGs + spectra.npz
-  plots_step: 1         # plot every Nth spectrum
-  # max_plots: 100      # optional cap
-  root: "output"        # base output folder
-  subdir_prefix: "run"  # subfolder prefix: run_<timestamp>
+  save_data: true
+  save_format: "h5"      # options: "h5", "npz", or "both"
+  plots_step: 1
+  root: "output"
+  subdir_prefix: "run"
+  middir: "sim_spectra"

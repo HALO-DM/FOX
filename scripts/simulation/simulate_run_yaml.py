@@ -37,7 +37,7 @@ def load_yaml_config(path: pathlib.Path) -> dict:
         raw = yaml.safe_load(fh) or {}
     sim  = raw.get("simulation", {}) or {}
     inj  = raw.get("injection",  {}) or {}
-    qc   = cfg.get("quality", {}) or {}
+    qc   = raw.get("quality", {}) or {}
     base = raw.get("baseline",   {}) or {}
     rb   = raw.get("rebin",       {}) or {}
     det  = raw.get("detection",   {}) or {}
@@ -153,10 +153,29 @@ def main():
     # replace arrays with filtered ones for the rest of the chain
     specs, fper, rf, rf_map = sset_qc.spectra, sset_qc.freqs_per_spec, sset_qc.rf_grid, sset_qc.rf_index_map
 
-        
+
+
+
     # 2) baseline removal
-    proc = [remove_baseline(s, window_length=base["sg_window"], polyorder=base["sg_poly"], subtract_one=True)[0]
-            for s in specs]
+    _= remove_baseline(
+    spectrum=specs[0],
+    window_length=base["sg_window"],
+    polyorder=base["sg_poly"],
+    subtract_one=True,
+    diagnostic={"outfile": run_dir / "baseline_s000_before_after.png",
+                "title": "Baseline removal (spectrum 0)"},
+    freqs_hz=fper[0],
+    )
+
+    proc = []
+    for s in specs:
+        processed, _baseline = remove_baseline(
+            s,
+            window_length=base["sg_window"],
+            polyorder=base["sg_poly"],
+            subtract_one=True,
+        )
+        proc.append(processed)
 
     # 3) combine
     combined, sigma_c, counts = combine_ml(proc, rf_map, total_rf_bins=len(rf))
