@@ -1,6 +1,6 @@
 # axion_haloscope/baseline.py
 from __future__ import annotations
-from typing import Optional, Union, Dict
+from typing import Optional, Union, Dict, Tuple
 import numpy as np
 from scipy.signal import savgol_filter
 
@@ -11,36 +11,21 @@ def remove_baseline(
     subtract_one: bool = False,
     diagnostic: Optional[Union[bool, Dict]] = None,
     freqs_hz: Optional[np.ndarray] = None,
-):
+) -> Tuple[np.ndarray, np.ndarray] | Tuple[np.ndarray, np.ndarray, "matplotlib.figure.Figure"]:
     """
-    Remove a smooth baseline using Savitzky–Golay.
+    Savitzky–Golay baseline removal.
 
-    Returns
-    -------
-    processed : np.ndarray
-        spectrum / baseline  (or  spectrum / baseline - 1 if subtract_one=True)
-    baseline  : np.ndarray
-        the smooth baseline estimate
-
-    Diagnostics (optional)
-    ----------------------
-    Set `diagnostic` to:
-      - False/None (default): no plot
-      - True: quick plot vs bin index (returns (processed, baseline, fig))
-      - dict: fine control, keys supported:
-          {"outfile": "path.png", "title": "txt", "show": False}
-        If `freqs_hz` is provided, plots vs frequency; else vs bin.
-
-    If plotting is enabled and no outfile is given, returns a Matplotlib figure as 3rd value.
+    Returns:
+      (processed, baseline)            when diagnostic is falsy or diagnostic={"outfile": ...}
+      (processed, baseline, figure)    when diagnostic is True or dict without 'outfile'
     """
-    # compute baseline
+    # --- compute baseline & processed
     baseline = savgol_filter(spectrum, window_length, polyorder, mode="interp")
     processed = spectrum / baseline
     if subtract_one:
         processed = processed - 1.0
 
-
-        # diagnostics
+    # --- optional diagnostics
     if diagnostic:
         import matplotlib.pyplot as plt
         cfg = {} if diagnostic is True else dict(diagnostic)
@@ -49,33 +34,36 @@ def remove_baseline(
         if freqs_hz is not None:
             x = np.asarray(freqs_hz, float) / 1e9
 
-        fig, (ax1, ax2) = plt.subplots(
-            2, 1, figsize=(10, 6), sharex=True,
-            gridspec_kw={"height_ratios": [2, 1]}
-        )
+        fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(10, 6), sharex=True,
+                                       gridspec_kw={"height_ratios": [2, 1]})
 
         # top: raw + baseline
-        ax1.plot(x, spectrum, lw=0.6, color="black", label="raw")
+        ax1.plot(x, spectrum, lw=0.6, label="raw")
         ax1.plot(x, baseline, lw=1.0, color="tab:red", label="baseline (SG)")
         ax1.set_ylabel("Power [arb]")
         ax1.set_title(cfg.get("title", "Baseline removal diagnostic"))
         ax1.grid(alpha=0.3); ax1.legend()
 
-        # bottom: processed spectrum
+        # bottom: processed (green)
         ax2.plot(x, processed, lw=0.7, color="tab:green", label="processed")
         ax2.set_xlabel(xlab); ax2.set_ylabel("Processed")
         ax2.grid(alpha=0.3); ax2.legend()
 
         fig.tight_layout()
 
+        # save-to-file path → return two-tuple (no figure kept)
         if cfg.get("outfile"):
             fig.savefig(cfg["outfile"], dpi=150)
             plt.close(fig)
             return processed, baseline
+
+        # no outfile → return the figure as well (caller decides to save/close)
         if not cfg.get("show", False):
             return processed, baseline, fig
+        # if show=True, fall through and return two-tuple below (figure left open)
 
-    
+    # ALWAYS return a tuple
+    return processed, baseline
 
 
 # --- simple bin masking utility -------------------------------------------------

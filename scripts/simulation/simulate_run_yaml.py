@@ -13,6 +13,8 @@ import yaml
 import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
+import time
+
 
 from axion_haloscope.simulation import simulate_spectra, AxionParams
 from axion_haloscope.baseline   import remove_baseline
@@ -102,6 +104,7 @@ def main():
     run_dir = out_root / f'{out["subdir_prefix"]}_{timestamp}'
     run_dir.mkdir(parents=True, exist_ok=True)
 
+    t_sim0 = time.time()
     # Axion injection (center mid-span if not provided)
     ax = None
     if inj["enabled"]:
@@ -145,6 +148,9 @@ def main():
             count += 1
         np.savez(run_dir/"spectra.npz", spectra=np.array(specs), freqs=fper, rf_grid=rf)
 
+        
+
+    t0 = time.time()
 
     # QC: drop bad spectra (default thresholds; adjust if desired)
     sset = SpectrumSet(spectra=list(specs), freqs_per_spec=list(fper), rf_grid=rf, rf_index_map=list(rf_map))
@@ -180,7 +186,7 @@ def main():
     # 3) combine
     combined, sigma_c, counts = combine_ml(proc, rf_map, total_rf_bins=len(rf))
     plt.figure(figsize=(10,3))
-    plt.plot(rf/1e9, combined, lw=0.8)
+    plt.plot(rf/1e9, combined, lw=0.8, color="black", label="combined")
     plt.title("Combined spectrum (baseline-removed)")
     plt.xlabel("Frequency [GHz]"); plt.ylabel("Excess power [arb]"); plt.grid(alpha=0.3)
     plt.tight_layout(); plt.savefig(run_dir/"combined.png", dpi=150); plt.close()
@@ -203,6 +209,39 @@ def main():
     # 5) candidates
     theta = threshold_for_detection(det["target_snr"], det["confidence"])
     cands, _ = find_candidates(Dg, sg, theta, min_separation=K-1)
+    # After: cands, z = find_candidates(Dg, sg, theta, min_separation=K-1)
+
+    fig, ax = plt.subplots(figsize=(10, 3))
+
+    # plot the z-score trace
+    zvals = np.zeros_like(Dg)
+    msk = np.isfinite(sg) & (sg > 0)
+    zvals[msk] = Dg[msk] / sg[msk]
+    ax.plot(freqs_r/1e9, zvals, lw=0.7, label="z-score")
+
+    # detection threshold line
+    ax.axhline(theta, color="tab:red", ls="--", label=f"threshold ({theta:.2f}σ)")
+
+    # mark candidate points
+    if len(cands) > 0:
+        ax.scatter(freqs_r[cands]/1e9, zvals[cands],
+                   color="tab:orange", s=30, zorder=5, label="candidates")
+
+    ax.set(xlabel="Frequency [GHz]", ylabel="z",
+           title="Grand spectrum with candidate markers")
+    ax.grid(alpha=0.3); ax.legend()
+    fig.tight_layout()
+    fig.savefig(run_dir/"candidates.png", dpi=150)
+    plt.close(fig)
+
+
+    t1     = time.time()
+    total0 = round(t1-t0, 2)
+    totals = round(t0-t_sim0, 2)
+    nbins    = sim["n_bins"]
+    nspectra = sim["n_spectra"]
+    print (f"Simulation Time : {totals} s for {nspectra} spectra of {nbins} bins")
+    print (f"Time from QC to Candidates: {total0} s")
 
     # 6) exclusion
     Rloc = compute_local_snr_template(sr, Lq)

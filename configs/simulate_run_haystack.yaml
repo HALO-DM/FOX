@@ -1,6 +1,6 @@
 simulation:
-  n_spectra: 10
-  n_bins: 8000  # Elena's eyeballed estimation from Ben's thesis
+  n_spectra: 80
+  n_bins: 20000  # Elena's eyeballed estimation from Ben's thesis
   bin_width_hz: 100.0
   f_start_hz: 5.7161e9
   tune_step_bins: 100
@@ -36,8 +36,8 @@ detection:
   g0: 1.0
 
 output:
-  save_data: false      # save per-spectrum PNGs + spectra.npz
+  save_data: true      # save per-spectrum PNGs + spectra.npz
   plots_step: 1         # plot every Nth spectrum
-  # max_plots: 100      # optional cap
+  max_plots: 10         # optional cap
   root: "output"        # base output folder
   subdir_prefix: "run"  # subfolder prefix: run_<timestamp>
