@@ -9,14 +9,8 @@ The design is modular – each step of the analysis is encapsulated in separate 
 
 ### Setting up the code
 1. Downlowad the directory in your local area
-```text
-git clone https://github.com/ElenaGramellini/toy_m
-```
+>git clone https://github.com/ElenaGramellini/toy_m
 
-
-
-
-sss
 2. Install cross-platform package manager and environment manager such as conda or mamba
 Conda helps you:
 - install software with all dependencies handled automatically,  
