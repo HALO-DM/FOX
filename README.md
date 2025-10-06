@@ -13,7 +13,12 @@ The design is modular – each step of the analysis is encapsulated in separate 
 
 2. Make sure you have the following packages
 
+3. Test things work
+a. run unit test
+> pytest --basetemp=./test_output
 
+b. run a simulation
+> python scripts/simulation/simulate_run_yaml.py configs/simulate_run.yaml
 
 ---
 ### Repository structure
