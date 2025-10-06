@@ -39,6 +39,7 @@ Double-click the `.exe` file and follow the prompts.
 Open a terminal in the folder where you downloaded it, then run:
 ```bash
 bash Miniconda3-latest-Linux-x86_64.sh
+```
 
 3️⃣ Restart your terminal
 > conda --version
