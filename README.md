@@ -12,6 +12,9 @@ The design is modular – each step of the analysis is encapsulated in separate 
 >git clone https://github.com/ElenaGramellini/toy_m
 
 2. Make sure you have the following packages
+go into the toy_m directory
+>pip install -e ".[dev]"
+
 
 3. Test things work
 - run unit test
