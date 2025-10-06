@@ -7,8 +7,8 @@ The pipeline starts from raw power spectra (simulated Gaussian noise with option
 The design is modular – each step of the analysis is encapsulated in separate functions/modules with clear interfaces and documentation.
 
 Current repository structure
-
-my-axion-project/          <-- project root (where pyproject.toml lives)␣␣
+'''text
+my-axion-project/          <-- project root (where pyproject.toml lives)
 ├── axion_haloscope/       <-- the Python package (imported in code/tests)␣␣
 │   ├── __init__.py
 │   ├── simulation.py
@@ -25,7 +25,7 @@ my-axion-project/          <-- project root (where pyproject.toml lives)␣␣
 ├── output/                <-- generated results (gitignored)
 ├── pyproject.toml
 └── README.md
-
+'''
 
 
 
