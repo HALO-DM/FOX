@@ -12,7 +12,46 @@ The design is modular – each step of the analysis is encapsulated in separate 
 ```text
 git clone https://github.com/ElenaGramellini/toy_m
 ```
-2. Get installa cross-platform package manager and environment manager such as conda or mamba
+2. Install cross-platform package manager and environment manager such as conda or mamba
+## 🐍 What is Conda?
+
+**Conda** is a cross-platform **package and environment manager**.
+
+It helps you:
+- install software with all dependencies handled automatically,  
+- create **isolated environments** for different projects,  
+- and switch easily between them.
+
+Unlike `pip`, Conda isn’t limited to Python — it can also manage C/C++, R, and system-level packages.
+
+> 💡 *In one line:*  
+> **Conda = pip + virtualenv + system package manager, all in one.**
+
+---
+
+## ⚙️ Installing Conda (for complete beginners)
+
+### 1️⃣ Download Miniconda
+Go to the official page:  
+👉 [https://docs.anaconda.com/miniconda/](https://docs.anaconda.com/miniconda/)
+
+Download the installer for your operating system:
+- **Windows:** `.exe` installer  
+- **macOS:** `.pkg` or `.sh` installer  
+- **Linux:** `.sh` installer
+
+---
+
+### 2️⃣ Run the installer
+**Windows:**  
+Double-click the `.exe` file and follow the prompts.
+
+**macOS / Linux:**  
+Open a terminal in the folder where you downloaded it, then run:
+```bash
+bash Miniconda3-latest-Linux-x86_64.sh
+
+
 
 ### Repository structure
 ```text
