@@ -11,43 +11,7 @@ The design is modular – each step of the analysis is encapsulated in separate 
 1. Downlowad the directory in your local area
 >git clone https://github.com/ElenaGramellini/toy_m
 
-2. Install cross-platform package manager and environment manager such as conda or mamba
-Conda helps you:
-- install software with all dependencies handled automatically,  
-- create **isolated environments** for different projects,  
-- and switch easily between them.
-Unlike `pip`, Conda isn’t limited to Python — it can also manage C/C++, R, and system-level packages.
-
-> 💡 *In one line:*  
-> **Conda = pip + virtualenv + system package manager, all in one.**
-
-
-1️⃣ Download Miniconda
-Go to the official page:  
-👉 [https://docs.anaconda.com/miniconda/](https://docs.anaconda.com/miniconda/)
-
-Download the installer for your operating system:
-- **Windows:** `.exe` installer  
-- **macOS:** `.pkg` or `.sh` installer  
-- **Linux:** `.sh` installer
-
-2️⃣ Run the installer
-**Windows:**  
-Double-click the `.exe` file and follow the prompts.
-
-**macOS / Linux:**  
-Open a terminal in the folder where you downloaded it, then run:
-```bash
-bash Miniconda3-latest-Linux-x86_64.sh
-```
-
-3️⃣ Restart your terminal
-> conda --version
-If you see a version number (e.g., conda 24.7.1), you’re good to go
-
-4️⃣ Create and activatte the environment for this analysis package
-> conda create -n axion_analysis  python=3.11
-> conda activate axion_analysis
+2. Make sure you have the following packages
 
 
 
