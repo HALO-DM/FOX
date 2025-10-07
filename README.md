@@ -11,8 +11,8 @@ The design is modular – each step of the analysis is encapsulated in separate 
 1. Downlowad the directory in your local area
 >git clone https://github.com/ElenaGramellini/toy_m
 
-2. Make sure you have the following packages
-go into the toy_m directory
+2. Make sure you  install all dependencies by
+going into the toy_m directory
 >pip install -e ".[dev]"
 
 
