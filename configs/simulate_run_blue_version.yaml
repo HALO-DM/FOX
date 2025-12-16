@@ -1,0 +1,43 @@
+simulation:
+  n_spectra: 6766
+  n_bins: 100000  # Elena's eyeballed estimation from Ben's thesis
+  bin_width_hz: 100.0
+  f_start_hz: 5.7161e9
+  tune_step_bins: 100
+  rng_seed: 1234
+  noise_sigma: 1.0
+
+injection:
+  enabled: true
+  # f_axion_hz: 5.725e9   # optional; if omitted, placed at mid-span
+  sigma_hz: 2500.0
+  total_power: 20.0
+
+quality:
+  enabled: true      # run QC filtering step
+  mode: "too_noisy"  # which predicate to use
+  rms_max: 3.0       # max RMS allowed
+  nan_fail: true     # drop spectra with NaNs/inf
+  robust: true       # use median+MAD instead of mean+std
+
+
+baseline:
+  sg_window: 1001
+  sg_poly: 4
+  
+rebin:
+  C: 10
+  K: 9
+
+detection:
+  target_snr: 5.0
+  confidence: 0.99
+  snr_eff: 0.90
+  g0: 1.0
+
+output:
+  save_data: false      # save per-spectrum PNGs + spectra.npz
+  plots_step: 1         # plot every Nth spectrum
+  # max_plots: 100      # optional cap
+  root: "output"        # base output folder
+  subdir_prefix: "run"  # subfolder prefix: run_<timestamp>

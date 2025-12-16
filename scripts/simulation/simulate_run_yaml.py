@@ -221,6 +221,8 @@ def main():
 
     # detection threshold line
     ax.axhline(theta, color="tab:red", ls="--", label=f"threshold ({theta:.2f}σ)")
+    ax.axhline(3, color="tab:orange", ls="--", label=f"Observation (3σ)")
+    ax.axhline(5, color="tab:purple", ls="--", label=f"Discovery (5σ)")
 
     # mark candidate points
     if len(cands) > 0:
