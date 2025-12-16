@@ -1,6 +1,6 @@
 simulation:
-  n_spectra: 6766
-  n_bins: 2000  # Elena's eyeballed estimation from Ben's thesis
+  n_spectra: 100
+  n_bins: 20000  # Elena's eyeballed estimation from Ben's thesis
   bin_width_hz: 100.0
   f_start_hz: 5.7161e9
   tune_step_bins: 100
@@ -11,7 +11,7 @@ injection:
   enabled: true
   # f_axion_hz: 5.725e9   # optional; if omitted, placed at mid-span
   sigma_hz: 2500.0
-  total_power: 20.0
+  total_power: 200.0
 
 quality:
   enabled: true      # run QC filtering step
@@ -23,7 +23,7 @@ quality:
 
 baseline:
   sg_window: 1001
-  sg_poly: 1
+  sg_poly: 
   
 rebin:
   C: 10
@@ -31,7 +31,7 @@ rebin:
 
 detection:
   target_snr: 5.0
-  confidence: 0.99
+  confidence: 0.95
   snr_eff: 0.90
   g0: 1.0
 
