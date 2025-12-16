@@ -1,6 +1,6 @@
 simulation:
   n_spectra: 6766
-  n_bins: 20000  # Elena's eyeballed estimation from Ben's thesis
+  n_bins: 100000  # Elena's eyeballed estimation from Ben's thesis
   bin_width_hz: 100.0
   f_start_hz: 5.7161e9
   tune_step_bins: 100
