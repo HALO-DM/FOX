@@ -20,7 +20,7 @@ def remove_baseline(
       (processed, baseline, figure)    when diagnostic is True or dict without 'outfile'
     """
     # --- compute baseline & processed
-    baseline = savgol_filter(spectrum, window_length, polyorder, mode="interp")
+    baseline = savgol_filter(spectrum, window_length, 1, mode="interp")
     processed = spectrum / baseline
     if subtract_one:
         processed = processed - 1.0

@@ -27,6 +27,7 @@ from axion_haloscope.data_quality import filter_spectrum_set, too_noisy
 from axion_haloscope.io import SpectrumSet
 from axion_haloscope.data_quality import filter_spectrum_set, too_noisy
 from axion_haloscope.io import SpectrumSet
+from axion_haloscope.width_fq   import width_from_fq
 
 
 
@@ -58,7 +59,6 @@ def load_yaml_config(path: pathlib.Path) -> dict:
         "injection": {
             "enabled":     bool(_get(inj, "enabled", False)),
             "f_axion_hz":  inj.get("f_axion_hz", None),  # optional
-            "sigma_hz":    float(_get(inj, "sigma_hz", 2500.0)),
             "total_power": float(_get(inj, "total_power", 20.0)),
         },
         "baseline": {
@@ -112,7 +112,8 @@ def main():
         f_ax = inj["f_axion_hz"]
         if f_ax is None:
             f_ax = sim["f_start_hz"] + 0.5 * total_bins * sim["bin_width_hz"]
-        ax = AxionParams(f_axion_hz=float(f_ax), sigma_hz=inj["sigma_hz"], total_power=inj["total_power"])
+        s_ax = width_from_fq(f_ax)
+        ax = AxionParams(f_axion_hz=float(f_ax), sigma_hz=s_ax, total_power=inj["total_power"])
 
     # 1) simulate
     specs, fper, rf, rf_map = simulate_spectra(
@@ -182,6 +183,8 @@ def main():
             subtract_one=True,
         )
         proc.append(processed)
+
+        
 
     # 3) combine
     combined, sigma_c, counts = combine_ml(proc, rf_map, total_rf_bins=len(rf))
