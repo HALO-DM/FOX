@@ -1,16 +1,19 @@
 # axion_haloscope/baseline.py
 from __future__ import annotations
-from typing import Optional, Union, Dict, Tuple
+from typing import Optional, Union, Dict, Tuple, List
 import numpy as np
+import matplotlib
 from scipy.signal import savgol_filter
 
 def remove_baseline(
     spectrum: np.ndarray,
     window_length: int = 401,
     polyorder: int = 4,
+    mode: str = "multiplicative",
     subtract_one: bool = False,
     diagnostic: Optional[Union[bool, Dict]] = None,
     freqs_hz: Optional[np.ndarray] = None,
+    baseline: Optional[np.ndarray] = None,
 ) -> Tuple[np.ndarray, np.ndarray] | Tuple[np.ndarray, np.ndarray, "matplotlib.figure.Figure"]:
     """
     Savitzky–Golay baseline removal.
@@ -20,8 +23,14 @@ def remove_baseline(
       (processed, baseline, figure)    when diagnostic is True or dict without 'outfile'
     """
     # --- compute baseline & processed
-    baseline = savgol_filter(spectrum, window_length, polyorder, mode="interp")
-    processed = spectrum / baseline
+    if baseline is None:
+        baseline = savgol_filter(spectrum, window_length, polyorder, mode="interp")
+    if mode == "additive":
+        processed = spectrum - baseline
+    elif mode == "multiplicative":
+        processed = spectrum / baseline
+    else:
+        raise ValueError("Please select either Additive or Multiplicative Baseline Removal")
     if subtract_one:
         processed = processed - 1.0
 
@@ -32,12 +41,12 @@ def remove_baseline(
         x = freqs_hz if (freqs_hz is not None) else np.arange(len(spectrum))
         xlab = "Frequency [GHz]" if freqs_hz is not None else "Bin"
         if freqs_hz is not None:
-            x = np.asarray(freqs_hz, float) / 1e9
+            x = np.asarray(freqs_hz, float)
 
         fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(10, 6), sharex=True,
                                        gridspec_kw={"height_ratios": [2, 1]})
+        
 
-        # top: raw + baseline
         ax1.plot(x, spectrum, lw=0.6, label="raw")
         ax1.plot(x, baseline, lw=1.0, color="tab:red", label="baseline (SG)")
         ax1.set_ylabel("Power [arb]")
@@ -65,6 +74,72 @@ def remove_baseline(
     # ALWAYS return a tuple
     return processed, baseline
 
+def align_and_average_spectra(
+  xs_list: List[np.ndarray],
+  ys_list: List[np.ndarray],
+  round_decimals: Optional[int] = None,
+  preserve_first_seen: bool = False
+) -> Tuple[np.ndarray, np.ndarray, np.ndarray, List[np.ndarray]]:
+  """
+  Align a list of (x, y) spectra onto a common x-axis and return
+  (common_x, padded_y, average_y, baseline_averages).
+
+  baseline_averages is a list of arrays: baseline_averages[i] has the same
+  length/order as xs_list[i] and contains the global average evaluated at
+  those x positions.
+  """
+  xs_list = [np.asarray(x) for x in xs_list]
+  ys_list = [np.asarray(y) for y in ys_list]
+
+  if len(xs_list) != len(ys_list):
+    raise ValueError("xs_list and ys_list must have the same length")
+
+  for i, (x, y) in enumerate(zip(xs_list, ys_list)):
+    if x.shape != y.shape:
+      raise ValueError(f"xs_list[{i}] and ys_list[{i}] must have same shape")
+
+  if round_decimals is not None:
+    xs_list = [np.round(x, round_decimals) for x in xs_list]
+
+  concatenated = np.concatenate(xs_list)
+  if preserve_first_seen:
+    uniq_vals, first_idx = np.unique(concatenated, return_index=True)
+    order = np.argsort(first_idx)
+    common_x = uniq_vals[order]
+    mapper = {val: i for i, val in enumerate(common_x)}
+    inv = np.fromiter((mapper[v] for v in concatenated), dtype=int, count=concatenated.size)
+  else:
+    common_x, inv = np.unique(concatenated, return_inverse=True)
+
+  n_spectra = len(xs_list)
+  m = common_x.size
+  padded = np.full((n_spectra, m), np.nan, dtype=float)
+
+  # keep per-spectrum index arrays so we can build baseline_averages later
+  idxs: List[np.ndarray] = []
+  pos = 0
+  for i, y in enumerate(ys_list):
+    n = xs_list[i].size
+    idx = inv[pos:pos + n]           # indices into common_x for this spectrum
+    idxs.append(idx.copy())
+    padded[i, idx] = y.astype(float)
+    pos += n
+
+  # average across spectra ignoring NaNs; fallback if numpy lacks nanmean
+  try:
+    average = np.nanmean(padded, axis=0)
+  except AttributeError:
+    valid = ~np.isnan(padded)
+    counts = valid.sum(axis=0)
+    sums = np.nansum(padded, axis=0)
+    with np.errstate(invalid='ignore', divide='ignore'):
+      average = sums / counts
+    average[counts == 0] = np.nan
+
+  # build baseline averages per spectrum (preserve original order & duplicates)
+  baseline_averages = [average[idx] for idx in idxs]
+
+  return common_x, padded, average, baseline_averages
 
 # --- simple bin masking utility -------------------------------------------------
 from typing import Iterable, Tuple, Optional
