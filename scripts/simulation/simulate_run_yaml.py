@@ -130,6 +130,12 @@ def main():
     plt.title("Example raw spectrum"); plt.grid(alpha=0.3); plt.tight_layout()
     plt.savefig(run_dir/"raw_spectrum.png", dpi=150); plt.close()
 
+    plt.figure(figsize=(9,3))
+    plt.plot(fper[-1]/1e9, specs[-1], lw=0.6)
+    plt.xlabel("Frequency [GHz]"); plt.ylabel("Raw Power [arb]")
+    plt.title("Example raw spectrum"); plt.grid(alpha=0.3); plt.tight_layout()
+    plt.savefig(run_dir/"raw_spectrum_last.png", dpi=150); plt.close()
+
     # Optional: save per-spectrum PNGs + spectra.npz
     if out["save_data"]:
         step = max(1, int(out["plots_step"]))
