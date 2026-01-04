@@ -9,7 +9,7 @@ simulation:
 
 injection:
   enabled: true
-  # f_axion_hz: 5.725e9   # optional; if omitted, placed at mid-span
+  #f_axion_hz: 5717595000.0   # optional; if omitted, placed at mid-span
   sigma_hz: 2500.0
   total_power: 20.0
 
@@ -22,9 +22,9 @@ quality:
 
 
 baseline:
-  sg_window: 401
+  sg_window: 1001
   sg_poly: 4
-
+  
 rebin:
   C: 10
   K: 9

@@ -17,7 +17,7 @@ def compute_local_snr_template(sr: np.ndarray, Lq: np.ndarray) -> np.ndarray:
     return R
 
 def coupling_limit(
-    R_local: np.ndarray, target_snr: float = 5.0, g0: float = 1.0, snr_efficiency: float = 0.90
+    R_local: np.ndarray, target_snr: float = 5.0, g0: float = 1e-13, snr_efficiency: float = 0.90
 ) -> np.ndarray:
     """
     g_min(f) = g0 * sqrt( target_snr / (snr_efficiency * R_local) ).

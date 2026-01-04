@@ -14,10 +14,12 @@ import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 import time
-
+from typing import Sequence, List, Optional, Tuple
+import math
+import shutil
 
 from axion_haloscope.simulation import simulate_spectra, AxionParams
-from axion_haloscope.baseline   import remove_baseline
+from axion_haloscope.baseline   import remove_baseline, align_and_average_spectra
 from axion_haloscope.combine    import combine_ml
 from axion_haloscope.rebin      import rebin_ml, grand_spectrum_ml
 from axion_haloscope.lineshape  import shm_maxwell_template
@@ -28,7 +30,6 @@ from axion_haloscope.io import SpectrumSet
 from axion_haloscope.data_quality import filter_spectrum_set, too_noisy
 from axion_haloscope.io import SpectrumSet
 from axion_haloscope.width_fq   import width_from_fq
-
 
 
 def _get(d, key, default):
@@ -104,6 +105,16 @@ def main():
     run_dir = out_root / f'{out["subdir_prefix"]}_{timestamp}'
     run_dir.mkdir(parents=True, exist_ok=True)
 
+    # Timestamped copies of the config
+    cfg_stamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+
+    # Save exact input YAML as provided
+    try:
+        stamped_name = f"{cfg_path.stem}_{cfg_stamp}{cfg_path.suffix}"
+        shutil.copy(cfg_path, run_dir / stamped_name)
+    except Exception as e:
+        print(f"[WARN] Could not copy input config file: {e}")
+
     t_sim0 = time.time()
     # Axion injection (center mid-span if not provided)
     ax = None
@@ -128,8 +139,8 @@ def main():
     plt.plot(fper[0]/1e9, specs[0], lw=0.6)
     plt.xlabel("Frequency [GHz]"); plt.ylabel("Raw Power [arb]")
     plt.title("Example raw spectrum"); plt.grid(alpha=0.3); plt.tight_layout()
-    plt.savefig(run_dir/"raw_spectrum.png", dpi=150); plt.close()
-
+    plt.savefig(run_dir/"raw_spectrum_first.png", dpi=150); plt.close()
+    
     plt.figure(figsize=(9,3))
     plt.plot(fper[-1]/1e9, specs[-1], lw=0.6)
     plt.xlabel("Frequency [GHz]"); plt.ylabel("Raw Power [arb]")
@@ -161,36 +172,89 @@ def main():
 
     # QC: drop bad spectra (default thresholds; adjust if desired)
     sset = SpectrumSet(spectra=list(specs), freqs_per_spec=list(fper), rf_grid=rf, rf_index_map=list(rf_map))
-    sset_qc, kept, bad = filter_spectrum_set(sset, predicate=lambda s,f,i: too_noisy(s,f,i, rms_max=3.0))
-    print(f"[QC] kept {len(kept)}/{sset.n_spectra()} spectra; dropped: {bad}")
+    sset_qc = sset
+    #sset_qc, kept, bad = filter_spectrum_set(sset, predicate=lambda s,f,i: too_noisy(s,f,i, rms_max=3.0))
+    #print(f"[QC] kept {len(kept)}/{sset.n_spectra()} spectra; dropped: {bad}")
     # replace arrays with filtered ones for the rest of the chain
     specs, fper, rf, rf_map = sset_qc.spectra, sset_qc.freqs_per_spec, sset_qc.rf_grid, sset_qc.rf_index_map
 
+
+    common_x, padded, average, average_baseline = align_and_average_spectra(fper, specs)
+
+    processed_average, baseline_average = remove_baseline(
+    spectrum=average,
+    window_length=base["sg_window"],
+    polyorder=base["sg_poly"],
+    mode="additive",
+    subtract_one=False,
+    diagnostic={"outfile": run_dir / "1_baseline_of_average_spectra.png",
+                "title": "Baseline removal (Average Spectra)"},
+    freqs_hz=common_x,
+    )
+
+    averaged_baselines = []
+    for s in average_baseline:
+        processed, _baseline = remove_baseline(
+            s,
+            window_length=base["sg_window"],
+            polyorder=base["sg_poly"],
+            mode="additive",
+            subtract_one=False,
+        )
+        averaged_baselines.append(_baseline)
+
+
+
+    _= remove_baseline(
+    spectrum=specs[0],
+    window_length=base["sg_window"],
+    polyorder=base["sg_poly"],
+    mode="additive",
+    subtract_one=False,
+    diagnostic={"outfile": run_dir / "2_baseline_removal_using_average_baseline_spectrum.png",
+                "title": "Baseline removal (spectrum 0 using average basline)"},
+    freqs_hz=fper[0],
+    baseline=averaged_baselines[0],
+    )
+
+    med_processed = []
+    for s,b in zip(specs, averaged_baselines):
+        processed, _baseline = remove_baseline(
+            s,
+            window_length=base["sg_window"],
+            polyorder=base["sg_poly"],
+            mode="additive",
+            subtract_one=False,
+            baseline=b,
+        )
+        med_processed.append(processed)
 
 
 
     # 2) baseline removal
     _= remove_baseline(
-    spectrum=specs[0],
+    spectrum=med_processed[0],
     window_length=base["sg_window"],
     polyorder=base["sg_poly"],
-    subtract_one=True,
-    diagnostic={"outfile": run_dir / "baseline_s000_before_after.png",
+    mode="additive",
+    subtract_one=False,
+    diagnostic={"outfile": run_dir / "3_baseline_removal_of_processed_spectra.png",
                 "title": "Baseline removal (spectrum 0)"},
     freqs_hz=fper[0],
     )
 
     proc = []
-    for s in specs:
+    for s in med_processed:
         processed, _baseline = remove_baseline(
             s,
             window_length=base["sg_window"],
             polyorder=base["sg_poly"],
-            subtract_one=True,
+            mode="additive",
+            subtract_one=False,
         )
         proc.append(processed)
 
-        
+   
 
     # 3) combine
     combined, sigma_c, counts = combine_ml(proc, rf_map, total_rf_bins=len(rf))
@@ -214,6 +278,7 @@ def main():
     plt.title("Grand spectrum z-score (SHM matched filter)")
     plt.xlabel("Frequency [GHz]"); plt.ylabel("z"); plt.grid(alpha=0.3)
     plt.tight_layout(); plt.savefig(run_dir/"grand_z.png", dpi=150); plt.close()
+
 
     # 5) candidates
     theta = threshold_for_detection(det["target_snr"], det["confidence"])
