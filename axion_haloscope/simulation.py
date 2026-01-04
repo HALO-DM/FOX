@@ -2,7 +2,7 @@
 from __future__ import annotations
 import numpy as np
 from dataclasses import dataclass
-from typing import List, Tuple
+from typing import List, Tuple, Optional
 
 from axion_haloscope.external_noise import external_noise
 
@@ -109,6 +109,7 @@ def simulate_spectra(
     axion: AxionParams | None = None,
     baseline_amp: float = 0.05,
     baseline_corr_bins: int = 400,
+    baseline_key: Optional[np.ndarray] = None,
 ) -> Tuple[List[np.ndarray], np.ndarray, np.ndarray, List[np.ndarray]]:
     """
     Simulate multiple tuned spectra: slow baseline × (1 + Gaussian noise),
@@ -145,7 +146,7 @@ def simulate_spectra(
             n_bins, rng, amplitude=baseline_amp, corr_bins=baseline_corr_bins
         )
         noise = rng.normal(0.0, noise_sigma, size=n_bins)
-        external = external_noise(freqs_per_spec[i], f_start_hz, f_range)
+        external = external_noise(freqs_per_spec[i], f_start_hz, f_range, baseline_key)
         raw = baseline * (external + noise)  # multiplicative-ish receiver response
 
         # Add the portion of axion power that falls within this spectrum’s RF slice

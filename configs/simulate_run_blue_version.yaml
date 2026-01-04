@@ -1,5 +1,5 @@
 simulation:
-  n_spectra: 1000
+  n_spectra: 100
   n_bins: 20000  # Elena's eyeballed estimation from Ben's thesis
   bin_width_hz: 100.0
   f_start_hz: 5.7161e9
@@ -9,7 +9,7 @@ simulation:
 
 injection:
   enabled: true
-  # f_axion_hz: 5.725e9   # optional; if omitted, placed at mid-span
+  #f_axion_hz: 5717595000.0   # optional; if omitted, placed at mid-span
   sigma_hz: 2500.0
   total_power: 20.0
 

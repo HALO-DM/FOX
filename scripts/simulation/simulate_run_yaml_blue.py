@@ -185,7 +185,7 @@ def main():
     spectrum=average,
     window_length=base["sg_window"],
     polyorder=base["sg_poly"],
-    mode="multiplicative",
+    mode="additive",
     subtract_one=False,
     diagnostic={"outfile": run_dir / "1_baseline_of_average_spectra.png",
                 "title": "Baseline removal (Average Spectra)"},
@@ -198,7 +198,7 @@ def main():
             s,
             window_length=base["sg_window"],
             polyorder=base["sg_poly"],
-            mode="multiplicative",
+            mode="additive",
             subtract_one=False,
         )
         averaged_baselines.append(_baseline)
@@ -209,7 +209,7 @@ def main():
     spectrum=specs[0],
     window_length=base["sg_window"],
     polyorder=base["sg_poly"],
-    mode="multiplicative",
+    mode="additive",
     subtract_one=False,
     diagnostic={"outfile": run_dir / "2_baseline_removal_using_average_baseline_spectrum.png",
                 "title": "Baseline removal (spectrum 0 using average basline)"},
@@ -223,7 +223,7 @@ def main():
             s,
             window_length=base["sg_window"],
             polyorder=base["sg_poly"],
-            mode="multiplicative",
+            mode="additive",
             subtract_one=False,
             baseline=b,
         )
@@ -236,8 +236,8 @@ def main():
     spectrum=med_processed[0],
     window_length=base["sg_window"],
     polyorder=base["sg_poly"],
-    mode="multiplicative",
-    subtract_one=True,
+    mode="additive",
+    subtract_one=False,
     diagnostic={"outfile": run_dir / "3_baseline_removal_of_processed_spectra.png",
                 "title": "Baseline removal (spectrum 0)"},
     freqs_hz=fper[0],
@@ -249,8 +249,8 @@ def main():
             s,
             window_length=base["sg_window"],
             polyorder=base["sg_poly"],
-            mode="multiplicative",
-            subtract_one=True,
+            mode="additive",
+            subtract_one=False,
         )
         proc.append(processed)
 
@@ -278,6 +278,7 @@ def main():
     plt.title("Grand spectrum z-score (SHM matched filter)")
     plt.xlabel("Frequency [GHz]"); plt.ylabel("z"); plt.grid(alpha=0.3)
     plt.tight_layout(); plt.savefig(run_dir/"grand_z.png", dpi=150); plt.close()
+
 
     # 5) candidates
     theta = threshold_for_detection(det["target_snr"], det["confidence"])
