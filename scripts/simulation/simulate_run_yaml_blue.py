@@ -181,11 +181,16 @@ def main():
 
     common_x, padded, average, average_baseline = align_and_average_spectra(fper, specs)
 
+    mode_1 = "additive"
+    mode_2 = "additive"
+    mode_3 = "multiplicative"
+
+
     processed_average, baseline_average = remove_baseline(
     spectrum=average,
-    window_length=base["sg_window"],
+    window_length=base["sg_window"] * 10,
     polyorder=base["sg_poly"],
-    mode="additive",
+    mode=mode_1,
     subtract_one=False,
     diagnostic={"outfile": run_dir / "1_baseline_of_average_spectra.png",
                 "title": "Baseline removal (Average Spectra)"},
@@ -196,9 +201,9 @@ def main():
     for s in average_baseline:
         processed, _baseline = remove_baseline(
             s,
-            window_length=base["sg_window"],
+            window_length=base["sg_window"]* 10,
             polyorder=base["sg_poly"],
-            mode="additive",
+            mode=mode_1,
             subtract_one=False,
         )
         averaged_baselines.append(_baseline)
@@ -209,8 +214,9 @@ def main():
     spectrum=specs[0],
     window_length=base["sg_window"],
     polyorder=base["sg_poly"],
-    mode="additive",
+    mode=mode_2,
     subtract_one=False,
+    add_one=(mode_2 == "additive" and mode_3 =="multiplicative"),
     diagnostic={"outfile": run_dir / "2_baseline_removal_using_average_baseline_spectrum.png",
                 "title": "Baseline removal (spectrum 0 using average basline)"},
     freqs_hz=fper[0],
@@ -223,7 +229,8 @@ def main():
             s,
             window_length=base["sg_window"],
             polyorder=base["sg_poly"],
-            mode="additive",
+            mode=mode_2,
+            add_one=(mode_2 == "additive" and mode_3 =="multiplicative"),
             subtract_one=False,
             baseline=b,
         )
@@ -236,8 +243,8 @@ def main():
     spectrum=med_processed[0],
     window_length=base["sg_window"],
     polyorder=base["sg_poly"],
-    mode="additive",
-    subtract_one=False,
+    mode=mode_3,
+    subtract_one=(mode_3 == "multiplicative"),
     diagnostic={"outfile": run_dir / "3_baseline_removal_of_processed_spectra.png",
                 "title": "Baseline removal (spectrum 0)"},
     freqs_hz=fper[0],
@@ -249,8 +256,8 @@ def main():
             s,
             window_length=base["sg_window"],
             polyorder=base["sg_poly"],
-            mode="additive",
-            subtract_one=False,
+            mode=mode_3,
+            subtract_one=(mode_3 == "multiplicative"),
         )
         proc.append(processed)
 
