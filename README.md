@@ -1,6 +1,6 @@
-# toy_m
-Axion Haloscope Analysis Pipeline 
-Goal: Develop a Python package that simulates and analyzes haloscope data inspired by the full chain described in Chapter 7 of the HAYSTAC thesis [1]. 
+# Fourier-based Observation of aXions
+aksk an Axion Haloscope Analysis Pipeline 
+Goal: Develop a Python package that simulates and analyzes haloscope data inspired by the full chain described in Ed Daw's thesis and Chapter 7 of the HAYSTAC thesis [1]. 
 
 The pipeline starts from raw power spectra (simulated Gaussian noise with optional axion signals) and produces a final exclusion limit plot.
 
@@ -9,10 +9,10 @@ The design is modular – each step of the analysis is encapsulated in separate 
 
 ### Setting up the code
 1. Downlowad the directory in your local area
->git clone https://github.com/ElenaGramellini/toy_m
+>git clone https://github.com/HALO-DM/FOX
 
 2. Make sure you  install all dependencies by
-going into the toy_m directory
+going into the FOX directory
 >pip install -e ".[dev]"
 
 
