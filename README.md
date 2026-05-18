@@ -193,3 +193,24 @@ https://www.researchgate.net/publication/386726876_First_results_from_a_microwav
 https://arxiv.org/abs/1801.00835
 [47] HAYSTAC axion search analysis procedure | Phys. Rev. D
 https://journals.aps.org/prd/abstract/10.1103/PhysRevD.96.123008
+
+
+### Unit tests
+Unit tests to check code issues: they protect the analysis pipeline from silent code mistakes.
+They do not prove the physics result!!!
+
+Examples:
+    
+    simulation.py → correct spectra and frequency grids
+    
+    io.py → saved HDF5/NPZ data reloads unchanged
+    
+    baseline.py → baseline removal returns finite spectra
+    
+    combine.py → overlapping bins combine correctly
+    
+    lineshape.py → SHM template is normalized
+    
+    detection.py → thresholds behave as expected
+    
+    data_quality.py → bad spectra are removed
