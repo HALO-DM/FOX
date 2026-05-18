@@ -214,3 +214,21 @@ Examples:
     detection.py → thresholds behave as expected
     
     data_quality.py → bad spectra are removed
+
+
+### I/O
+The current axion_haloscope/io.py supports a common I/O interface for simulated and real spectra through a SpectrumSet container.
+
+```
+SpectrumSet(
+    spectra=[...],                 # list of raw power spectra
+    freqs_per_spec=[...],   # frequency axis for each spectrum
+    rf_grid=...,                    # common global RF grid
+    rf_index_map=[...]      # maps each spectrum onto rf_grid
+)
+```
+
+
+The I/O module lets the rest of the analysis pipeline ignore where the data came from. 
+Whether the spectra are simulated, loaded from CSV, loaded from .npz, or loaded from HDF5, they all become the same object:  SpectrumSet
+
