@@ -263,6 +263,7 @@ No Detection Case (default): when no candidate survives, we proceed to set an ex
 
 
 
+## More nerdy bits
 
 ### Unit tests
 Unit tests to check code issues: they protect the analysis pipeline from silent code mistakes.
