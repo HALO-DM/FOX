@@ -26,23 +26,51 @@ going into the FOX directory
 ---
 ### Repository structure
 ```text
-my-axion-project/          <-- project root (where pyproject.toml lives)
-├── axion_haloscope/       <-- the Python package (imported in code/tests)␣␣
+
+FOX/                       <-- Project root (where pyproject.toml lives)
+├── .gitignore             <-- Extensions that are NOT uploaded to the github
+├── README.md              <-- Here we are :) 
+├── generate_tree.sh       <-- bash script to generate the repository structure
+├── pyproject.toml         <-- project configuration file for the "axion_haloscope" Python package
+├── axion_haloscope/                    <-- the Python package (imported in code/tests). This is where the classes live␣␣
 │   ├── __init__.py
-│   ├── simulation.py
 │   ├── baseline.py
+│   ├── bootstrapping.py
+│   ├── cli.py
+│   ├── cli_example.sh
 │   ├── combine.py
-│   ├── rebin.py
-│   ├── lineshape.py
+│   ├── config.py
+│   ├── data_quality.py
 │   ├── detection.py
+│   ├── external_noise.py
+│   ├── how_to_replace_lineshape.py
+│   ├── io.py
 │   ├── limit.py
-│   └── cli.py
-├── tests/                 <-- unit & integration tests
-├── scripts/               <-- <-- put run scripts here
-│   └── simulate_run.py    <-- NEW: end-to-end demo/runner
-├── output/                <-- generated results (gitignored)
-├── pyproject.toml
-└── README.md
+│   ├── lineshape.py
+│   ├── rebin.py
+│   ├── run_pipeline.py
+│   ├── simulation.py
+│   └── width_fq.py
+├── configs/                             <-- put your yaml configuration files here
+│   ├── simulate_run.yaml
+│   └── simulate_spectra_only.yaml
+├── scripts/                             <-- put run scripts here
+│   ├── full_chain_template.py
+│   ├── read_npz_pipeline.py
+│   ├── read_spectra_npz.py
+│   └── simulation/
+│   └── simulate_run.py
+├── output/                              <-- generated results from the scripts folder go here (gitignored)
+├── tests/                               <-- unit & integration tests
+    ├── test_combine.py
+    ├── test_data_quality.py
+    ├── test_detection.py
+    ├── test_io_hdf5.py
+    ├── test_lineshape.py
+    ├── test_simulation_plot.py
+    └── test_simulation_smoke.py
+└── test_output/                         <-- generated results of the unit tests (gitignored)
+
 ```
 
 
