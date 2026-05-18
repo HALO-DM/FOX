@@ -217,15 +217,34 @@ Note. We need to add a rescaling functionality to the code. Before combining, re
 
 ## Rebinning Horizontally into the Grand Spectrum (Axion Lineshape Integration)
 
-The grand spectrum is the final spectrum in which we search for axion peaks. It is constructed by combining adjacent bins of the combined spectrum in a way that optimizes sensitivity to the expected axion lineshape.
+After baseline removal and vertical combination, the analysis has one combined spectrum on a common RF grid which is still sampled at the original frequency bin width, for example 100 Hz. A real axion signal is expected to be broader than one bin -->  at GHz frequencies, the expected linewidth of the order of a few kHz. Therefore, the analysis combines neighboring bins using an expected axion signal template.
 
-Axion Signal Lineshape: Galactic axions have a characteristic frequency distribution (from their velocity dispersion in the Milky Way halo). In the HAYSTAC analysis, a standard virialized halo model was assumed, yielding a roughly Maxwellian broadened line on the order of Δν_a ~ a few kHz wide at ~5 GHz frequencies[24][23]. This width is tens of times larger than the 100 Hz bin size (Δν_a >> Δν_b). As a result, an axion signal would appear not in one bin but spread over many adjacent combined-spectrum bins with a specific shape (peaking at the axion’s rest frequency and tapering off).
-Grand Spectrum Construction: We choose a segment length K (number of combined bins to sum) comparable to the axion linewidth (K ≈ Δν_a/Δν_b)[25]. For each possible K-bin segment in the combined spectrum, we compute a weighted sum of those bins to produce one grand spectrum bin. As with vertical combination, we use ML weighting: we assign weights proportional to the expected signal contribution in each combined bin and inversely to its variance[23]. In practice, this means:
-First, rescale the combined bins in a segment so that a putative axion signal would contribute equally to each (i.e. divide by the expected lineshape value at each bin)[26]. This is analogous to the vertical rescaling: it “flattens” a true axion signal across the bins.
-Then, weight each bin by $1/\sigma^2_c$ (its noise variance) and sum to get the grand spectrum value for that segment[26]. This ML approach maximizes the SNR for a distributed signal of known shape[27], essentially performing a matched filter for the axion line.
-Our implementation in rebin.py might define construct_grand_spectrum(combined_spec, axion_lineshape) which outputs arrays for the grand spectrum values and their uncertainties. The axion_lineshape could be a function or template array giving the relative power fraction an axion signal would deposit in each of the K bins (normalized to unit total). For example, if we assume a simple Gaussian or Maxwellian profile for the axion signal in velocity space, this can be converted to a corresponding power spectral shape[28][29]. The code will allow different lineshape models (making it easy to test sensitivity to e.g. alternate halo models).
-Grand Spectrum Details: One must decide how to slide the K-bin window across the spectrum. HAYSTAC’s approach effectively yielded a grand spectrum bin for every combined bin, by considering overlapping segments (each grand bin offset by one from the previous)[25]. This ensures no sensitivity loss if an axion’s peak lies between segment boundaries. Our package can either produce a non-overlapping rebinned spectrum (faster, but one might miss signals on segment edges) or an overlapping one. By default, we adopt the overlapping approach: the grand spectrum will have nearly the same number of points as the combined spectrum (each grand bin centered on each combined bin frequency). The weighting takes into account partial signal contributions when an axion is offset from segment center[25]. (In practice, overlapping means the grand spectrum is correlated between points, but HAYSTAC found this correlation effect to be minor and accounted for it separately[30][31].)
-After this step, we have the grand spectrum δ^g(ν) with its noise σ^g(ν). If an axion of the assumed lineshape is present at frequency ν_0 with coupling corresponding to our normalization, the grand spectrum should contain a peak of height ~1 (in units of σ) at the bin corresponding to ν_0[24][27]. All bins of δ^g should be approximately standard normal noise (mean ~0, σ~1) in the absence of signal. This is the spectrum in which we apply threshold cuts to look for candidates.
+This is done in two steps:
+
+1. rebin.py rebins and constructs the grand spectrum.
+   groups neighboring frequency bins by a factor C + slides an axion signal template Lq across the rebinned spectrum and combines neighboring rebinned bins using maximum-likelihood weighting
+   
+2. lineshape.py provides the axion signal template used in the matched filter --> this is where we need to get the shape right from physics parameters. The code will allow different lineshape models (making it easy to test sensitivity to e.g. alternate halo models).
+
+
+# Grand Spectrum Construction and Calculation of the z-score
+When creating the Grand Specturm we have
+
+| Input    | Description                        |
+| -------- | ---------------------------------- |
+| `Dr`     | Rebinned spectrum.                 |
+| `sr`     | Uncertainty of each rebinned bin.  |
+| `Lq`     | Expected axion lineshape template. |
+
+| Output | Description                             |
+| ------ | --------------------------------------- |
+| `Dg`   | Grand spectrum.                         |
+| `sg`   | Uncertainty of each grand-spectrum bin. |
+
+The detection statistic is the grand-spectrum z-score: `z = Dg / sg`
+In noise-only data, this should be approximately Gaussian with mean 0 and standard deviation 1.
+Candidate axion signals are searched for as positive excesses in this z-score spectrum. This is the spectrum in which we apply threshold cuts to look for candidates.
+
 5. SNR Estimation and Candidate Selection (Thresholding & Rescan)
 With the grand spectrum in hand, we next determine which (if any) bins are significant outliers that could indicate an axion. We also quantify the sensitivity in terms of SNR and set thresholds to achieve a desired confidence level for exclusion.
 Signal-to-Noise Ratio (SNR): In haloscope analysis, the SNR of a potential axion is defined as the ratio of the expected signal power to the uncertainty (noise). Our construction normalized a KSVZ-model axion to have SNR = 1 in the grand spectrum if it were exactly at threshold coupling. However, typically experiments aim for a higher SNR target to claim detection. HAYSTAC chose a target such that a candidate would be noticeable with high probability. In the first run, they set a 5σ target SNR at 95% detection confidence[32][33]. In our package, we define target_snr (e.g. 5.0) and detection_confidence (e.g. 0.95) as parameters.
