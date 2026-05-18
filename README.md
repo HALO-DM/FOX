@@ -1,5 +1,5 @@
 # Fourier-based Observation of aXions
-aksk an Axion Haloscope Analysis Pipeline 
+an Axion Haloscope Analysis Pipeline 
 Goal: Develop a Python package that simulates and analyzes haloscope data inspired by the full chain described in Ed Daw's thesis and Chapter 7 of the HAYSTAC thesis [1]. 
 
 The pipeline starts from raw power spectra (simulated Gaussian noise with optional axion signals) and produces a final exclusion limit plot.
