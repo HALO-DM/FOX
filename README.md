@@ -127,7 +127,7 @@ sigma_hz     # Gaussian width
 total_power  # total injected power
 ```
 
-2. A **global RF grid** is built for the whole scan, including all overlapping spectra. Each individual spectrum is mapped onto this common RF grid with `rf_index_map`. ([GitHub][1])
+2. A **global RF grid** is built for the whole scan, including all overlapping spectra. Each individual spectrum is mapped onto this common RF grid with `rf_index_map`. 
 
 3. If `axion` is provided, the code builds `axion_power_global` over the full RF grid:
 
@@ -141,9 +141,7 @@ axion_power_global = inject_axion_power(
 ```
 
 That uses `axion_lineshape_gaussian()`, which computes
-[
-L(f) \propto \exp\left[-\frac{1}{2}\left(\frac{f-f_a}{\sigma_f}\right)^2\right]
-]
+$[L(f) \propto \exp\left[-\frac{1}{2}\left(\frac{f-f_a}{\sigma_f}\right)^2\right]]$
 and normalizes it so the discrete bin sum is 1. Then `total_power * L` gives the power deposited per RF bin.
 
 4. Each simulated raw spectrum is generated as baseline × noise/external background:
@@ -164,7 +162,7 @@ So the injection is **additive power injection after the receiver/noise baseline
 
 Notes and to-dos:
 
-`lineshape.py` defines the **SHM/Maxwellian template** used later for matched filtering in the grand spectrum. It maps the Standard Halo Model speed distribution into a one-sided frequency-space profile and normalizes it as a template. ([GitHub][2]) But the current `simulation.py` injection itself still uses the simpler **Gaussian** lineshape, not the SHM template.
+`lineshape.py` defines the **SHM/Maxwellian template** used later for matched filtering in the grand spectrum. It maps the Standard Halo Model speed distribution into a one-sided frequency-space profile and normalizes it as a template.  But the current `simulation.py` injection itself still uses the simpler **Gaussian** lineshape, not the SHM template.
 
 We assume the spectra are already calibrated to units of excess power (i.e. dimensionless “power above noise” units) for analysis convenience. We are working to change that. An initial normalization by the average noise power can be applied to each raw spectrum. 
 
