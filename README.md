@@ -93,16 +93,16 @@ pyproject.toml is the main project configuration file to setup and build Python 
         e.g. tells pytest where to look for tests
     
 
-### Analysis structure
+# Analysis structure
 Below we outline each stage of the analysis and how it is implemented:
 
-1. Simulated Power Spectrum Input
+## Simulated Power Spectrum Input
 We begin by generating synthetic power spectra that mimic haloscope data.
 Each spectrum represents the measured receiver power vs. frequency for a fixed tuning of the cavity, with:
 
-Gaussian noise corresponding to the thermal and amplifier noise (zero-mean fluctuations around a baseline power level).
+- Gaussian noise corresponding to the thermal and amplifier noise (zero-mean fluctuations around a baseline power level).
 
-Optional injected axion signals as narrow peaks on top of the noise (with known position and amplitude).
+- Optional injected axion signals as narrow peaks on top of the noise (with known position and amplitude).
 
 Each spectrum is typically discretized into bins of width Δν (e.g. 100 Hz) and spans a small frequency range [given by the number of bins -- configurable].  In a real run, many such spectra are taken at adjacent cavity tunings to cover a broader frequency range. 
 
