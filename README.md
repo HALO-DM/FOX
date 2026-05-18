@@ -74,9 +74,26 @@ FOX/                       <-- Project root (where pyproject.toml lives)
 ```
 
 
+### A word on pyproject.toml
+pyproject.toml is the main project configuration file to setup and build Python package. Here we define:
 
+    1. How to build/install the package:
+    
+    2. The package metadata
+    
+    3. Python and dependency requirements
+        When you run the "pip install -e ".[dev]" command, pip reads this file and installs those dependencies
+        
+    4. Optional development tools
+    
+    5. Command-line tools 
+        e.g. create the shell command "axion-haloscope" that creates that runs axion_haloscope/cli.py
+        
+    6. Pytest configuration 
+        e.g. tells pytest where to look for tests
+    
 
-
+### Analysis structure
 Below we outline each stage of the analysis and how it is implemented:
 1. Simulated Power Spectrum Input
 We begin by generating synthetic power spectra that mimic haloscope data. 
