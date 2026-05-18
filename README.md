@@ -95,27 +95,78 @@ pyproject.toml is the main project configuration file to setup and build Python 
 
 ### Analysis structure
 Below we outline each stage of the analysis and how it is implemented:
+
 1. Simulated Power Spectrum Input
-We begin by generating synthetic power spectra that mimic haloscope data. 
+We begin by generating synthetic power spectra that mimic haloscope data.
 Each spectrum represents the measured receiver power vs. frequency for a fixed tuning of the cavity, with:
+
 Gaussian noise corresponding to the thermal and amplifier noise (zero-mean fluctuations around a baseline power level).
-Optional injected axion signals as narrow peaks on top of the noise (with known position and amplitude). 
-These simulate the excess power an axion would produce via resonant conversion in the cavity.
-Each spectrum is typically discretized into bins of width Δν (e.g. 100 Hz) and spans a small frequency range [add range]. 
-In a real run, many such spectra are taken at adjacent cavity tunings to cover a broader frequency range [2]. 
+
+Optional injected axion signals as narrow peaks on top of the noise (with known position and amplitude).
+
+Each spectrum is typically discretized into bins of width Δν (e.g. 100 Hz) and spans a small frequency range [given by the number of bins -- configurable].  In a real run, many such spectra are taken at adjacent cavity tunings to cover a broader frequency range. 
 
 Our simulation allows configuring parameters such as:
-
-
+```
 number of spectra, 
 noise level, 
 bin width, 
 injected signal properties: frequency
 injected signal properties: strength
-Implementation: A module (e.g. simulation.py) provides functions to create synthetic spectra. For example, simulate_spectra(n_spectra, n_bins, axion_params=None) returns a list of n_spectra arrays each with n_bins of Gaussian random values representing noise power. If axion_params (mass/coupling) is given, a Lorentzian-like peak or appropriate distribution is added to one spectrum to represent the axion signal shape (more on axion lineshape in Step 3 below).
-Note: We assume the spectra are already calibrated to units of excess power (i.e. dimensionless “power above noise” units) for analysis convenience. 
-If not, an initial normalization by the average noise power can be applied to each raw spectrum[3][4]. 
-In HAYSTAC, each spectrum came from ~15 minutes of data with 100 Hz resolution[2] – our simulation can use similar settings to produce a realistic toy dataset.
+```
+
+In `simulation.py`, the injected signal is currently a **Gaussian axion-like line added directly in RF frequency space**.
+
+The injection flow is:
+
+1. `AxionParams` defines the fake signal:
+
+```python
+f_axion_hz   # center frequency
+sigma_hz     # Gaussian width
+total_power  # total injected power
+```
+
+2. A **global RF grid** is built for the whole scan, including all overlapping spectra. Each individual spectrum is mapped onto this common RF grid with `rf_index_map`. ([GitHub][1])
+
+3. If `axion` is provided, the code builds `axion_power_global` over the full RF grid:
+
+```python
+axion_power_global = inject_axion_power(
+    rf_grid,
+    axion.f_axion_hz,
+    axion.sigma_hz,
+    axion.total_power
+)
+```
+
+That uses `axion_lineshape_gaussian()`, which computes
+[
+L(f) \propto \exp\left[-\frac{1}{2}\left(\frac{f-f_a}{\sigma_f}\right)^2\right]
+]
+and normalizes it so the discrete bin sum is 1. Then `total_power * L` gives the power deposited per RF bin.
+
+4. Each simulated raw spectrum is generated as baseline × noise/external background:
+
+```python
+raw = baseline * (external + noise)
+```
+
+5. The relevant slice of the global axion signal is then added to each spectrum:
+
+```python
+raw = raw + axion_power_global[idx]
+```
+
+where `idx = rf_index_map[i]`, so each tuning only receives the part of the signal that lies inside its frequency coverage. 
+
+So the injection is **additive power injection after the receiver/noise baseline is generated**.
+
+Notes and to-dos:
+
+`lineshape.py` defines the **SHM/Maxwellian template** used later for matched filtering in the grand spectrum. It maps the Standard Halo Model speed distribution into a one-sided frequency-space profile and normalizes it as a template. ([GitHub][2]) But the current `simulation.py` injection itself still uses the simpler **Gaussian** lineshape, not the SHM template.
+
+We assume the spectra are already calibrated to units of excess power (i.e. dimensionless “power above noise” units) for analysis convenience. We are working to change that. An initial normalization by the average noise power can be applied to each raw spectrum. 
 
 
 2. Baseline Removal with Savitzky–Golay Filter
