@@ -30,9 +30,9 @@ going into the FOX directory
 FOX/                       <-- Project root (where pyproject.toml lives)
 ├── .gitignore             <-- Extensions that are NOT uploaded to the github
 ├── README.md              <-- Here we are :) 
-├── generate_tree.sh       <-- bash script to generate the repository structure
+├── generate_tree.sh       <-- bash script to generate a printout of the repository structure
 ├── pyproject.toml         <-- project configuration file for the "axion_haloscope" Python package
-├── axion_haloscope/                    <-- the Python package (imported in code/tests). This is where the classes live␣␣
+├── axion_haloscope/       <-- the Python package (imported in code/tests). This is where the classes live
 │   ├── __init__.py
 │   ├── baseline.py
 │   ├── bootstrapping.py
