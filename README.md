@@ -172,7 +172,7 @@ Each raw spectrum contains a baseline – a smooth background from the receiver 
 
 `baseline.py` does two main things:
 
-1., `remove_baseline()` estimates and removes the smooth background shape of a spectrum. If no external baseline is supplied, it builds one with a Savitzky–Golay filter. Then it either removes it multiplicatively,
+First, `remove_baseline()` estimates and removes the smooth background shape of a spectrum. If no external baseline is supplied, it builds one with a Savitzky–Golay filter. Then it either removes it multiplicatively,
 
 ```python
 processed = spectrum / baseline
@@ -193,16 +193,28 @@ Notes: the Savitzky–Golay Filtering fits a low-order polynomial to a moving wi
 
 
 
+##  Combining Spectra Vertically (Maximum-Likelihood Weighting)
+This step combines many baseline-removed spectra into one common RF spectrum. Each measured spectrum covers a small frequency range. Neighboring spectra overlap because the cavity is tuned in small steps.
 
-3. Combining Spectra Vertically (Maximum-Likelihood Weighting)
-After baseline removal, we have a set of processed spectra (one per tuning step), each largely flat and dominated by Gaussian noise. The next step is to combine these spectra into one continuous spectrum covering the full frequency range of the scan. However, adjacent spectra often overlap in frequency (haloscopes typically tune in small increments, causing some frequencies to be measured multiple times)[13]. We must merge overlapping regions optimally to maximize sensitivity.
-HAYSTAC introduced a maximum-likelihood (ML) weighted sum for this vertical combination[1][13]. The idea is to weight each contributing data point by its inverse variance, which is the optimal weighting to estimate a common mean (in this case, the true signal power) when different measurements have different noise levels[14].
-Procedure: For each frequency bin in the combined frequency axis (the “RF bin” $k$ in HAYSTAC notation[15]):
-Gather all processed spectral bins from any spectrum that fall into that frequency (these are the overlapping measurements of the same frequency). Each such bin $δ^p_{ij}$ has some noise variance σ². In our simulation, if all spectra have equal noise, the variance is roughly uniform; but differences in receiver noise or integration time could make some spectra noisier than others (our code will allow each spectrum to carry its own noise variance).
-Rescaling: Before combining, rescale each spectrum so that a potential axion signal of a given coupling would produce the same expected amplitude in all spectra[16][4]. This is crucial because, in a real experiment, an axion converted in one spectrum might produce slightly different power than in another (due to varying cavity coupling, quality factor, noise temperature, etc.). HAYSTAC computed a scale factor $R_{ij}$ for each spectrum bin based on the expected signal power $P_{ij}$ at that frequency and the noise temperature $T_{ij}$[17][4]. Our package will similarly allow an optional calibration function to compute $P_{ij}$ (using cavity parameters and assumed axion coupling). For simplicity in simulation, we can assume all spectra have identical sensitivity, so this rescaling becomes uniform; but the framework supports non-uniform rescaling if needed. After rescaling, an axion of a given coupling would appear with the same mean amplitude in every spectrum’s processed data[17], justifying a common weighting scheme.
-ML Weighted Sum: We assign each contributing bin a weight $w_{ij} \propto 1/\sigma^2_{ij}$ (the inverse noise variance)[14]. If all spectra have equal noise, this reduces to a simple average. The combined spectrum value at that frequency is then $$\delta^c_k = \frac{\sum_{i,j} w_{ij}\,\delta^p_{ij}}{\sum_{i,j} w_{ij}}\ ,$$ i.e. the weighted mean of all overlapping processed measurements[18]. This yields the combined spectrum δ^c with maximum likelihood estimation of the true power excess in each frequency bin[14][18]. The uncertainty (standard deviation) of each combined bin is $σ^c_k = \left(\sum_{i,j}w_{ij}\right)^{-1/2}$ (since we normalized weights)[19][20]. In effect, the combined noise level improves as we integrate more spectra, and frequencies covered by more spectra (or lower-noise spectra) get a lower $σ^c$ (better sensitivity).
-This procedure is modular: our combine.py module can implement combine_spectra(processed_list) which takes a list of processed spectra (with associated frequency axes and noise variances) and returns a single combined spectrum. It will handle the necessary bookkeeping of overlaps. We may use numpy weighted averages for implementation. The module can also output the combined noise profile $σ^c(\nu)$.
-Outcome: The combined spectrum covers the whole tuning range (e.g. 5.6–5.8 GHz in HAYSTAC run 1) with improved sensitivity. It is expressed in units of normalized excess power where an axion (of the chosen normalization coupling) would have a mean value of 1 in its bins[21]. At this stage, any real axion signal confined to a single frequency bin would stand out as a 1-σ mean excess of +1 in one bin of δ^c (in expectation)[21]. However, a physical axion signal is spread over multiple bins (the axion’s linewidth is much broader than Δν=100 Hz). Therefore, we proceed to combine bins horizontally.
+`combine.py` takes all processed spectra and places them onto a shared RF frequency grid.
+
+Where more than one spectrum contributes to the same RF bin, the code averages them using inverse-variance weighting. Main function:
+
+```python
+from axion_haloscope.combine import combine_ml
+
+combined, sigma_c, counts = combine_ml(
+    processed_spectra,
+    rf_index_map,
+    total_rf_bins=len(rf_grid),
+)
+
+
+
+Note. We need to add a rescaling functionality to the code. Before combining, rescale each spectrum so that a potential axion signal of a given coupling would produce the same expected amplitude in all spectra. In a real experiment, an axion converted in one spectrum might produce slightly different power than in another (due to varying expected signal power from B field, system noise temperature, integration time)
+
+
+
 4. Rebinning Horizontally into the Grand Spectrum (Axion Lineshape Integration)
 The grand spectrum is the final spectrum in which we search for axion peaks. It is constructed by combining adjacent bins of the combined spectrum in a way that optimizes sensitivity to the expected axion lineshape[22][23].
 Axion Signal Lineshape: Galactic axions have a characteristic frequency distribution (from their velocity dispersion in the Milky Way halo). In the HAYSTAC analysis, a standard virialized halo model was assumed, yielding a roughly Maxwellian broadened line on the order of Δν_a ~ a few kHz wide at ~5 GHz frequencies[24][23]. This width is tens of times larger than the 100 Hz bin size (Δν_a >> Δν_b). As a result, an axion signal would appear not in one bin but spread over many adjacent combined-spectrum bins with a specific shape (peaking at the axion’s rest frequency and tapering off).
