@@ -209,7 +209,7 @@ combined, sigma_c, counts = combine_ml(
     total_rf_bins=len(rf_grid),
 )
 
-
+```
 
 Note. We need to add a rescaling functionality to the code. Before combining, rescale each spectrum so that a potential axion signal of a given coupling would produce the same expected amplitude in all spectra. In a real experiment, an axion converted in one spectrum might produce slightly different power than in another (due to varying expected signal power from B field, system noise temperature, integration time)
 
