@@ -215,8 +215,10 @@ Note. We need to add a rescaling functionality to the code. Before combining, re
 
 
 
-4. Rebinning Horizontally into the Grand Spectrum (Axion Lineshape Integration)
-The grand spectrum is the final spectrum in which we search for axion peaks. It is constructed by combining adjacent bins of the combined spectrum in a way that optimizes sensitivity to the expected axion lineshape[22][23].
+## Rebinning Horizontally into the Grand Spectrum (Axion Lineshape Integration)
+
+The grand spectrum is the final spectrum in which we search for axion peaks. It is constructed by combining adjacent bins of the combined spectrum in a way that optimizes sensitivity to the expected axion lineshape.
+
 Axion Signal Lineshape: Galactic axions have a characteristic frequency distribution (from their velocity dispersion in the Milky Way halo). In the HAYSTAC analysis, a standard virialized halo model was assumed, yielding a roughly Maxwellian broadened line on the order of Δν_a ~ a few kHz wide at ~5 GHz frequencies[24][23]. This width is tens of times larger than the 100 Hz bin size (Δν_a >> Δν_b). As a result, an axion signal would appear not in one bin but spread over many adjacent combined-spectrum bins with a specific shape (peaking at the axion’s rest frequency and tapering off).
 Grand Spectrum Construction: We choose a segment length K (number of combined bins to sum) comparable to the axion linewidth (K ≈ Δν_a/Δν_b)[25]. For each possible K-bin segment in the combined spectrum, we compute a weighted sum of those bins to produce one grand spectrum bin. As with vertical combination, we use ML weighting: we assign weights proportional to the expected signal contribution in each combined bin and inversely to its variance[23]. In practice, this means:
 First, rescale the combined bins in a segment so that a putative axion signal would contribute equally to each (i.e. divide by the expected lineshape value at each bin)[26]. This is analogous to the vertical rescaling: it “flattens” a true axion signal across the bins.
@@ -239,41 +241,9 @@ In our code, after determining no detections, we compute for each grand spectrum
 Output Data and Plot: The final output includes the array of $g_{\min}$ vs frequency. The package can save this to a CSV file and also produce a plot similar to Fig. 7.9 of the HAYSTAC thesis. This plot shows the exclusion line over the scanned frequency range, with any gaps or degraded regions indicated, along with a band indicating systematic uncertainty.
 Example output plot: 95% confidence exclusion limit on $|g_{a\gamma\gamma}|$ vs frequency (simulated). The green line is the upper limit achieved by the analysis – any axion with coupling above this line at those frequencies is excluded at 95% CL. The light green shaded band is the $\pm1σ$ uncertainty region (here ~4% uncertainty from calibration of noise power, similar to HAYSTAC[38]). The large notch at ~5.704 GHz reflects a frequency range where the experiment had no sensitivity (e.g. a parasitic cavity mode caused data to be cut[42]). Narrow notches show frequencies where synthetic axion signals were injected for calibration and subsequently removed from the data[43][44]. The inset (if included) would compare this result (green) with previous experiments (magenta, blue, cyan) and the theoretical axion model band (yellow)[42], as in the HAYSTAC publication.
 From this plot, one can quote the limit. For example, in this simulated first run, we exclude $|g_{a\gamma\gamma}| \gtrsim 2\times10^{-14}$ GeV$^{-1}$ (about 2–3 times the KSVZ benchmark) over the 5.6–5.8 GHz range[45][38]. Any would-be axion in that range with stronger coupling is ruled out with 95% confidence by our analysis.
-Modular Package Design and Usage
-We emphasize that each part of this analysis is modular and reusable. The code is structured as a Python package (e.g. axion_haloscope_analysis) with submodules corresponding to each major step:
-simulation.py – Functions to generate synthetic spectra or to ingest real spectral data. Allows configuration of noise level, bin width, number of spectra, injected signals, etc.
-baseline.py – Implements baseline removal (Savitzky–Golay filter). e.g. remove_baseline(spec, window, poly) returns a baseline-flattened spectrum. This module also contains utilities for identifying and masking bad bins (like known RFI spikes) before combination.
-combine.py – Functions for vertical combination of spectra. For example, combine_spectra(spec_list) takes a list of processed spectra and produces the combined spectrum with ML weighting[14][18]. It handles frequency alignment and weight calculations (assuming each spectrum object carries information about its noise or uses internal estimates).
-rebin.py – Tools for horizontal rebinning. It might define axion_lineshape = compute_lineshape(v_dispersion, ... ) to get the template shape, and construct_grand_spectrum(combined_spec, lineshape) to perform the matched filtering (ML horizontal sum)[23]. This yields the grand spectrum ready for thresholding.
-detection.py – Contains the logic for SNR calculation, threshold setting, and candidate identification. For instance, threshold = determine_threshold(confidence=0.95, target_snr=5) computes the cut Θ[46]. find_candidates(grand_spec, threshold) returns candidate indices. If rescan is enabled, rescan_and_confirm(candidates, data) will simulate additional data for each and re-check the grand spectrum (possibly using functions in the above modules).
-limit.py – Functions to compute the coupling exclusion limit once the analysis is complete. For example, compute_limit(grand_spec, noise, target_snr) applies the relationship $g_{\min}(ν) \propto \sqrt{\text{target SNR}}$ (accounting for any frequency-dependent noise or missing data). Also includes plot_limit(frequencies, g_min, uncertainty) to create a publication-quality plot of the exclusion line. We utilize matplotlib for plotting.
-Each module is documented with clear docstrings and usage examples, facilitating understanding. For instance, the docstring of remove_baseline will explain the SG filter method and note the impact on signal amplitude (so users can adjust poly_order/window_length or apply an SNR correction factor as needed).
-The package is designed such that one can easily swap in real data for the simulation. Real spectra (after appropriate calibration) can be fed into the combine_spectra function directly. The modular design also means improvements can be made in one part (say, using a more sophisticated filter or a Bayesian weights method) without altering the rest of the chain, as long as the interface (input/output formats) remains consistent.
-Conclusion
-We have outlined a comprehensive Python package for axion haloscope data analysis, faithfully implementing the steps from HAYSTAC’s thesis Chapter 7:
-We simulate power spectra with noise and possible axion signals,
-remove noise baselines with Savitzky–Golay filtering[7],
-combine multiple spectra with maximum-likelihood weighting[1],
-rebin and filter the combined spectrum according to the axion signal lineshape[23],
-identify candidates with a threshold that guarantees 95% detection efficiency[46],
-and finally set a 95% CL exclusion limit on the axion coupling across the scanned frequencies[38].
-Throughout, we provide flexibility (rescan handling, tunable filter parameters) and clear documentation. This modular toolkit not only serves simulated studies (e.g. to validate analysis or optimize parameters) but can be adapted to real haloscope data, helping the community apply a proven analysis framework (HAYSTAC/ADMX-style) to new axion search experiments[1]. The end result – as visualized in our example plot – is a scientifically informative limit on axion presence, which can be directly compared against theoretical models and other experiments’ results, all obtained with a well-structured, reproducible analysis pipeline.
-Sources: This design is based on the HAYSTAC collaboration’s described procedure[47][1] and subsequent refinements in the literature.
 
-[1] [2] [3] [4] [6] [8] [9] [11] [12] [13] [14] [15] [16] [17] [18] [19] [20] [21] [22] [23] [24] [25] [26] [27] [28] [29] [30] [31] [32] [33] [34] [35] [36] [37] [39] [40] [41] [46] link.aps.org
-https://link.aps.org/accepted/10.1103/PhysRevD.96.123008
-[5] [7] arxiv.org
-https://arxiv.org/pdf/2503.04288
-[10] (PDF) First Results from an Axion Haloscope at CAPP around 10.7 μ eV
-https://www.researchgate.net/publication/351536043_First_Results_from_an_Axion_Haloscope_at_CAPP_around_107_m_eV
-[38] [43] [44] Our exclusion limit at 90% confidence. The light green shaded region is... | Download Scientific Diagram
-https://www.researchgate.net/figure/Our-exclusion-limit-at-90-confidence-The-light-green-shaded-region-is-a-1s-error-band_fig3_386726876
-[42] (PDF) First results from a microwave cavity axion search at 24 micro-eV
-https://www.researchgate.net/publication/386726876_First_results_from_a_microwave_cavity_axion_search_at_24_micro-eV
-[45] [1801.00835] First results from the HAYSTAC axion search
-https://arxiv.org/abs/1801.00835
-[47] HAYSTAC axion search analysis procedure | Phys. Rev. D
-https://journals.aps.org/prd/abstract/10.1103/PhysRevD.96.123008
+
+
 
 
 ### Unit tests
