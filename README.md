@@ -227,7 +227,7 @@ This is done in two steps:
 2. lineshape.py provides the axion signal template used in the matched filter --> this is where we need to get the shape right from physics parameters. The code will allow different lineshape models (making it easy to test sensitivity to e.g. alternate halo models).
 
 
-# Grand Spectrum Construction and Calculation of the z-score
+### Grand Spectrum Construction and Calculation of the z-score
 When creating the Grand Specturm we have
 
 | Input    | Description                        |
@@ -263,7 +263,7 @@ No Detection Case (default): when no candidate survives, we proceed to set an ex
 
 
 
-## More nerdy bits
+# More nerdy bits
 
 ### Unit tests
 Unit tests to check code issues: they protect the analysis pipeline from silent code mistakes.
