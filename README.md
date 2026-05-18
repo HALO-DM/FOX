@@ -141,7 +141,7 @@ axion_power_global = inject_axion_power(
 ```
 
 That uses `axion_lineshape_gaussian()`, which computes
-$[L(f) \propto \exp\left[-\frac{1}{2}\left(\frac{f-f_a}{\sigma_f}\right)^2\right]]$
+$L(f) \propto \exp\left[-\frac{1}{2}\left(\frac{f-f_a}{\sigma_f}\right)^2\right]$
 and normalizes it so the discrete bin sum is 1. Then `total_power * L` gives the power deposited per RF bin.
 
 4. Each simulated raw spectrum is generated as baseline × noise/external background:
@@ -167,13 +167,33 @@ Notes and to-dos:
 We assume the spectra are already calibrated to units of excess power (i.e. dimensionless “power above noise” units) for analysis convenience. We are working to change that. An initial normalization by the average noise power can be applied to each raw spectrum. 
 
 
-2. Baseline Removal with Savitzky–Golay Filter
-Each raw spectrum contains a baseline – a smooth background from the receiver noise that may have a frequency dependence (e.g. the cavity’s Lorentzian response or gain variations)[5]. To reliably detect tiny axion peaks, we must remove this baseline so that the remaining spectrum is flattened to fluctuations around zero. We achieve this using a Savitzky–Golay (SG) filter, as done in the HAYSTAC analysis[6].
-Savitzky–Golay Filtering: This filter fits a low-order polynomial to a moving window of the spectrum and subtracts the fitted “smooth” curve, removing variations broader than the window width[7]. It preserves narrow spectral features (like potential axion peaks) while filtering out slower baseline drifts. In practice, we choose a window length W (in bins) larger than the expected width of any axion signal, and a polynomial order d (low order to capture baseline shape without fitting peaks)[8]. This approach requires no specific model of the baseline, making it robust and efficient for background subtraction[7].
-Example: HAYSTAC used an SG filter of length W = 500 bins and polynomial order d = 4 for their initial scan[9]. This means each point in the spectrum was replaced by a 4th-order polynomial fit over a 500-bin window centered on that point, effectively removing structures broader than ~500 bins (50 kHz for 100 Hz bins) while leaving narrower spikes intact. Our code will allow adjusting these parameters (window_length and poly_order) as needed.
-Signal Attenuation: The SG filter inevitably attenuates some fraction of any real signal because a small peak can be partially fit away by the polynomial. However, if the window is large compared to the peak width, attenuation is modest. In fact, a well-tuned Savitzky–Golay filter can retain around 85% of the signal-to-noise ratio (SNR) of an ideal flat baseline[10]. (HAYSTAC quantified and corrected for a small (~5–15%) reduction in axion signal height due to filtering[10].) Our package documentation will note this effect, and we include options to estimate or correct for SG-induced signal loss (see Step 5).
-Implementation: The baseline.py module provides a function like remove_baseline(spectrum, window_length, poly_order) that returns the processed spectrum with the baseline removed. We leverage scipy.signal.savgol_filter for an efficient implementation of the SG filter. The function will subtract the SG smooth fit from the original spectrum and then typically normalize by the fit (so that the baseline-subtracted spectrum is dimensionless, fluctuating around 0). In formula form, if $P(\nu)$ is the raw power and $B(\nu)$ is the SG baseline fit, we produce $\delta^p(\nu) = P(\nu)/B(\nu) - 1$[3]. This yields a processed spectrum δ^p with zero mean and unit variance (approximately), where any axion signal would appear as a positive excess. All spectra are processed identically.
-We also include options to mask or cut known bad bins (e.g. if certain frequencies are contaminated by instrumental interference). HAYSTAC, for instance, identified and removed bins with spurious spikes (IF interference, etc.) before further analysis[11][12]. Our package can accept a list of frequencies or indices to cut from each spectrum after baseline removal (setting them to 0 or NaN so they don’t contribute later).
+## Baseline Removal with Savitzky–Golay Filter
+Each raw spectrum contains a baseline – a smooth background from the receiver noise that may have a frequency dependence (e.g. the cavity’s Lorentzian response or gain variations). To reliably detect tiny axion peaks, we must remove this baseline so that the remaining spectrum is flattened to fluctuations around zero.
+
+`baseline.py` does two main things:
+
+1., `remove_baseline()` estimates and removes the smooth background shape of a spectrum. If no external baseline is supplied, it builds one with a Savitzky–Golay filter. Then it either removes it multiplicatively,
+
+```python
+processed = spectrum / baseline
+```
+
+or additively,
+
+```python
+processed = spectrum - baseline
+```
+
+depending on `mode`. It can also subtract 1 afterward, and it supports a diagnostic plot with two panels: raw + SG baseline on top, processed spectrum below. 
+
+Second, it has helper utilities: `align_and_average_spectra()` aligns several spectra onto a common x-axis and averages them, while `mask_bins()` masks selected bins either by explicit indices or by frequency ranges --> allows to cut known bad bins (e.g. if certain frequencies are contaminated by instrumental interference). 
+
+
+Notes: the Savitzky–Golay Filtering fits a low-order polynomial to a moving window of the spectrum and subtracts the fitted “smooth” curve, removing variations broader than the window width. It preserves narrow spectral features (like potential axion peaks) while filtering out slower baseline drifts. In practice, we choose a window length W (in bins) larger than the expected width of any axion signal, and a polynomial order d (low order to capture baseline shape without fitting peaks). This approach requires no specific model of the baseline. To-do: implement safe-guards to SGF number of bins, quantify the power attenuation given due to the filter.
+
+
+
+
 3. Combining Spectra Vertically (Maximum-Likelihood Weighting)
 After baseline removal, we have a set of processed spectra (one per tuning step), each largely flat and dominated by Gaussian noise. The next step is to combine these spectra into one continuous spectrum covering the full frequency range of the scan. However, adjacent spectra often overlap in frequency (haloscopes typically tune in small increments, causing some frequencies to be measured multiple times)[13]. We must merge overlapping regions optimally to maximize sensitivity.
 HAYSTAC introduced a maximum-likelihood (ML) weighted sum for this vertical combination[1][13]. The idea is to weight each contributing data point by its inverse variance, which is the optimal weighting to estimate a common mean (in this case, the true signal power) when different measurements have different noise levels[14].
