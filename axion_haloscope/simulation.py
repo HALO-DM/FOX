@@ -156,7 +156,7 @@ def simulate_spectra(
 
         spectra.append(raw.astype(np.float64))
 
-    return spectra, freqs_per_spec, rf_grid, rf_index_map, axion_power_global
+    return spectra, freqs_per_spec, rf_grid, rf_index_map
 
 # --- Minimal demo (optional) ---
 if __name__ == "__main__":
