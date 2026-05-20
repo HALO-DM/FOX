@@ -11,6 +11,7 @@ def remove_baseline(
     polyorder: int = 4,
     mode: str = "multiplicative",
     subtract_one: bool = False,
+    add_one: Optional[bool] = None,
     diagnostic: Optional[Union[bool, Dict]] = None,
     freqs_hz: Optional[np.ndarray] = None,
     baseline: Optional[np.ndarray] = None,
@@ -33,6 +34,8 @@ def remove_baseline(
         raise ValueError("Please select either Additive or Multiplicative Baseline Removal")
     if subtract_one:
         processed = processed - 1.0
+    if add_one:
+        processed = processed + 3.0
 
     # --- optional diagnostics
     if diagnostic:
