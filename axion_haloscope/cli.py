@@ -74,7 +74,14 @@ def main():
     proc = [remove_baseline(s, window_length=args.sg_window, polyorder=args.sg_poly)[0] for s in spectra]
 
     # 3) vertical ML combine
-    combined, sigma_c, counts = combine_ml(proc, rf_map, total_rf_bins=len(rf_grid))
+    combined, sigma_c, counts = combine_ml(
+        proc,
+        rf_map,
+        total_rf_bins=len(rf),
+        lorentzian_weight=False,
+        lorentz_params=None,
+        spec_freqs=None,
+    )
 
     # 4) rebin & SHM matched filter
     Dr, sr, _ = rebin_ml(combined, sigma_c, C=args.rebin_C)

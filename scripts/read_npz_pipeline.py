@@ -76,7 +76,14 @@ def main():
         proc.append(p_s)
 
     # --- Vertical ML combine ---
-    combined, sigma_c, counts = combine_ml(proc, sset.rf_index_map, total_rf_bins=len(sset.rf_grid))
+    combined, sigma_c, counts = combine_ml(
+        proc,
+        sset.rf_index_map,
+        total_rf_bins=len(sset.rf_grid),
+        lorentzian_weight=False,
+        lorentz_params=None,
+        spec_freqs=None,
+    )
 
     # Quick plot: combined spectrum
     plt.figure(figsize=(10,3))
