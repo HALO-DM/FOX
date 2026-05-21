@@ -12,23 +12,23 @@ def combine_ml(
     Put all spectra on the common RF grid and ML-average overlaps.
     Returns combined, sigma (1/sqrt(sum w)), and counts per RF bin.
     """
-    combined = np.zeros(total_rf_bins, float)
-    wsum     = np.zeros(total_rf_bins, float)
-    counts   = np.zeros(total_rf_bins, int)
+    combined = np.zeros(total_rf_bins, float) # Initialise arrays to hold the combined spectrum
+    wsum     = np.zeros(total_rf_bins, float) # the sum of weights
+    counts   = np.zeros(total_rf_bins, int) # and the count of contributions
 
-    if per_spec_sigma is None:
+    if per_spec_sigma is None: # If no sigma provided, use std
         per_spec_sigma = [max(np.std(s), 1e-6) for s in processed_spectra]
 
     for s, idx, sig in zip(processed_spectra, rf_index_map, per_spec_sigma):
-        w = 1.0 / (sig*sig)
-        combined[idx] += w * s
-        wsum[idx]     += w
-        counts[idx]   += 1
+        w = 1.0 / (sig*sig) # Weight is inverse variance
+        combined[idx] += w * s # Add the weighted spectrum to the combined array
+        wsum[idx]     += w 
+        counts[idx]   += 1 
 
     nz = wsum > 0
-    out = np.zeros_like(combined)
-    out[nz] = combined[nz] / wsum[nz]
+    out = np.zeros_like(combined) 
+    out[nz] = combined[nz] / wsum[nz] # output weighted average
 
     sigma = np.full_like(combined, np.inf)
-    sigma[nz] = np.sqrt(1.0 / wsum[nz])
+    sigma[nz] = np.sqrt(1.0 / wsum[nz]) # uncertainty of the weighted average
     return out, sigma, counts
