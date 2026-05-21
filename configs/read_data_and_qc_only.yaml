@@ -1,0 +1,6 @@
+quality:
+  enabled: true      # run QC filtering step
+  mode: "too_noisy"  # which predicate to use
+  rms_max: 3.0       # max RMS allowed
+  nan_fail: true     # drop spectra with NaNs/inf
+  robust: true       # use median+MAD instead of mean+std
