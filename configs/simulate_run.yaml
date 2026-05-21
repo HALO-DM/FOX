@@ -22,7 +22,7 @@ quality:
 
 
 baseline:
-  sg_window: 401
+  sg_window: 1001
   sg_poly: 4
 
 rebin:

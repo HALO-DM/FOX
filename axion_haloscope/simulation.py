@@ -4,7 +4,7 @@ import numpy as np
 from dataclasses import dataclass
 from typing import List, Tuple, Optional
 
-from axion_haloscope.external_noise import external_noise
+from axion_haloscope.noise import external_noise
 
 @dataclass
 class AxionParams:
@@ -145,10 +145,10 @@ def simulate_spectra(
         baseline = simulate_baseline(
             n_bins, rng, amplitude=baseline_amp, corr_bins=baseline_corr_bins
         )
-        noise = rng.normal(0.0, noise_sigma, size=n_bins)
+        white_noise = rng.normal(0.0, noise_sigma, size=n_bins)
         external = external_noise(freqs_per_spec[i], f_start_hz, f_range, baseline_key)
-        raw = baseline * (external + noise)  # multiplicative-ish receiver response
-
+        #raw = baseline * (external + white_noise)  # multiplicative-ish receiver response
+        raw = (external + white_noise)
         # Add the portion of axion power that falls within this spectrum’s RF slice
         idx = rf_index_map[i]
         if axion is not None:
@@ -161,7 +161,7 @@ def simulate_spectra(
 # --- Minimal demo (optional) ---
 if __name__ == "__main__":
     ax = AxionParams(f_axion_hz=5.705e9, sigma_hz=2500.0, total_power=20.0)
-    specs, f_per, rf, idx_map = simulate_spectra(
+    specs, f_per, rf, idx_map, ax_power_dist = simulate_spectra(
         n_spectra=10, n_bins=4000, bin_width_hz=100.0,
         f_start_hz=5.70e9, tune_step_bins=80,
         noise_sigma=1.0, rng_seed=1, axion=ax
