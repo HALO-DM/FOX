@@ -33,13 +33,15 @@ htmlcov/
 # Jupyter notebooks
 .ipynb_checkpoints/
 
-# Project outputs
+# Project outputs and input
 /output/*
+/input/*
 /trash/
 /test_output/*
 artifacts/
 *.png
 *.csv
+*.hdf5
 
 # Logs
 *.log
