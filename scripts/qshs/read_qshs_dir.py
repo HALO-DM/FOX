@@ -32,7 +32,7 @@ def main():
     )
     p.add_argument(
         "--save-fox-h5",
-        action="store_true",
+        action="store_false",
         help="Save merged SpectrumSet as FOX-native spectra.h5.",
     )
     p.add_argument(
