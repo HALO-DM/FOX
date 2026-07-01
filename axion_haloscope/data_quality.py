@@ -76,3 +76,65 @@ def filter_spectrum_set(
         rf_index_map=[sset.rf_index_map[i] for i in keep],
     )
     return filtered, keep, bad
+
+
+
+def restrict_frequency_range(
+    sset,
+    *,
+    fmin_hz: float | None = None,
+    fmax_hz: float | None = None,
+):
+    """
+    Keep only bins within [fmin_hz, fmax_hz] for each spectrum.
+
+    This modifies the spectra, frequency axes, and rf_index_map consistently.
+    The global rf_grid is also trimmed to the same range.
+    """
+    import numpy as np
+    from .io import SpectrumSet
+
+    if fmin_hz is None:
+        fmin_hz = -np.inf
+    if fmax_hz is None:
+        fmax_hz = np.inf
+
+    spectra_new = []
+    freqs_new = []
+    old_maps_new = []
+
+    for s, f, idx in zip(sset.spectra, sset.freqs_per_spec, sset.rf_index_map):
+        s = np.asarray(s)
+        f = np.asarray(f)
+        idx = np.asarray(idx)
+
+        keep = (f >= fmin_hz) & (f <= fmax_hz)
+
+        if np.any(keep):
+            spectra_new.append(s[keep])
+            freqs_new.append(f[keep])
+            old_maps_new.append(idx[keep])
+
+    if len(spectra_new) == 0:
+        raise ValueError(
+            f"No spectral bins left after frequency cut: "
+            f"{fmin_hz} <= f <= {fmax_hz}"
+        )
+
+    # Build a new compact RF grid from the kept frequencies
+    # and remap each spectrum onto it.
+    all_freqs = np.concatenate(freqs_new)
+    rf_grid_new = np.unique(all_freqs)
+
+    mapper = {float(f): i for i, f in enumerate(rf_grid_new)}
+    rf_index_map_new = [
+        np.asarray([mapper[float(ff)] for ff in f], dtype=int)
+        for f in freqs_new
+    ]
+
+    return SpectrumSet(
+        spectra=spectra_new,
+        freqs_per_spec=freqs_new,
+        rf_grid=rf_grid_new,
+        rf_index_map=rf_index_map_new,
+    )

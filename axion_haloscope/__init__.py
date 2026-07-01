@@ -21,8 +21,10 @@ from .rebin import rebin_ml, axion_template_gaussian, grand_spectrum_ml
 from .detection import threshold_for_detection, find_candidates
 from .limit import compute_local_snr_template, coupling_limit, plot_exclusion
 from .lineshape import shm_maxwell_template, shm_maxwell_profile
+
 from .io_working import write_hdf5, read_hdf5,read_qshs_hdf5, read_qshs_hdf5_dir
 from .data_quality_working import filter_spectrum_set, identify_bad_spectra, placeholder_bad_predicate
+
 
 
 __all__ = [
@@ -39,5 +41,9 @@ __all__ = [
 
 
 
+<<<<<<< HEAD
 from .data_quality_working import restrict_frequency_range
+=======
+from .data_quality import restrict_frequency_range
+>>>>>>> a892df8 (adding QSHS test files and a few scripts to read them)
 __all__ += ["restrict_frequency_range"]
