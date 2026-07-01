@@ -21,7 +21,7 @@ from .rebin import rebin_ml, axion_template_gaussian, grand_spectrum_ml
 from .detection import threshold_for_detection, find_candidates
 from .limit import compute_local_snr_template, coupling_limit, plot_exclusion
 from .lineshape import shm_maxwell_template, shm_maxwell_profile
-from .io import write_hdf5, read_hdf5
+from .io import write_hdf5, read_hdf5,read_qshs_hdf5, read_qshs_hdf5_dir
 from .data_quality import filter_spectrum_set, identify_bad_spectra, placeholder_bad_predicate
 
 
@@ -33,6 +33,11 @@ __all__ = [
     "threshold_for_detection", "find_candidates",
     "compute_local_snr_template", "coupling_limit", "plot_exclusion",
     "shm_maxwell_template", "shm_maxwell_profile",
-    "write_hdf5", "read_hdf5",
+    "write_hdf5", "read_hdf5",    "read_qshs_hdf5", "read_qshs_hdf5_dir",
     "filter_spectrum_set", "identify_bad_spectra", "placeholder_bad_predicate","too_noisy"
 ]
+
+
+
+from .data_quality import restrict_frequency_range
+__all__ += ["restrict_frequency_range"]
