@@ -6,6 +6,7 @@ import pandas as pd
 import matplotlib.pyplot as plt
 import sys, datetime, os
 from tabulate import tabulate
+from pysmithchart import SmithAxes
 
 def inspect(name, obj):
     print(name)
@@ -171,23 +172,6 @@ for i in range(11):
         with open(f"{run_dir}/slow_controls_summary_{i:03d}.txt", "w") as f:
             f.write(table_str)
 
-
-
-
-        '''fig, axes = plt.subplots(2, 2, figsize=(19, 9))
-       
-        axes[1, 0].plot(power_spectra[0],power_spectra[1], label="Power Spectra")
-        axes[1, 0].set_title("Power Spectra")
-        axes[1, 0].set_xlabel("Frequency bin")
-        axes[1, 0].set_ylabel("Power")
-        axes[1, 0].grid(True)
-        axes[1, 0].legend()
-
-
-        plt.tight_layout()
-        plt.savefig(f"{run_dir}/qshs_slow_controls_data_{i:03d}.png", dpi=150)
-        plt.close(fig)'''
-
         fig, axes = plt.subplots(2, 2, figsize=(19, 9))
 
         axes[0, 0].plot(raw_data[0],raw_data[1], label="Raw")
@@ -213,6 +197,8 @@ for i in range(11):
         axes[0, 1].set_title("Narrow VNA Scan")
         axes[0, 1].set_xlabel("Unknown")
         axes[0, 1].set_ylabel("Unknown")
+        axes[0, 1].set_xlim(-0.5, 0.5)
+        axes[0, 1].set_ylim(-0.5, 0.5)
         axes[0, 1].grid(True)
         fig.colorbar(a, ax=axes[0, 1])
 
@@ -220,12 +206,38 @@ for i in range(11):
         axes[1, 1].set_title("Wide VNA Scan")
         axes[1, 1].set_xlabel("Unknown")
         axes[1, 1].set_ylabel("Unknown")
+        axes[0, 1].set_xlim(-0.5, 0.5)
+        axes[0, 1].set_ylim(-0.5, 0.5)
         axes[1, 1].grid(True)
         fig.colorbar(b, ax=axes[1, 1])
         
         plt.tight_layout()
         plt.savefig(f"{run_dir}/qshs_data_{i:03d}.png", dpi=150)
         plt.close(fig)
+
+
+        freq = narrow_vna_scan[0]
+        s11_narrow = narrow_vna_scan[1] + 1j * narrow_vna_scan[2]
+        s11_narrow *= 50
+
+        s11_wide = wide_vna_scan[1] + 1j * wide_vna_scan[2]
+        s11_wide *= 50
+
+        fig = plt.figure(figsize=(12, 6))
+        ax1 = fig.add_subplot(1, 2, 1, projection='smith')
+        ax2 = fig.add_subplot(1, 2, 2, projection='smith')
+
+        sc1 = ax1.scatter(s11_narrow.real, s11_narrow.imag, marker=".", c=freq, cmap='viridis', s=10)
+        fig.colorbar(sc1, ax=ax1, label="Frequency (Hz)")
+        ax1.set_title("Narrow VNA Scan")
+
+        sc2 = ax2.scatter(s11_wide.real, s11_wide.imag, marker=".", c=freq, cmap='viridis', s=10)
+        fig.colorbar(sc2, ax=ax2, label="Frequency (Hz)")
+        ax2.set_title("Wide VNA Scan")
+
+        plt.savefig(f"{run_dir}/smith_chart_{i:03d}.png", dpi=150)
+        plt.close(fig)
+
 
 res_freq_diff_list = []
 for f in res_freqs_list:
@@ -240,19 +252,3 @@ metadata_df = pd.DataFrame({    "spectrum": spectra_list,
                                 "bandwidth": bandwidths_list,
                                 "q_loaded": q_loaded_list})            
 metadata_df.to_csv(f"{run_dir}/mode_fit_metadata_all.csv", index=True)
-
-
-import matplotlib.pyplot as plt
-from pysmithchart import SmithAxes
-
-freq = narrow_vna_scan[0]
-s11 = narrow_vna_scan[1] + 1j * narrow_vna_scan[2]
-
-fig = plt.figure(figsize=(6, 6))
-ax = fig.add_subplot(1, 1, 1, projection='smith')
-
-sc = ax.scatter(s11.real, s11.imag, c=freq, cmap='viridis', s=10)
-fig.colorbar(sc, ax=ax, label="Frequency (Hz)")
-ax.set_title("Narrow VNA Scan (S11)")
-plt.show()
-
