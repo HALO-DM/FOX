@@ -16,6 +16,9 @@ venv/
 env/
 .micromamba/
 conda_env/
+bin/
+lib/
+pyvenv.cfg
 
 # pytest / coverage
 .pytest_cache/
