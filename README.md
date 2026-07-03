@@ -8,7 +8,7 @@ The design is modular – each step of the analysis is encapsulated in separate 
 
 
 ### Setting up the code
-1. Downlowad the directory in your local area
+1. Download the directory in your local area
 >git clone https://github.com/HALO-DM/FOX
 
 2. Make sure you  install all dependencies by
