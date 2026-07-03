@@ -160,8 +160,8 @@ def main():
             if max_plots is not None and count >= max_plots:
                 break
             fig, axp = plt.subplots(figsize=(9,3))
-            axp.plot(freqs/1e9, spec, lw=0.6)
-            axp.set(xlabel="Frequency [GHz]", ylabel="Raw Power [arb]", title=f"Spectrum {i:03d}")
+            axp.plot(freqs/1e6, spec, lw=0.6)
+            axp.set(xlabel="Frequency [MHz]", ylabel="Raw Power [arb]", title=f"Spectrum {i:03d}")
             axp.grid(alpha=0.3); fig.tight_layout()
             fig.savefig(run_dir / f"spectrum_{i:03d}.png", dpi=120)
             plt.close(fig)
@@ -184,6 +184,12 @@ def main():
     # Optional: plot all raw spectra in one figure with offset
     if out["offset_combined_plot"]:
         metadata_df = pd.read_csv("output/qshs_spectra/run_03.07.2026_12.06.02/mode_fit_metadata_all.csv")
+        # Plot the resonance frequency offset againist the spectrum index
+        plt.figure(figsize=(9,3))
+        plt.plot( range(len(metadata_df)),metadata_df["res_freq_diff"].values, marker=".")
+        plt.xlabel("Spectrum Index"); plt.ylabel("Resonance Frequency Offset [Hz]")
+        plt.title("Resonance Frequency Offset vs Spectrum Index"); plt.grid(alpha=0.3); plt.tight_layout()
+        plt.savefig(run_dir/"res_freq_offset_vs_index.png", dpi=150); plt.close()
 
         # Combine the offset spectra into one figure
         plt.figure(figsize=(9,3))
