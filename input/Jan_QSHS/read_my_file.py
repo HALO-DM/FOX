@@ -1,8 +1,11 @@
 import h5py
 from types import SimpleNamespace
 import numpy as np
+import json
+import pandas as pd
 import matplotlib.pyplot as plt
 import sys, datetime, os
+from tabulate import tabulate
 
 def inspect(name, obj):
     print(name)
@@ -45,8 +48,23 @@ def hdf5_to_object(h5obj):
 
     return obj
 
+def flatten_to_kv(rows_list, source_name):
+    """
+    Flattens multiple rows of data into one row.
+    Makes data more presentable.
+    """
 
-out_root = "output/qshs_import"
+
+    flat = []
+    for row in rows_list:
+        field = row.pop("FIELD")
+        row.pop("SOURCE", None)
+        value_str = ", ".join(f"{k}={v}" for k, v in row.items())
+        flat.append({"SOURCE": source_name, "FIELD": field, "VALUE": value_str})
+    return flat
+
+
+out_root = "output/qshs_spectra"
 try:
     os.mkdir(out_root)
 except FileExistsError:
@@ -58,34 +76,109 @@ os.mkdir(run_dir)
 #run_dir.mkdir(parents=True, exist_ok=True)
 for i in range(11):
     with h5py.File(f"input/Jan_QSHS/QSHS_2026-01-27_001{83+i}.hdf5", "r") as f:
-        #f.visititems(print_hdf5_structure)
-        #f.visititems(inspect)
-        #data = hdf5_to_object(f)
-        #print(data.attrs)
+        '''f.visititems(print_hdf5_structure)
+        f.visititems(inspect)
+        data = hdf5_to_object(f)
+        print(data.attrs)'''
+
+    
+
         power_spectra   = f["Power_Spectra"][()]
         raw_data        = f["Raw_Data"][()]
         narrow_vna_scan = f["Narrow_VNA_Scan"][()]
         wide_vna_scan   = f["Wide_VNA_Scan"][()]
+        slow_controls_hardware   = f["Slow_Controls/Hardware"][()]
+        slow_controls_mode_fit   = f["Slow_Controls/Mode-Fit"][()]
+        slow_controls_status   = f["Slow_Controls/Status"][()]
+        slow_controls_temperatures   = f["Slow_Controls/Temperatures"][()]
 
-        print (power_spectra[0])
-        print (power_spectra[1])
+        # --- Hardware ---
+        hardware_data = json.loads(slow_controls_hardware.decode("utf-8"))
+        hardware_rows = []
+        for entry in hardware_data["Hardware_Components"]:
+            for component_name, props_list in entry.items():
+                for props in props_list:
+                    hardware_rows.append({"SOURCE": "Hardware", "FIELD": component_name, **props})
 
-        print (raw_data[0])         #empty
-        print (raw_data[1])         #empty
+        # --- Mode Fit ---
+        raw = slow_controls_mode_fit.item()
+        if isinstance(raw, bytes):
+            raw = raw.decode("utf-8")
+        mode_fit_data = json.loads(raw)
 
-        print (narrow_vna_scan[0])
-        print (narrow_vna_scan[1])
-        print (narrow_vna_scan[2])       
+        modefit_rows = []
+        fig, axes = plt.subplots(4, 1, figsize=(19, 19))
+        j = 0
+        for key, value in mode_fit_data.items():
 
-        print (wide_vna_scan[0])    #empty
-        print (wide_vna_scan[1])    #empty
-        print (wide_vna_scan[2])    #empty
+            if isinstance(value, list):
 
-        fs = 1_000_000  # Hz, replace this
-        freq = np.linspace(0, fs / 2, power_spectra.shape[1])
+                axes[j].plot(value, label=key)
+                axes[j].grid(True)
+                axes[j].legend()
 
+                modefit_rows.append({
+                    "SOURCE": "Mode-Fit",
+                    "FIELD": key,
+                    "VALUE": f"[len={len(value)}] first={value[0]:.4g}, last={value[-1]:.4g}"
+                })
+                j += 1
+            else:
+                modefit_rows.append({"SOURCE": "Mode-Fit", "FIELD": key, "VALUE": value})
+            
         
-        fig, axes = plt.subplots(2, 2, figsize=(14, 5))
+        plt.tight_layout()
+        plt.savefig(f"{run_dir}/qshs_slow_controls_data_{i:03d}.png", dpi=150)
+        plt.close(fig)
+
+
+        # --- Status ---
+        raw = slow_controls_status.item()
+        if isinstance(raw, bytes):
+            raw = raw.decode("utf-8")
+        status_data = json.loads(raw)
+
+        status_rows = []
+        for channel, (freq, status, power) in status_data.items():
+            status_rows.append({
+                "SOURCE": "Status",
+                "FIELD": channel,
+                "Frequency (Hz)": freq,
+                "Output": status.strip(),
+                "Power (dBm)": power,
+            })
+
+
+        flat_rows = (
+            flatten_to_kv(hardware_rows, "Hardware") +
+            modefit_rows +
+            flatten_to_kv(status_rows, "Status")
+        )
+        df = pd.DataFrame(flat_rows)
+
+        table_str = tabulate(df, headers="keys", tablefmt="plain", showindex=False, stralign="left", numalign="left")
+
+        with open(f"{run_dir}/slow_controls_summary_{i:03d}.txt", "w") as f:
+            f.write(table_str)
+
+
+
+
+        '''fig, axes = plt.subplots(2, 2, figsize=(19, 9))
+       
+        axes[1, 0].plot(power_spectra[0],power_spectra[1], label="Power Spectra")
+        axes[1, 0].set_title("Power Spectra")
+        axes[1, 0].set_xlabel("Frequency bin")
+        axes[1, 0].set_ylabel("Power")
+        axes[1, 0].grid(True)
+        axes[1, 0].legend()
+
+
+        plt.tight_layout()
+        plt.savefig(f"{run_dir}/qshs_slow_controls_data_{i:03d}.png", dpi=150)
+        plt.close(fig)'''
+
+        fig, axes = plt.subplots(2, 2, figsize=(19, 9))
 
         axes[0, 0].plot(raw_data[0],raw_data[1], label="Raw")
         axes[0, 0].set_title("Raw Data")
@@ -93,6 +186,10 @@ for i in range(11):
         axes[0, 0].set_ylabel("ADC value")
         axes[0, 0].grid(True)
         axes[0, 0].legend()
+
+        order = np.argsort(power_spectra[0])
+        power_spectra[0] = power_spectra[0][order]
+        power_spectra[1] = power_spectra[1][order]
 
         axes[1, 0].plot(power_spectra[0],power_spectra[1], label="Power Spectra")
         axes[1, 0].set_title("Power Spectra")
@@ -102,24 +199,38 @@ for i in range(11):
         axes[1, 0].legend()
 
         
-        a = axes[0, 1].scatter(narrow_vna_scan[1],narrow_vna_scan[2], c=narrow_vna_scan[0], cmap='viridis', s=100, label="Narrow VNA Scan")
+        a = axes[0, 1].scatter(narrow_vna_scan[1],narrow_vna_scan[2], c=narrow_vna_scan[0], cmap='viridis', s=100)
         axes[0, 1].set_title("Narrow VNA Scan")
         axes[0, 1].set_xlabel("Unknown")
         axes[0, 1].set_ylabel("Unknown")
         axes[0, 1].grid(True)
-        axes[0, 1].legend()
         fig.colorbar(a, ax=axes[0, 1])
 
-        b = axes[1, 1].scatter(wide_vna_scan[1],wide_vna_scan[2], c=wide_vna_scan[0], cmap='viridis', s=100, label="Wide VNA Scan")
+        b = axes[1, 1].scatter(wide_vna_scan[1],wide_vna_scan[2], c=wide_vna_scan[0], cmap='viridis', s=100)
         axes[1, 1].set_title("Wide VNA Scan")
         axes[1, 1].set_xlabel("Unknown")
         axes[1, 1].set_ylabel("Unknown")
         axes[1, 1].grid(True)
-        axes[1, 1].legend()
         fig.colorbar(b, ax=axes[1, 1])
         
         plt.tight_layout()
         plt.savefig(f"{run_dir}/qshs_data_{i:03d}.png", dpi=150)
         plt.close(fig)
 
+
+
+
+import matplotlib.pyplot as plt
+from pysmithchart import SmithAxes
+
+freq = narrow_vna_scan[0]
+s11 = narrow_vna_scan[1] + 1j * narrow_vna_scan[2]
+
+fig = plt.figure(figsize=(6, 6))
+ax = fig.add_subplot(1, 1, 1, projection='smith')
+
+sc = ax.scatter(s11.real, s11.imag, c=freq, cmap='viridis', s=10)
+fig.colorbar(sc, ax=ax, label="Frequency (Hz)")
+ax.set_title("Narrow VNA Scan (S11)")
+plt.show()
 
