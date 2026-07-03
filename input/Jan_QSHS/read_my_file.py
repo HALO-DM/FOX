@@ -73,6 +73,10 @@ except FileExistsError:
 timestamp = datetime.datetime.now().strftime("%d.%m.%Y_%H.%M.%S")
 run_dir = f"{out_root}/run_{timestamp}"
 os.mkdir(run_dir)
+spectra_list = []
+res_freqs_list = []
+bandwidths_list = []
+q_loaded_list = []
 #run_dir.mkdir(parents=True, exist_ok=True)
 for i in range(11):
     with h5py.File(f"input/Jan_QSHS/QSHS_2026-01-27_001{83+i}.hdf5", "r") as f:
@@ -81,7 +85,7 @@ for i in range(11):
         data = hdf5_to_object(f)
         print(data.attrs)'''
 
-    
+        spectra_list.append(f"QSHS_2026-01-27_001{83+i}.hdf5")
 
         power_spectra   = f["Power_Spectra"][()]
         raw_data        = f["Raw_Data"][()]
@@ -125,8 +129,14 @@ for i in range(11):
                 j += 1
             else:
                 modefit_rows.append({"SOURCE": "Mode-Fit", "FIELD": key, "VALUE": value})
-            
-        
+                if key == "res_freq":
+                    res_freqs_list.append(value)
+                elif key == "bandwidth":
+                    bandwidths_list.append(value)
+                elif key == "q_loaded":
+                    q_loaded_list.append(value)
+
+    
         plt.tight_layout()
         plt.savefig(f"{run_dir}/qshs_slow_controls_data_{i:03d}.png", dpi=150)
         plt.close(fig)
@@ -218,6 +228,12 @@ for i in range(11):
         plt.close(fig)
 
 
+# Build a data frame of the metadata for all of the spectra
+metadata_df = pd.DataFrame({    "spectrum": spectra_list,
+                                "res_freq": res_freqs_list,
+                                "bandwidth": bandwidths_list,
+                                "q_loaded": q_loaded_list})            
+metadata_df.to_csv(f"{run_dir}/mode_fit_metadata_all.csv", index=True)
 
 
 import matplotlib.pyplot as plt

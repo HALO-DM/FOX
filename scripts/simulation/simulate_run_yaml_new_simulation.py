@@ -121,9 +121,10 @@ def main():
         s_ax = width_from_fq(f_ax)
         ax = AxionParams(f_axion_hz=float(f_ax), sigma_hz=s_ax, total_power=inj["total_power"])
     
-    
+    directory = inp["directory"]
+    input_file_name = inp["input_file_name"]
     # 1) Read in Data
-    with h5py.File(f"{inp["directory"]}/{inp["input_file_name"]}", "r") as f:
+    with h5py.File(f"{directory}/{input_file_name}", "r") as f:
         specs   = f["spectra"][()]
         fper    = f["freqs_per_spec"][()]
         rf      = f["rf_grid"][()]
@@ -162,6 +163,18 @@ def main():
             plt.close(fig)
             count += 1
         np.savez(run_dir/"spectra.npz", spectra=np.array(specs), freqs=fper, rf_grid=rf)
+
+    # Trying to combine the spectra output plots into one figure
+    plt.figure(figsize=(9,3))
+    for i, (freqs, spec) in enumerate(zip(fper, specs)):
+        if i % step != 0:
+            continue
+        if max_plots is not None and count >= max_plots:
+            break
+        plt.plot(freqs/1e9, spec, lw=0.6)
+    plt.xlabel("Frequency [GHz]"); plt.ylabel("Raw Power [arb]")
+    plt.title("All raw spectra"); plt.grid(alpha=0.3); plt.tight_layout()
+    plt.savefig(run_dir/"raw_spectrum_all.png", dpi=150); plt.close()
 
         
 
