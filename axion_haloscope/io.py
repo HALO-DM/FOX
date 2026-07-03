@@ -352,7 +352,6 @@ def read_qshs_hdf5(
             volume=None,
         )
 
-
     if arr.ndim != 2 or arr.shape[0] != 2:
         raise ValueError(
             f"Expected {power_path} to have shape (2, n_bins), got {arr.shape}"

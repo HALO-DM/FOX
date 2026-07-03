@@ -274,7 +274,7 @@ def main():
     t0 = time.time()
 
     # QC: drop bad spectra (default thresholds; adjust if desired)
-    sset = SpectrumSet(spectra=list(specs), freqs_per_spec=list(fper), rf_grid=rf, rf_index_map=list(rf_map))
+    sset = SpectrumSet(spectra=list(specs), freqs_per_spec=list(fper), rf_grid=rf, rf_index_map=list(rf_map), metadata=(metadata))
     sset_qc, kept, bad = filter_spectrum_set(sset, predicate=lambda s,f,i: too_noisy(s,f,i, rms_max=3.0))
     print(f"[QC] kept {len(kept)}/{sset.n_spectra()} spectra; dropped: {bad}")
     # replace arrays with filtered ones for the rest of the chain
@@ -340,6 +340,7 @@ def main():
         )
         med_processed.append(processed)
 
+    print(metadata)
 
 
     # 2) baseline removal
