@@ -2,9 +2,32 @@ from __future__ import annotations
 import numpy as np
 from dataclasses import dataclass
 from pathlib import Path
-from typing import List, Tuple, Optional
-import h5py
+from typing import List, Tuple, Optional, Dict
+import h5py, json, sys
 
+@dataclass
+class SpectrumMetadata:
+    """
+    Metadata innit
+
+    date            : list of floats
+    b_vals          : list of floats
+    temps           : list of floats
+    q_factor        : list of floats
+    res_freq        : list of floats
+    bandwidth       : list of floats
+    tuning_angle    : list of floats
+    volume          : list of floats
+    """
+
+    date: np.ndarray
+    b_vals: np.ndarray
+    temps: np.ndarray
+    q_factor: np.ndarray
+    res_freq: np.ndarray
+    bandwidth: np.ndarray
+    tuning_angle: np.ndarray
+    volume: np.ndarray
 
     
 @dataclass
@@ -21,6 +44,7 @@ class SpectrumSet:
     freqs_per_spec: List[np.ndarray]
     rf_grid: np.ndarray
     rf_index_map: List[np.ndarray]
+    metadata: SpectrumMetadata
 
     def n_spectra(self) -> int:
         return len(self.spectra)
@@ -145,6 +169,42 @@ def read_csv_dir(csv_dir: str | Path,
 # ----------------------------
 # HDF5 I/O (compact + ragged-safe via vlen)
 # ----------------------------
+def _write_metadata_group(h5file: h5py.File, metadata: Dict[str, list], vlen_f64) -> None:
+    """
+    Write a list of per-spectrum SpectrumMetadata objects as one group,
+    transposed into one dataset per field (length n_spectra each).
+    """
+    if not metadata:
+        return
+    
+    grp = h5file.create_group("metadata")
+    n = len(metadata)
+    for field_name, values in metadata.items():
+        values = [getattr(m, field_name) for m in metadata]
+        # ragged/array fields (b_vals, temps) -> vlen float64, NaN row if missing
+        if any(isinstance(v, np.ndarray) for v in values):
+            dset = grp.create_dataset(field_name, (n,), dtype=vlen_f64)
+            for i, v in enumerate(values):
+                dset[i] = (
+                    np.asarray(v, dtype=np.float64)
+                    if v is not None
+                    else np.array([np.nan])
+                )
+            continue
+
+        # string fields (date, or q_factor/res_freq/bandwidth if ever str)
+        if any(isinstance(v, str) for v in values):
+            str_vals = [v if v is not None else "" for v in values]
+            grp.create_dataset(field_name, data=str_vals, dtype=h5py.string_dtype())
+            continue
+
+        # scalar numeric fields -> float64, NaN fill for None
+        arr = np.array(
+            [v if v is not None else np.nan for v in values],
+            dtype=np.float64,
+        )
+        grp.create_dataset(field_name, data=arr)
+
 def write_hdf5(sset: SpectrumSet, path: str | Path,
                compression: str | None = "gzip", compression_opts: int = 4) -> None:
     """
@@ -167,6 +227,36 @@ def write_hdf5(sset: SpectrumSet, path: str | Path,
             d_freqs[i] = np.asarray(sset.freqs_per_spec[i], np.float64)
             d_rfmap[i] = np.asarray(sset.rf_index_map[i], np.int64)
 
+        _write_metadata_group(h5, sset.metadata, vlen_f64)
+
+def _read_metadata_group(h5file: h5py.File) -> Dict[str, list]:
+    """
+    Read the 'metadata' group and return it as a dict of per-field lists,
+    each of length n_spec (mirrors the dict-of-lists shape used on write).
+    """
+    if "metadata" not in h5file:
+        return {}
+
+    grp = h5file["metadata"]
+    field_names = list(SpectrumMetadata.__dataclass_fields__.keys())
+
+    field_values: Dict[str, list] = {}
+    for field_name in field_names:
+        dset = grp[field_name]
+        raw = dset[()]
+
+        if h5py.check_string_dtype(dset.dtype):
+            decoded = [v.decode() if isinstance(v, bytes) else v for v in raw]
+            field_values[field_name] = [v if v != "" else None for v in decoded]
+
+        elif h5py.check_vlen_dtype(dset.dtype):
+            field_values[field_name] = [None if (v.size == 1 and np.isnan(v[0])) else np.asarray(v, np.float64) for v in raw]
+
+        else:
+            field_values[field_name] = [None if np.isnan(v) else float(v) for v in raw]
+
+    return field_values
+
 def read_hdf5(path: str | Path) -> SpectrumSet:
     """
     Load SpectrumSet from HDF5 produced by write_hdf5().
@@ -182,16 +272,20 @@ def read_hdf5(path: str | Path) -> SpectrumSet:
         spectra_list: List[np.ndarray] = []
         freqs_list: List[np.ndarray] = []
         rf_index_map: List[np.ndarray] = []
+
         for i in range(n_spec):
             spectra_list.append(np.asarray(d_specs[i], np.float64))
             freqs_list.append(np.asarray(d_freqs[i], np.float64))
             rf_index_map.append(np.asarray(d_rfmap[i], np.int64))
 
+        metadata = _read_metadata_group(h5)
+        
     return SpectrumSet(
         spectra=spectra_list,
         freqs_per_spec=freqs_list,
         rf_grid=rf_grid,
         rf_index_map=rf_index_map,
+        metadata=metadata
     )
 
 
@@ -225,6 +319,36 @@ def read_qshs_hdf5(
 
     with h5py.File(path, "r") as h5:
         arr = np.asarray(h5[power_path][()], dtype=float)
+        slow_controls_mode_fit   = h5["Slow_Controls/Mode-Fit"][()]
+
+        # attribute lookup, not a dataset lookup
+        date_str = h5[power_path].attrs["Date-Time"]
+        if isinstance(date_str, bytes):
+            date_str = date_str.decode("utf-8")
+
+        raw = slow_controls_mode_fit.item()
+        if isinstance(raw, bytes):
+            raw = raw.decode("utf-8")
+        mode_fit_data = json.loads(raw)
+
+        for key, value in mode_fit_data.items():
+            if key == "res_freq":
+                res_freq_str = (value)
+            elif key == "bandwidth":
+                bandwidths_str = value
+            elif key == "q_loaded":
+                q_loaded_str = value
+
+        spec_metadata = SpectrumMetadata(
+            date=date_str,
+            b_vals=None,
+            temps=None,
+            q_factor=q_loaded_str,
+            res_freq=res_freq_str,
+            bandwidth=bandwidths_str,
+            tuning_angle=None,
+            volume=None,
+        )
 
     if arr.ndim != 2 or arr.shape[0] != 2:
         raise ValueError(
@@ -256,7 +380,8 @@ def read_qshs_hdf5(
         freqs_per_spec=[freq_hz],
         rf_grid=freq_hz.copy(),
         rf_index_map=[np.arange(freq_hz.size, dtype=int)],
-    )
+        metadata=spec_metadata
+        )
 
 
 
@@ -289,7 +414,7 @@ def read_qshs_hdf5_dir(
 
     spectra = []
     freqs_per_spec = []
-
+    spec_metadata = []
     for fp in files:
         one = read_qshs_hdf5(
             fp,
@@ -300,6 +425,7 @@ def read_qshs_hdf5_dir(
         )
         spectra.append(one.spectra[0])
         freqs_per_spec.append(one.freqs_per_spec[0])
+        spec_metadata.append(one.metadata)
 
     # Build one common grid for all files.
     #
@@ -318,4 +444,5 @@ def read_qshs_hdf5_dir(
         freqs_per_spec=freqs_per_spec,
         rf_grid=rf_grid,
         rf_index_map=rf_index_map,
+        metadata=spec_metadata
     )

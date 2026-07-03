@@ -74,6 +74,7 @@ def filter_spectrum_set(
         freqs_per_spec=[sset.freqs_per_spec[i] for i in keep],
         rf_grid=sset.rf_grid,
         rf_index_map=[sset.rf_index_map[i] for i in keep],
+        metadata=sset.metadata
     )
     return filtered, keep, bad
 

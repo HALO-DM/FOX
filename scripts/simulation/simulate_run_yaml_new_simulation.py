@@ -26,9 +26,8 @@ from axion_haloscope.lineshape  import shm_maxwell_template
 from axion_haloscope.detection  import threshold_for_detection, find_candidates
 from axion_haloscope.limit      import compute_local_snr_template, coupling_limit, plot_exclusion
 from axion_haloscope.data_quality import filter_spectrum_set, too_noisy
-from axion_haloscope.io import SpectrumSet
+from axion_haloscope.io import SpectrumSet, SpectrumMetadata, read_hdf5
 from axion_haloscope.data_quality import filter_spectrum_set, too_noisy
-from axion_haloscope.io import SpectrumSet
 from axion_haloscope.width_fq   import width_from_fq
 
 
@@ -126,12 +125,14 @@ def main():
     
     directory = inp["directory"]
     input_file_name = inp["input_file_name"]
+
     # 1) Read in Data
-    with h5py.File(f"{directory}/{input_file_name}", "r") as f:
-        specs   = f["spectra"][()]
-        fper    = f["freqs_per_spec"][()]
-        rf      = f["rf_grid"][()]
-        rf_map  = f["rf_index_map"][()]   
+    sset = read_hdf5(f"{directory}/{input_file_name}")
+    specs = sset.spectra
+    fper = sset.freqs_per_spec
+    rf = sset.rf_grid
+    rf_map = sset.rf_index_map
+    metadata = sset.metadata
 
 
 
@@ -199,13 +200,13 @@ def main():
     t0 = time.time()
 
     # QC: drop bad spectra (default thresholds; adjust if desired)
-    sset = SpectrumSet(spectra=list(specs), freqs_per_spec=list(fper), rf_grid=rf, rf_index_map=list(rf_map))
+    sset = SpectrumSet(spectra=list(specs), freqs_per_spec=list(fper), rf_grid=rf, rf_index_map=list(rf_map), metadata=(metadata))
     sset_qc, kept, bad = filter_spectrum_set(sset, predicate=lambda s,f,i: too_noisy(s,f,i, rms_max=3.0))
     print(f"[QC] kept {len(kept)}/{sset.n_spectra()} spectra; dropped: {bad}")
     # replace arrays with filtered ones for the rest of the chain
-    specs, fper, rf, rf_map = sset_qc.spectra, sset_qc.freqs_per_spec, sset_qc.rf_grid, sset_qc.rf_index_map
+    specs, fper, rf, rf_map, metadata = sset_qc.spectra, sset_qc.freqs_per_spec, sset_qc.rf_grid, sset_qc.rf_index_map, sset_qc.metadata
 
-
+    print(metadata)
 
 
     # 2) baseline removal
