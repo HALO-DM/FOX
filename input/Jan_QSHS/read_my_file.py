@@ -227,10 +227,16 @@ for i in range(11):
         plt.savefig(f"{run_dir}/qshs_data_{i:03d}.png", dpi=150)
         plt.close(fig)
 
+res_freq_diff_list = []
+for f in res_freqs_list:
+    diff = f - res_freqs_list[0]
+    res_freq_diff_list.append(diff)
+
 
 # Build a data frame of the metadata for all of the spectra
 metadata_df = pd.DataFrame({    "spectrum": spectra_list,
                                 "res_freq": res_freqs_list,
+                                "res_freq_diff": res_freq_diff_list,
                                 "bandwidth": bandwidths_list,
                                 "q_loaded": q_loaded_list})            
 metadata_df.to_csv(f"{run_dir}/mode_fit_metadata_all.csv", index=True)
