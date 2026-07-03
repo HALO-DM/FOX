@@ -15,6 +15,7 @@ matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 import time
 import h5py
+import pandas as pd
 
 
 from axion_haloscope.simulation import simulate_spectra, AxionParams
@@ -83,6 +84,8 @@ def load_yaml_config(path: pathlib.Path) -> dict:
         },
         "output": {
             "save_data":     bool(_get(out, "save_data", False)),
+            "combined_plot": bool(_get(out, "combined_plot", False)),
+            "offset_combined_plot": bool(_get(out, "offset_combined_plot", False)),
             "plots_step":    int(_get(out, "plots_step", 1)),   # plot every Nth spectrum
             "max_plots":     out.get("max_plots", None),        # optional int
             "root":          _get(out, "root", "output"),
@@ -164,19 +167,34 @@ def main():
             count += 1
         np.savez(run_dir/"spectra.npz", spectra=np.array(specs), freqs=fper, rf_grid=rf)
 
-    # Trying to combine the spectra output plots into one figure
-    plt.figure(figsize=(9,3))
-    for i, (freqs, spec) in enumerate(zip(fper, specs)):
-        if i % step != 0:
-            continue
-        if max_plots is not None and count >= max_plots:
-            break
-        plt.plot(freqs/1e9, spec, lw=0.6)
-    plt.xlabel("Frequency [GHz]"); plt.ylabel("Raw Power [arb]")
-    plt.title("All raw spectra"); plt.grid(alpha=0.3); plt.tight_layout()
-    plt.savefig(run_dir/"raw_spectrum_all.png", dpi=150); plt.close()
+    # Optional: plot all raw spectra in one figure
+    if out["combined_plot"]:
+        plt.figure(figsize=(9,3))
+        for i, (freqs, spec) in enumerate(zip(fper, specs)):
+            if i % step != 0:
+                continue
+            if max_plots is not None and count >= max_plots:
+                break
+            plt.plot(freqs/1e9, spec, lw=0.6)
+        plt.xlabel("Frequency [GHz]"); plt.ylabel("Raw Power [arb]")
+        plt.title("All raw spectra"); plt.grid(alpha=0.3); plt.tight_layout()
+        plt.savefig(run_dir/"raw_spectrum_all.png", dpi=150); plt.close()
 
-        
+    # Optional: plot all raw spectra in one figure with offset
+    if out["offset_combined_plot"]:
+        metadata_df = pd.read_csv("output/qshs_spectra/run_03.07.2026_12.06.02/mode_fit_metadata_all.csv")
+
+        # Combine the offset spectra into one figure
+        plt.figure(figsize=(9,3))
+        for i, (freqs, spec) in enumerate(zip(fper, specs)):
+            if i % step != 0:
+                continue
+            if max_plots is not None and count >= max_plots:
+                break
+            plt.plot((freqs/1e6 + metadata_df["res_freq_diff"].iloc[i]*1e3), spec, lw=0.6)
+        plt.xlabel("Frequency [MHz]"); plt.ylabel("Raw Power [arb]")
+        plt.title("All offset raw spectra"); plt.grid(alpha=0.3); plt.tight_layout()
+        plt.savefig(run_dir/"raw_spectrum_all_offset.png", dpi=150); plt.close()    
 
     t0 = time.time()
 
