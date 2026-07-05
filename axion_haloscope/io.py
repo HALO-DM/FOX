@@ -1,6 +1,7 @@
 from __future__ import annotations
 import numpy as np
 from dataclasses import dataclass
+import dataclasses
 from pathlib import Path
 from typing import List, Tuple, Optional, Dict
 import h5py, json, sys
@@ -169,7 +170,7 @@ def read_csv_dir(csv_dir: str | Path,
 # ----------------------------
 # HDF5 I/O (compact + ragged-safe via vlen)
 # ----------------------------
-def _write_metadata_group(h5file: h5py.File, metadata: Dict[str, list], vlen_f64) -> None:
+def _write_metadata_group(h5file: h5py.File, metadata: list, vlen_f64) -> None:
     """
     Write a list of per-spectrum SpectrumMetadata objects as one group,
     transposed into one dataset per field (length n_spectra each).
@@ -179,7 +180,8 @@ def _write_metadata_group(h5file: h5py.File, metadata: Dict[str, list], vlen_f64
     
     grp = h5file.create_group("metadata")
     n = len(metadata)
-    for field_name, values in metadata.items():
+    field_names = [f.name for f in dataclasses.fields(metadata[0])]
+    for field_name in field_names:
         values = [getattr(m, field_name) for m in metadata]
         # ragged/array fields (b_vals, temps) -> vlen float64, NaN row if missing
         if any(isinstance(v, np.ndarray) for v in values):
