@@ -7,6 +7,7 @@ import matplotlib.pyplot as plt
 import sys, datetime, os
 from tabulate import tabulate
 from pysmithchart import SmithAxes
+from tqdm import tqdm
 
 def inspect(name, obj):
     print(name)
@@ -79,14 +80,40 @@ res_freqs_list = []
 bandwidths_list = []
 q_loaded_list = []
 #run_dir.mkdir(parents=True, exist_ok=True)
-for i in range(11):
-    with h5py.File(f"input/Jan_QSHS/QSHS_2026-01-27_001{83+i}.hdf5", "r") as f:
+
+# Directories for larger data set
+""" directory_Jan = 'input/Feb/Jan'
+for filename in os.listdir(directory_Jan):
+    if filename.endswith(".hdf5"):
+        spectra_list.append(f"Jan/{filename}") """
+
+""" directory_Feb = 'input/Feb/Feb'
+for filename in os.listdir(directory_Feb):
+    if filename.endswith(".hdf5"):
+        spectra_list.append(f"Feb/{filename}") """
+
+
+# Test data set
+directory = 'input/Jan_QSHS'
+for filename in os.listdir(directory):
+    if filename.endswith(".hdf5"):
+        spectra_list.append(f"{filename}")
+
+# Whether to plot the QSHS data and slow controls
+plot_qshs_data = False
+plot_slow_controls = False
+
+valid_spectra = []
+invalid_spectra = []
+
+for s in tqdm(spectra_list, desc="Processing spectra"):
+    
+    with h5py.File(f"input/Jan_QSHS/{s}", "r") as f:
+    # with h5py.File(f"input/Feb/{s}", "r") as f:
         '''f.visititems(print_hdf5_structure)
         f.visititems(inspect)
         data = hdf5_to_object(f)
         print(data.attrs)'''
-
-        spectra_list.append(f"QSHS_2026-01-27_001{83+i}.hdf5")
 
         power_spectra   = f["Power_Spectra"][()]
         raw_data        = f["Raw_Data"][()]
@@ -109,25 +136,37 @@ for i in range(11):
         raw = slow_controls_mode_fit.item()
         if isinstance(raw, bytes):
             raw = raw.decode("utf-8")
-        mode_fit_data = json.loads(raw)
+        
+
+        try:
+            mode_fit_data = json.loads(raw)
+            valid_spectra.append(s)
+        except json.JSONDecodeError:
+            #print(f"Skiped {filename} as empty or invalid JSON")
+            invalid_spectra.append(s)
+            continue
+            
 
         modefit_rows = []
-        fig, axes = plt.subplots(4, 1, figsize=(19, 19))
+        if plot_slow_controls:
+            fig, axes = plt.subplots(4, 1, figsize=(19, 19))
+
         j = 0
         for key, value in mode_fit_data.items():
 
             if isinstance(value, list):
 
-                axes[j].plot(value, label=key)
-                axes[j].grid(True)
-                axes[j].legend()
+                if plot_slow_controls:    
+                    axes[j].plot(value, label=key)
+                    axes[j].grid(True)
+                    axes[j].legend()
 
-                modefit_rows.append({
-                    "SOURCE": "Mode-Fit",
-                    "FIELD": key,
-                    "VALUE": f"[len={len(value)}] first={value[0]:.4g}, last={value[-1]:.4g}"
-                })
-                j += 1
+                    modefit_rows.append({
+                        "SOURCE": "Mode-Fit",
+                        "FIELD": key,
+                        "VALUE": f"[len={len(value)}] first={value[0]:.4g}, last={value[-1]:.4g}"
+                    })
+                    j += 1
             else:
                 modefit_rows.append({"SOURCE": "Mode-Fit", "FIELD": key, "VALUE": value})
                 if key == "res_freq":
@@ -137,10 +176,10 @@ for i in range(11):
                 elif key == "q_loaded":
                     q_loaded_list.append(value)
 
-    
-        plt.tight_layout()
-        plt.savefig(f"{run_dir}/qshs_slow_controls_data_{i:03d}.png", dpi=150)
-        plt.close(fig)
+        if plot_slow_controls:
+            plt.tight_layout()
+            plt.savefig(f"{run_dir}/qshs_slow_controls_data_{spectra_list.index(s)}.png", dpi=150)
+            plt.close(fig)
 
 
         # --- Status ---
@@ -169,75 +208,80 @@ for i in range(11):
 
         table_str = tabulate(df, headers="keys", tablefmt="plain", showindex=False, stralign="left", numalign="left")
 
-        with open(f"{run_dir}/slow_controls_summary_{i:03d}.txt", "w") as f:
+        with open(f"{run_dir}/slow_controls_summary_{spectra_list.index(s)}.txt", "w") as f:
             f.write(table_str)
 
-        fig, axes = plt.subplots(2, 2, figsize=(19, 9))
+            if plot_qshs_data:
+                fig, axes = plt.subplots(2, 2, figsize=(19, 9))
 
-        axes[0, 0].plot(raw_data[0],raw_data[1], label="Raw")
-        axes[0, 0].set_title("Raw Data")
-        axes[0, 0].set_xlabel("Sample index")
-        axes[0, 0].set_ylabel("ADC value")
-        axes[0, 0].grid(True)
-        axes[0, 0].legend()
+        if plot_qshs_data:
+            axes[0, 0].plot(raw_data[0],raw_data[1], label="Raw")
+            axes[0, 0].set_title("Raw Data")
+            axes[0, 0].set_xlabel("Sample index")
+            axes[0, 0].set_ylabel("ADC value")
+            axes[0, 0].grid(True)
+            axes[0, 0].legend()
 
-        order = np.argsort(power_spectra[0])
-        power_spectra[0] = power_spectra[0][order]
-        power_spectra[1] = power_spectra[1][order]
+            order = np.argsort(power_spectra[0])
+            power_spectra[0] = power_spectra[0][order]
+            power_spectra[1] = power_spectra[1][order]
 
-        axes[1, 0].plot(power_spectra[0],power_spectra[1], label="Power Spectra")
-        axes[1, 0].set_title("Power Spectra")
-        axes[1, 0].set_xlabel("Frequency bin")
-        axes[1, 0].set_ylabel("Power")
-        axes[1, 0].grid(True)
-        axes[1, 0].legend()
+            axes[1, 0].plot(power_spectra[0],power_spectra[1], label="Power Spectra")
+            axes[1, 0].set_title("Power Spectra")
+            axes[1, 0].set_xlabel("Frequency bin")
+            axes[1, 0].set_ylabel("Power")
+            axes[1, 0].grid(True)
+            axes[1, 0].legend()
 
-        
-        a = axes[0, 1].scatter(narrow_vna_scan[1],narrow_vna_scan[2], c=narrow_vna_scan[0], cmap='viridis', s=100)
-        axes[0, 1].set_title("Narrow VNA Scan")
-        axes[0, 1].set_xlabel("Unknown")
-        axes[0, 1].set_ylabel("Unknown")
-        axes[0, 1].set_xlim(-0.5, 0.5)
-        axes[0, 1].set_ylim(-0.5, 0.5)
-        axes[0, 1].grid(True)
-        fig.colorbar(a, ax=axes[0, 1])
+            
+            a = axes[0, 1].scatter(narrow_vna_scan[1],narrow_vna_scan[2], c=narrow_vna_scan[0], cmap='viridis', s=100)
+            axes[0, 1].set_title("Narrow VNA Scan")
+            axes[0, 1].set_xlabel("Unknown")
+            axes[0, 1].set_ylabel("Unknown")
+            axes[0, 1].set_xlim(-0.5, 0.5)
+            axes[0, 1].set_ylim(-0.5, 0.5)
+            axes[0, 1].grid(True)
+            fig.colorbar(a, ax=axes[0, 1])
 
-        b = axes[1, 1].scatter(wide_vna_scan[1],wide_vna_scan[2], c=wide_vna_scan[0], cmap='viridis', s=100)
-        axes[1, 1].set_title("Wide VNA Scan")
-        axes[1, 1].set_xlabel("Unknown")
-        axes[1, 1].set_ylabel("Unknown")
-        axes[0, 1].set_xlim(-0.5, 0.5)
-        axes[0, 1].set_ylim(-0.5, 0.5)
-        axes[1, 1].grid(True)
-        fig.colorbar(b, ax=axes[1, 1])
-        
-        plt.tight_layout()
-        plt.savefig(f"{run_dir}/qshs_data_{i:03d}.png", dpi=150)
-        plt.close(fig)
+            b = axes[1, 1].scatter(wide_vna_scan[1],wide_vna_scan[2], c=wide_vna_scan[0], cmap='viridis', s=100)
+            axes[1, 1].set_title("Wide VNA Scan")
+            axes[1, 1].set_xlabel("Unknown")
+            axes[1, 1].set_ylabel("Unknown")
+            axes[0, 1].set_xlim(-0.5, 0.5)
+            axes[0, 1].set_ylim(-0.5, 0.5)
+            axes[1, 1].grid(True)
+            fig.colorbar(b, ax=axes[1, 1])
+            
+            plt.tight_layout()
+            plt.savefig(f"{run_dir}/qshs_data_{spectra_list.index(s)}.png", dpi=150)
+            plt.close(fig)
 
 
-        freq = narrow_vna_scan[0]
-        s11_narrow = narrow_vna_scan[1] + 1j * narrow_vna_scan[2]
-        s11_narrow *= 50
+            freq = narrow_vna_scan[0]
+            s11_narrow = narrow_vna_scan[1] + 1j * narrow_vna_scan[2]
+            s11_narrow *= 50
 
-        s11_wide = wide_vna_scan[1] + 1j * wide_vna_scan[2]
-        s11_wide *= 50
+            s11_wide = wide_vna_scan[1] + 1j * wide_vna_scan[2]
+            s11_wide *= 50
 
-        fig = plt.figure(figsize=(12, 6))
-        ax1 = fig.add_subplot(1, 2, 1, projection='smith')
-        ax2 = fig.add_subplot(1, 2, 2, projection='smith')
+            fig = plt.figure(figsize=(12, 6))
+            ax1 = fig.add_subplot(1, 2, 1, projection='smith')
+            ax2 = fig.add_subplot(1, 2, 2, projection='smith')
 
-        sc1 = ax1.scatter(s11_narrow.real, s11_narrow.imag, marker=".", c=freq, cmap='viridis', s=10)
-        fig.colorbar(sc1, ax=ax1, label="Frequency (Hz)")
-        ax1.set_title("Narrow VNA Scan")
+            sc1 = ax1.scatter(s11_narrow.real, s11_narrow.imag, marker=".", c=freq, cmap='viridis', s=10)
+            fig.colorbar(sc1, ax=ax1, label="Frequency (Hz)")
+            ax1.set_title("Narrow VNA Scan")
 
-        sc2 = ax2.scatter(s11_wide.real, s11_wide.imag, marker=".", c=freq, cmap='viridis', s=10)
-        fig.colorbar(sc2, ax=ax2, label="Frequency (Hz)")
-        ax2.set_title("Wide VNA Scan")
+            sc2 = ax2.scatter(s11_wide.real, s11_wide.imag, marker=".", c=freq, cmap='viridis', s=10)
+            fig.colorbar(sc2, ax=ax2, label="Frequency (Hz)")
+            ax2.set_title("Wide VNA Scan")
 
-        plt.savefig(f"{run_dir}/smith_chart_{i:03d}.png", dpi=150)
-        plt.close(fig)
+            plt.savefig(f"{run_dir}/smith_chart_{spectra_list.index(s)}.png", dpi=150)
+            plt.close(fig)
 
+print(f"{len(invalid_spectra)} spectra are empty or invalid.")
+invalid_spectra_df = pd.DataFrame(invalid_spectra, columns=["bad_files"])
+invalid_spectra_df.to_csv("output/qshs_import/Jan/invalid_spectra.csv", index=False)
 
 res_freq_diff_list = []
 for f in res_freqs_list:
@@ -246,7 +290,7 @@ for f in res_freqs_list:
 
 
 # Build a data frame of the metadata for all of the spectra
-metadata_df = pd.DataFrame({    "spectrum": spectra_list,
+metadata_df = pd.DataFrame({    "spectrum": valid_spectra,
                                 "res_freq": res_freqs_list,
                                 "res_freq_diff": res_freq_diff_list,
                                 "bandwidth": bandwidths_list,
