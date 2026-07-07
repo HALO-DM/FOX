@@ -144,8 +144,6 @@ def load_yaml_config(path: pathlib.Path) -> dict:
         },
         "output": {
             "save_data":     bool(_get(out, "save_data", False)),
-            "combined_plot": bool(_get(out, "combined_plot", False)),
-            "offset_combined_plot": bool(_get(out, "offset_combined_plot", False)),
             "plots_step":    int(_get(out, "plots_step", 1)),   # plot every Nth spectrum
             "max_plots":     out.get("max_plots", None),        # optional int
             "root":          _get(out, "root", "output"),
@@ -223,11 +221,16 @@ def main():
     plt.title("Example raw spectrum"); plt.grid(alpha=0.3); plt.tight_layout()
     plt.savefig(run_dir/"log_raw_spectrum_last.png", dpi=150); plt.close()
 
-    step = max(1, int(out["plots_step"]))
-    max_plots = None if out["max_plots"] is None else int(out["max_plots"])
+    plt.figure(figsize=(9,3))
+    plt.loglog(fper[0]/1e6, specs[-1], lw=0.6)
+    plt.xlabel("Frequency [MHz]"); plt.ylabel("Raw Power [arb]")
+    plt.title("Example raw spectrum"); plt.grid(alpha=0.3); plt.tight_layout()
+    plt.savefig(run_dir/"log_raw_spectrum_last.png", dpi=150); plt.close()
 
     # Optional: save per-spectrum PNGs + spectra.npz
     if out["save_data"]:
+        step = max(1, int(out["plots_step"]))
+        max_plots = None if out["max_plots"] is None else int(out["max_plots"])
         count = 0
         for i, (freqs, spec) in enumerate(zip(fper, specs)):
             if i % step != 0:
@@ -243,46 +246,12 @@ def main():
             count += 1
         np.savez(run_dir/"spectra.npz", spectra=np.array(specs), freqs=fper, rf_grid=rf)
 
-    # Optional: plot all raw spectra in one figure
-    if out["combined_plot"]:
-        plt.figure(figsize=(9,3))
-        for i, (freqs, spec) in enumerate(zip(fper, specs)):
-            if i % step != 0:
-                continue
-            if max_plots is not None and count >= max_plots:
-                break
-            plt.plot(freqs/1e9, spec, lw=0.6)
-        plt.xlabel("Frequency [GHz]"); plt.ylabel("Raw Power [arb]")
-        plt.title("All raw spectra"); plt.grid(alpha=0.3); plt.tight_layout()
-        plt.savefig(run_dir/"raw_spectrum_all.png", dpi=150); plt.close()
-
-    # Optional: plot all raw spectra in one figure with offset
-    if out["offset_combined_plot"]:
-        # metadata_df = pd.read_csv("output/qshs_spectra/run_03.07.2026_12.06.02/mode_fit_metadata_all.csv")
-        metadata_df = pd.read_csv("output/qshs_spectra/run_07.07.2026_09.54.56/mode_fit_metadata_all_Feb.csv")
-        # Plot the resonance frequency offset againist the spectrum index
-        plt.figure(figsize=(9,3))
-        plt.plot( range(len(metadata_df)),metadata_df["res_freq_diff"].values, marker=".")
-        plt.xlabel("Spectrum Index"); plt.ylabel("Resonance Frequency Offset [Hz]")
-        plt.title("Resonance Frequency Offset vs Spectrum Index"); plt.grid(alpha=0.3); plt.tight_layout()
-        plt.savefig(run_dir/"res_freq_offset_vs_index.png", dpi=150); plt.close()
-
-        # Combine the offset spectra into one figure
-        plt.figure(figsize=(9,3))
-        for i, (freqs, spec) in enumerate(zip(fper, specs)):
-            if i % step != 0:
-                continue
-            if max_plots is not None and count >= max_plots:
-                break
-            plt.plot((freqs/1e6 + metadata_df["res_freq_diff"].iloc[i]*1e3), spec, lw=0.6)
-        plt.xlabel("Frequency [MHz]"); plt.ylabel("Raw Power [arb]")
-        plt.title("All offset raw spectra"); plt.grid(alpha=0.3); plt.tight_layout()
-        plt.savefig(run_dir/"raw_spectrum_all_offset.png", dpi=150); plt.close()    
+        
 
     t0 = time.time()
 
     # QC: drop bad spectra (default thresholds; adjust if desired)
-    sset = SpectrumSet(spectra=list(specs), freqs_per_spec=list(fper), rf_grid=rf, rf_index_map=list(rf_map), metadata=(metadata))
+    sset = SpectrumSet(spectra=list(specs), freqs_per_spec=list(fper), rf_grid=rf, rf_index_map=list(rf_map))
     sset_qc, kept, bad = filter_spectrum_set(sset, predicate=lambda s,f,i: too_noisy(s,f,i, rms_max=3.0))
     print(f"[QC] kept {len(kept)}/{sset.n_spectra()} spectra; dropped: {bad}")
     # replace arrays with filtered ones for the rest of the chain
