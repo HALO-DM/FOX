@@ -1,4 +1,5 @@
 simulation:
+<<<<<<< HEAD
   n_spectra: 100
   n_bins: 20000  # Elena's eyeballed estimation from Ben's thesis
   bin_width_hz: 100.0
@@ -14,6 +15,19 @@ input:
 injection:
   enabled: true
   # f_axion_hz: 5.725e9   # optional; if omitted, placed at mid-span
+=======
+  n_spectra: 1
+  n_bins: 450000  # Elena's eyeballed estimation from Ben's thesis
+  freq_axion: 30e9
+  freq_downmixed: 6e6
+  samples_per_cycle: 6.25
+  amplitude: 1 # Average voltage
+  bin_width_hz: 100.0
+
+injection:
+  enabled: false
+  #f_axion_hz: 5717595000.0   # optional; if omitted, placed at mid-span
+>>>>>>> 0e16e75 (Re-add New Simulation)
   sigma_hz: 2500.0
   total_power: 20.0
 
@@ -26,9 +40,15 @@ quality:
 
 
 baseline:
+<<<<<<< HEAD
   sg_window: 401
   sg_poly: 4
 
+=======
+  sg_window: 101
+  sg_poly: 4
+  
+>>>>>>> 0e16e75 (Re-add New Simulation)
 rebin:
   C: 10
   K: 9
@@ -41,8 +61,11 @@ detection:
 
 output:
   save_data: false      # save per-spectrum PNGs + spectra.npz
+<<<<<<< HEAD
   combined_plot: false  # save combined PNG of all spectra
   offset_combined_plot: false # save combined PNG of all spectra with offset
+=======
+>>>>>>> 0e16e75 (Re-add New Simulation)
   plots_step: 1         # plot every Nth spectrum
   # max_plots: 100      # optional cap
   root: "output"        # base output folder
