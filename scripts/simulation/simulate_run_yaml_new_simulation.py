@@ -223,10 +223,11 @@ def main():
     plt.title("Example raw spectrum"); plt.grid(alpha=0.3); plt.tight_layout()
     plt.savefig(run_dir/"log_raw_spectrum_last.png", dpi=150); plt.close()
 
+    step = max(1, int(out["plots_step"]))
+    max_plots = None if out["max_plots"] is None else int(out["max_plots"])
+
     # Optional: save per-spectrum PNGs + spectra.npz
     if out["save_data"]:
-        step = max(1, int(out["plots_step"]))
-        max_plots = None if out["max_plots"] is None else int(out["max_plots"])
         count = 0
         for i, (freqs, spec) in enumerate(zip(fper, specs)):
             if i % step != 0:
@@ -257,7 +258,8 @@ def main():
 
     # Optional: plot all raw spectra in one figure with offset
     if out["offset_combined_plot"]:
-        metadata_df = pd.read_csv("output/qshs_spectra/run_03.07.2026_12.06.02/mode_fit_metadata_all.csv")
+        # metadata_df = pd.read_csv("output/qshs_spectra/run_03.07.2026_12.06.02/mode_fit_metadata_all.csv")
+        metadata_df = pd.read_csv("output/qshs_spectra/run_07.07.2026_09.54.56/mode_fit_metadata_all_Feb.csv")
         # Plot the resonance frequency offset againist the spectrum index
         plt.figure(figsize=(9,3))
         plt.plot( range(len(metadata_df)),metadata_df["res_freq_diff"].values, marker=".")
@@ -345,8 +347,6 @@ def main():
             baseline=b,
         )
         med_processed.append(processed)
-
-    print(metadata)
 
 
     # 2) baseline removal
