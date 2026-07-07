@@ -79,24 +79,19 @@ bandwidths_list = []
 q_loaded_list = []
 #run_dir.mkdir(parents=True, exist_ok=True)
 
-# Directories for larger data set
-""" directory_Jan = 'input/Feb/Jan'
-for filename in os.listdir(directory_Jan):
+# Directory of larger data set
+directory_all = 'input/Feb/All'
+for filename in os.listdir(directory_all):
     if filename.endswith(".hdf5"):
-        spectra_list.append(f"Jan/{filename}") """
-
-""" directory_Feb = 'input/Feb/Feb'
-for filename in os.listdir(directory_Feb):
-    if filename.endswith(".hdf5"):
-        spectra_list.append(f"Feb/{filename}") """
+        spectra_list.append(f"All/{filename}")
 
 
 # Test data set
-directory = 'input/Jan_QSHS'
+""" directory = 'input/Jan_QSHS'
 for filename in os.listdir(directory):
     if filename.endswith(".hdf5"):
         spectra_list.append(f"{filename}")
-
+ """
 # Whether to plot the QSHS data and slow controls
 plot_qshs_data = False
 plot_slow_controls = False
@@ -106,7 +101,7 @@ invalid_files = [] # Some aspect of the file is missing
 
 for s in tqdm(spectra_list, desc="Processing spectra"):
     
-    with h5py.File(f"input/Jan_QSHS/{s}", "r") as f:
+    with h5py.File(f"input/Feb/{s}", "r") as f:
     # with h5py.File(f"input/Feb/{s}", "r") as f:
         '''f.visititems(print_hdf5_structure)
         f.visititems(inspect)
@@ -276,7 +271,7 @@ for s in tqdm(spectra_list, desc="Processing spectra"):
             plt.savefig(f"{run_dir}/smith_chart_{spectra_list.index(s)}.png", dpi=150)
             plt.close(fig)
 
-print(f"{len(invalid_files)/ len(spectra_list)} spectra are empty or invalid.")
+print(f"{len(invalid_files)}/{ len(spectra_list)} spectra are empty or invalid.")
 invalid_files_df = pd.DataFrame(invalid_files, columns=["bad_files"])
 invalid_files_df.to_csv(f"{run_dir}/invalid_files.csv", index=False)
 valid_files_df = pd.DataFrame(valid_files, columns=["valid_files"])
