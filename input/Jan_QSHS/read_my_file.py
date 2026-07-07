@@ -103,8 +103,8 @@ for filename in os.listdir(directory):
 plot_qshs_data = False
 plot_slow_controls = False
 
-valid_spectra = []
-invalid_spectra = [] # Some aspect of the file is missing
+valid_files = []
+invalid_files = [] # Some aspect of the file is missing
 
 for s in tqdm(spectra_list, desc="Processing spectra"):
     
@@ -140,9 +140,9 @@ for s in tqdm(spectra_list, desc="Processing spectra"):
 
         try:
             mode_fit_data = json.loads(raw)
-            valid_spectra.append(s)
+            valid_files.append(s)
         except json.JSONDecodeError:
-            invalid_spectra.append(s)
+            invalid_files.append(s)
             continue
             
 
@@ -278,11 +278,11 @@ for s in tqdm(spectra_list, desc="Processing spectra"):
             plt.savefig(f"{run_dir}/smith_chart_{spectra_list.index(s)}.png", dpi=150)
             plt.close(fig)
 
-print(f"{len(invalid_spectra)/ len(spectra_list)} spectra are empty or invalid.")
-invalid_spectra_df = pd.DataFrame(invalid_spectra, columns=["bad_files"])
-invalid_spectra_df.to_csv(f"{run_dir}/invalid_spectra.csv", index=False)
-valid_spectra_df = pd.DataFrame(valid_spectra, columns=["valid_files"])
-valid_spectra_df.to_csv(f"{run_dir}/valid_spectra.csv", index=False)
+print(f"{len(invalid_files)/ len(spectra_list)} spectra are empty or invalid.")
+invalid_files_df = pd.DataFrame(invalid_files, columns=["bad_files"])
+invalid_files_df.to_csv(f"{run_dir}/invalid_files.csv", index=False)
+valid_files_df = pd.DataFrame(valid_files, columns=["valid_files"])
+valid_files_df.to_csv(f"{run_dir}/valid_files.csv", index=False)
 
 res_freq_diff_list = []
 for f in res_freqs_list:
@@ -291,7 +291,7 @@ for f in res_freqs_list:
 
 
 # Build a data frame of the metadata for all of the spectra
-metadata_df = pd.DataFrame({    "spectrum": valid_spectra,
+metadata_df = pd.DataFrame({    "spectrum": valid_files,
                                 "res_freq": res_freqs_list,
                                 "res_freq_diff": res_freq_diff_list,
                                 "bandwidth": bandwidths_list,
