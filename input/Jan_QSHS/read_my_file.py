@@ -104,7 +104,7 @@ plot_qshs_data = False
 plot_slow_controls = False
 
 valid_spectra = []
-invalid_spectra = []
+invalid_spectra = [] # Some aspect of the file is missing
 
 for s in tqdm(spectra_list, desc="Processing spectra"):
     
@@ -142,7 +142,6 @@ for s in tqdm(spectra_list, desc="Processing spectra"):
             mode_fit_data = json.loads(raw)
             valid_spectra.append(s)
         except json.JSONDecodeError:
-            #print(f"Skiped {filename} as empty or invalid JSON")
             invalid_spectra.append(s)
             continue
             
@@ -279,9 +278,11 @@ for s in tqdm(spectra_list, desc="Processing spectra"):
             plt.savefig(f"{run_dir}/smith_chart_{spectra_list.index(s)}.png", dpi=150)
             plt.close(fig)
 
-print(f"{len(invalid_spectra)} spectra are empty or invalid.")
+print(f"{len(invalid_spectra)/ len(spectra_list)} spectra are empty or invalid.")
 invalid_spectra_df = pd.DataFrame(invalid_spectra, columns=["bad_files"])
 invalid_spectra_df.to_csv(f"{run_dir}/invalid_spectra.csv", index=False)
+valid_spectra_df = pd.DataFrame(valid_spectra, columns=["valid_files"])
+valid_spectra_df.to_csv(f"{run_dir}/valid_spectra.csv", index=False)
 
 res_freq_diff_list = []
 for f in res_freqs_list:
