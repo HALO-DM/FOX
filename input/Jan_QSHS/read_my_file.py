@@ -281,7 +281,7 @@ for s in tqdm(spectra_list, desc="Processing spectra"):
 
 print(f"{len(invalid_spectra)} spectra are empty or invalid.")
 invalid_spectra_df = pd.DataFrame(invalid_spectra, columns=["bad_files"])
-invalid_spectra_df.to_csv("output/qshs_import/Jan/invalid_spectra.csv", index=False)
+invalid_spectra_df.to_csv(f"{run_dir}/invalid_spectra.csv", index=False)
 
 res_freq_diff_list = []
 for f in res_freqs_list:
