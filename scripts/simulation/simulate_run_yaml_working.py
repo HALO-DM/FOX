@@ -128,12 +128,7 @@ def main():
 
     # 1) Read in Data
     sset = read_hdf5(f"{directory}/{input_file_name}")
-    specs = sset.spectra
-    fper = sset.freqs_per_spec
-    rf = sset.rf_grid
-    rf_map = sset.rf_index_map
-    metadata = sset.metadata
-
+    specs, fper, rf, rf_map, metadata = sset.spectra, sset.freqs_per_spec, sset.rf_grid, sset.rf_index_map, sset.metadata
     # Removing any invalid data files
     specs_valid = []
     fper_valid = []
@@ -256,6 +251,15 @@ def main():
     # replace arrays with filtered ones for the rest of the chain
     specs, fper, rf, rf_map, metadata = sset_qc.spectra, sset_qc.freqs_per_spec, sset_qc.rf_grid, sset_qc.rf_index_map, sset_qc.metadata
 
+    for spec, freq in zip(specs, fper):
+        x = np.where(freq == 0)[0]
+        for j in x:
+            for i in range(2, -1, -1):
+                spec[j+i] = spec[j+i+1]
+                spec[j-i-1] = spec[j-i-2]
+
+        
+
 
     # 2) baseline removal
     _= remove_baseline(
@@ -282,6 +286,15 @@ def main():
 
     # 3) combine
     combined, sigma_c, counts = combine_ml(proc, rf_map, total_rf_bins=len(rf))
+
+    cut_ind = 1000
+
+    combined = np.delete(combined, np.s_[:cut_ind])
+    rf = np.delete(rf, np.s_[:cut_ind])
+
+    combined = np.delete(combined, np.s_[-cut_ind:])
+    rf = np.delete(rf, np.s_[-cut_ind:])
+
     plt.figure(figsize=(10,3))
     plt.plot(rf/1e9, combined, lw=0.8, color="black", label="combined")
     plt.title("Combined spectrum (baseline-removed)")
@@ -293,8 +306,10 @@ def main():
     Dr, sr, _ = rebin_ml(combined, sigma_c, C=C)
     freqs_r = rf[:len(Dr)*C:C] + (C//2)*sim["bin_width_hz"]
     f0 = freqs_r[len(freqs_r)//2]
+    f0 = np.average(metadata["res_freq"]) * 1e9
     Lq = shm_maxwell_template(K=K, bin_width_hz=C*sim["bin_width_hz"], f0_hz=f0)
     Dg, sg = grand_spectrum_ml(Dr, sr, Lq)
+    Dg, sg = Dr, sr
 
     z = np.zeros_like(Dg); m = np.isfinite(sg) & (sg>0); z[m] = Dg[m]/sg[m]
     plt.figure(figsize=(10,3))
