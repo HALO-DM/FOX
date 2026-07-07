@@ -134,23 +134,52 @@ def main():
     rf_map = sset.rf_index_map
     metadata = sset.metadata
 
+    # Removing any invalid data files
+    specs_valid = []
+    fper_valid = []
+    specs_invalid = []
+    fper_invalid = []
 
+    for i in range(len(specs)):
+        if specs[i][0] > 1e-8:
+            specs_invalid.append(specs[i])
+            fper_invalid.append(fper[i])
+        else:
+            specs_valid.append(specs[i])
+            fper_valid.append(fper[i])
 
-    # Always save one example raw spectrum
+    # Always save one valid example raw spectrum
     plt.figure(figsize=(9,3))
-    plt.plot(fper[0]/1e9, specs[0], lw=0.6)
+    plt.plot(fper_valid[0]/1e9, specs_valid[0], lw=0.6)
     plt.xlabel("Frequency [GHz]"); plt.ylabel("Raw Power [arb]")
-    plt.title("Example raw spectrum"); plt.grid(alpha=0.3); plt.tight_layout()
-    plt.savefig(run_dir/"raw_spectrum.png", dpi=150); plt.close()
+    plt.title("Example valid raw spectrum"); plt.grid(alpha=0.3); plt.tight_layout()
+    plt.savefig(run_dir/"valid_raw_spectrum.png", dpi=150); plt.close()
 
     plt.figure(figsize=(9,3))
-    plt.plot(fper[-1]/1e9, specs[-1], lw=0.6)
+    plt.plot(fper_valid[-1]/1e9, specs_valid[-1], lw=0.6)
     plt.xlabel("Frequency [GHz]"); plt.ylabel("Raw Power [arb]")
-    plt.title("Example raw spectrum"); plt.grid(alpha=0.3); plt.tight_layout()
-    plt.savefig(run_dir/"raw_spectrum_last.png", dpi=150); plt.close()
+    plt.title("Example valid raw spectrum"); plt.grid(alpha=0.3); plt.tight_layout()
+    plt.savefig(run_dir/"valid_raw_spectrum_last.png", dpi=150); plt.close()
 
     step = max(1, int(out["plots_step"]))
     max_plots = None if out["max_plots"] is None else int(out["max_plots"])
+
+    # Save one invalid example raw spectrum if exists
+    if len(specs_invalid) != 0:
+        plt.figure(figsize=(9,3))
+        plt.plot(fper_invalid[0]/1e9, specs_invalid[0], lw=0.6)
+        plt.xlabel("Frequency [GHz]"); plt.ylabel("Raw Power [arb]")
+        plt.title("Example invalid raw spectrum"); plt.grid(alpha=0.3); plt.tight_layout()
+        plt.savefig(run_dir/"invalid_raw_spectrum.png", dpi=150); plt.close()
+
+        plt.figure(figsize=(9,3))
+        plt.plot(fper_invalid[-1]/1e9, specs_invalid[-1], lw=0.6)
+        plt.xlabel("Frequency [GHz]"); plt.ylabel("Raw Power [arb]")
+        plt.title("Example invalid raw spectrum"); plt.grid(alpha=0.3); plt.tight_layout()
+        plt.savefig(run_dir/"invalid_raw_spectrum_last.png", dpi=150); plt.close()
+
+        step = max(1, int(out["plots_step"]))
+        max_plots = None if out["max_plots"] is None else int(out["max_plots"])
 
     # Optional: save per-spectrum PNGs + spectra.npz
     if out["save_data"]:
@@ -169,22 +198,35 @@ def main():
             count += 1
         np.savez(run_dir/"spectra.npz", spectra=np.array(specs), freqs=fper, rf_grid=rf)
 
-    # Optional: plot all raw spectra in one figure
+    # Optional: plot all valid raw spectra in one figure
     if out["combined_plot"]:
         plt.figure(figsize=(9,3))
-        for i, (freqs, spec) in enumerate(zip(fper, specs)):
+        for i, (freqs, spec) in enumerate(zip(fper_valid, specs_valid)):
             if i % step != 0:
                 continue
             if max_plots is not None and count >= max_plots:
                 break
             plt.plot(freqs/1e9, spec, lw=0.6)
         plt.xlabel("Frequency [GHz]"); plt.ylabel("Raw Power [arb]")
-        plt.title("All raw spectra"); plt.grid(alpha=0.3); plt.tight_layout()
-        plt.savefig(run_dir/"raw_spectrum_all.png", dpi=150); plt.close()
+        plt.title("All valid raw spectra"); plt.grid(alpha=0.3); plt.tight_layout()
+        plt.savefig(run_dir/"raw_valid_spectrum_all.png", dpi=150); plt.close()
+
+        plt.figure(figsize=(9,3))
+        for i, (freqs, spec) in enumerate(zip(fper_invalid, specs_invalid)):
+            if i % step != 0:
+                continue
+            if max_plots is not None and count >= max_plots:
+                break
+            plt.plot(freqs/1e9, spec, lw=0.6)
+        plt.xlabel("Frequency [GHz]"); plt.ylabel("Raw Power [arb]")
+        plt.title("All invalid raw spectra"); plt.grid(alpha=0.3); plt.tight_layout()
+        plt.savefig(run_dir/"raw_invalid_spectrum_all.png", dpi=150); plt.close()
+
 
     # Optional: plot all raw spectra in one figure with offset
     if out["offset_combined_plot"]:
-        metadata_df = pd.read_csv("output/qshs_spectra/run_07.07.2026_11.51.13/mode_fit_metadata_all.csv")
+        # metadata_df = pd.read_csv("output/qshs_spectra/run_07.07.2026_14.13.53/mode_fit_metadata_all.csv") # Feb
+        metadata_df = pd.read_csv("output/qshs_spectra/run_07.07.2026_14.40.47/mode_fit_metadata_all.csv") #Jan
         # metadata_df = pd.read_csv("output/qshs_spectra/run_07.07.2026_09.54.56/mode_fit_metadata_all_Feb.csv")
         # Plot the resonance frequency offset againist the spectrum index
         plt.figure(figsize=(9,3))
