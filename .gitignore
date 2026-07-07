@@ -36,9 +36,11 @@ htmlcov/
 # Jupyter notebooks
 .ipynb_checkpoints/
 
-# Project outputs and input
+# Project inputs
+/input/Feb
+
+# Project outputs
 /output/*
-/input/*
 /trash/
 /test_output/*
 artifacts/
