@@ -67,14 +67,12 @@ def flatten_to_kv(rows_list, source_name):
 
 
 out_root = "output/qshs_spectra"
-try:
-    os.mkdir(out_root)
-except FileExistsError:
-    pass
+os.makedirs(out_root, exist_ok=True)
+
 
 timestamp = datetime.datetime.now().strftime("%d.%m.%Y_%H.%M.%S")
 run_dir = f"{out_root}/run_{timestamp}"
-os.mkdir(run_dir)
+os.makedirs(run_dir, exist_ok=True)
 spectra_list = []
 res_freqs_list = []
 bandwidths_list = []

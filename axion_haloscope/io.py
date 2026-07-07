@@ -264,24 +264,28 @@ def read_hdf5(path: str | Path) -> SpectrumSet:
     """
     Load SpectrumSet from HDF5 produced by write_hdf5().
     """
-    path = Path(path)
-    with h5py.File(path, "r") as h5:
-        rf_grid = np.asarray(h5["rf_grid"], np.float64)
-        d_specs = h5["spectra"]
-        d_freqs = h5["freqs_per_spec"]
-        d_rfmap = h5["rf_index_map"]
+    try:
+        path = Path(path)
+        with h5py.File(path, "r") as h5:
+            rf_grid = np.asarray(h5["rf_grid"], np.float64)
+            d_specs = h5["spectra"]
+            d_freqs = h5["freqs_per_spec"]
+            d_rfmap = h5["rf_index_map"]
 
-        n_spec = d_specs.shape[0]
-        spectra_list: List[np.ndarray] = []
-        freqs_list: List[np.ndarray] = []
-        rf_index_map: List[np.ndarray] = []
+            n_spec = d_specs.shape[0]
+            spectra_list: List[np.ndarray] = []
+            freqs_list: List[np.ndarray] = []
+            rf_index_map: List[np.ndarray] = []
 
-        for i in range(n_spec):
-            spectra_list.append(np.asarray(d_specs[i], np.float64))
-            freqs_list.append(np.asarray(d_freqs[i], np.float64))
-            rf_index_map.append(np.asarray(d_rfmap[i], np.int64))
+            for i in range(n_spec):
+                spectra_list.append(np.asarray(d_specs[i], np.float64))
+                freqs_list.append(np.asarray(d_freqs[i], np.float64))
+                rf_index_map.append(np.asarray(d_rfmap[i], np.int64))
 
-        metadata = _read_metadata_group(h5)
+            metadata = _read_metadata_group(h5)
+    except FileNotFoundError:
+        raise FileNotFoundError(f"HDF5 file not found: {path}. Please run the QSHS conversion "
+                                "script first to generate the necessary HDF5 file.")
         
     return SpectrumSet(
         spectra=spectra_list,
@@ -396,6 +400,7 @@ def read_qshs_hdf5_dir(
     center_frequency_hz: float | None = None,
     sort_frequency: bool = True,
     bin_width: float | None = None,
+    run_dir: str | Path | None = None,
 ) -> SpectrumSet:
     """
     Read a directory of QSHS HDF5 files.
@@ -442,7 +447,7 @@ def read_qshs_hdf5_dir(
             continue
 
     invalid_files_df = pd.DataFrame(invalid_files, columns=["bad_files"])
-    invalid_files_df.to_csv("output/qshs_import/Jan/invalid_files.csv", index=False)
+    invalid_files_df.to_csv(f"{run_dir}/invalid_files.csv", index=False)
 
     # Build one common grid for all files.
     #

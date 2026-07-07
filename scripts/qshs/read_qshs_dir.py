@@ -2,8 +2,8 @@
 from __future__ import annotations
 
 import argparse
+import datetime, os
 from pathlib import Path
-
 import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
@@ -27,7 +27,7 @@ def main():
     )
     p.add_argument(
         "--outdir",
-        default="output/qshs_import",
+        default="output/qshs_conversion",
         help="Output directory for diagnostics and converted file.",
     )
     p.add_argument(
@@ -47,11 +47,16 @@ def main():
     outdir = Path(args.outdir)
     outdir.mkdir(parents=True, exist_ok=True)
 
+    timestamp = datetime.datetime.now().strftime("%d.%m.%Y_%H.%M.%S")
+    run_dir = outdir / f"run_{timestamp}"
+    run_dir.mkdir(parents=True, exist_ok=True)
+
     sset = read_qshs_hdf5_dir(
         input_dir,
         pattern=args.pattern,
         use_shifted_frequency=True,
         sort_frequency=True,
+        run_dir=run_dir,
     )
 
     print(f"[QSHS] Loaded {sset.n_spectra()} spectra")
@@ -76,7 +81,7 @@ def main():
         plt.close(fig)
 
     if args.save_fox_h5:
-        out_h5 = outdir / "spectra.h5"
+        out_h5 = run_dir / "converted_spectra.h5"
         write_hdf5(sset, out_h5)
         print(f"[QSHS] Saved FOX-native HDF5: {out_h5}")
 
