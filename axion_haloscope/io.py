@@ -5,6 +5,7 @@ import dataclasses
 from pathlib import Path
 from typing import List, Tuple, Optional, Dict
 import h5py, json, sys
+import pandas as pd
 
 @dataclass
 class SpectrumMetadata:
@@ -318,13 +319,12 @@ def read_qshs_hdf5(
     Returns a SpectrumSet with one spectrum.
     """
     path = Path(path)
-
     with h5py.File(path, "r") as h5:
         arr = np.asarray(h5[power_path][()], dtype=float)
         slow_controls_mode_fit   = h5["Slow_Controls/Mode-Fit"][()]
 
         # attribute lookup, not a dataset lookup
-        date_str = h5[power_path].attrs["Date-Time"]
+        date_str = h5.attrs["Date-Time"]
         if isinstance(date_str, bytes):
             date_str = date_str.decode("utf-8")
 
@@ -351,6 +351,7 @@ def read_qshs_hdf5(
             tuning_angle=None,
             volume=None,
         )
+
 
     if arr.ndim != 2 or arr.shape[0] != 2:
         raise ValueError(
@@ -417,17 +418,32 @@ def read_qshs_hdf5_dir(
     spectra = []
     freqs_per_spec = []
     spec_metadata = []
+    invalid_files = []
     for fp in files:
-        one = read_qshs_hdf5(
-            fp,
-            power_path=power_path,
-            use_shifted_frequency=use_shifted_frequency,
-            center_frequency_hz=center_frequency_hz,
-            sort_frequency=sort_frequency,
-        )
-        spectra.append(one.spectra[0])
-        freqs_per_spec.append(one.freqs_per_spec[0])
-        spec_metadata.append(one.metadata)
+        try:    
+            one = read_qshs_hdf5(
+                fp,
+                power_path=power_path,
+                use_shifted_frequency=use_shifted_frequency,
+                center_frequency_hz=center_frequency_hz,
+                sort_frequency=sort_frequency,
+            )
+
+            if np.all(one.spectra[0] == 0):
+                invalid_files.append(fp)
+                continue
+            else:
+                spectra.append(one.spectra[0])
+            
+
+            freqs_per_spec.append(one.freqs_per_spec[0])
+            spec_metadata.append(one.metadata)
+        except json.decoder.JSONDecodeError:
+            invalid_files.append(fp)
+            continue
+
+    invalid_files_df = pd.DataFrame(invalid_files, columns=["bad_files"])
+    invalid_files_df.to_csv("output/qshs_import/Jan/invalid_files.csv", index=False)
 
     # Build one common grid for all files.
     #
