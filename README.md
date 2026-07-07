@@ -18,7 +18,7 @@ going into the FOX directory
 
 3. Test things work
 - run unit test
-> pytest --basetemp=./test_output
+> pytest --basetemp=./tests/test_output
 
 - run a simulation
 > python scripts/simulation/simulate_run_yaml.py configs/simulate_run.yaml
