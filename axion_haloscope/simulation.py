@@ -3,8 +3,11 @@ from __future__ import annotations
 import numpy as np
 from dataclasses import dataclass
 from typing import List, Tuple, Optional
+import datetime
+from collections import defaultdict
 
 from axion_haloscope.noise import external_noise
+from axion_haloscope.io import SpectrumMetadata
 
 @dataclass
 class AxionParams:
@@ -43,12 +46,6 @@ def make_frequency_axes(
         rf_index_map.append(idx)
         freqs_per_spec[i] = rf_grid[idx]
     return freqs_per_spec, rf_grid, rf_index_map
-
-def make_metadata():
-    print("Please add some metadata")
-    metadata = None
-
-    return metadata
 
 def simulate_baseline(
     n_bins: int,
@@ -104,6 +101,46 @@ def inject_axion_power(
     Lb = axion_lineshape_gaussian(rf_grid_hz, f_axion_hz, sigma_hz)
     return total_power * Lb
 
+def _simulate_one_spectrum(
+    i: int,
+    freqs: np.ndarray,
+    rng: np.random.Generator,
+    n_bins: int,
+    f_start_hz: float,
+    f_range: float,
+    noise_sigma: float,
+    baseline_amp: float,
+    baseline_corr_bins: int,
+    baseline_key: Optional[np.ndarray],
+    axion: AxionParams | None,
+    axion_power_global: np.ndarray,
+    rf_index_map: List[np.ndarray],
+) -> Tuple[np.ndarray, dict]:
+    """
+    Simulate one tuned spectrum plus its metadata.
+
+    Returns
+    """
+    baseline = simulate_baseline(n_bins, rng, amplitude=baseline_amp, corr_bins=baseline_corr_bins)
+    white_noise = rng.normal(0.0, noise_sigma, size=n_bins)
+    external = external_noise(freqs, f_start_hz, f_range, baseline_key)
+    raw = external + white_noise
+
+    if axion is not None:
+        raw = raw + axion_power_global[rf_index_map[i]]
+
+    metadata = {
+        "date": datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+        "b_vals": None,
+        "q_factor": None,
+        "temps": None,
+        "tuning_angle": None,
+        "volume": None,
+        "res_freq": axion.f_axion_hz if axion is not None else None,
+        "bandwidth": axion.sigma_hz if axion is not None else None,
+    }
+    return raw.astype(np.float64), metadata
+
 def simulate_spectra(
     n_spectra: int = 60,
     n_bins: int = 6000,
@@ -147,22 +184,20 @@ def simulate_spectra(
     )
 
     spectra: List[np.ndarray] = []
+    meta_lists: dict[str, list] = defaultdict(list)
+
     for i in range(n_spectra):
-        baseline = simulate_baseline(
-            n_bins, rng, amplitude=baseline_amp, corr_bins=baseline_corr_bins
+        # Simulate a singluar spectra and its metadata
+        raw, record = _simulate_one_spectrum(
+            i, freqs_per_spec[i], rng, n_bins, f_start_hz, f_range,
+            noise_sigma, baseline_amp, baseline_corr_bins, baseline_key,
+            axion, axion_power_global, rf_index_map,
         )
-        white_noise = rng.normal(0.0, noise_sigma, size=n_bins)
-        external = external_noise(freqs_per_spec[i], f_start_hz, f_range, baseline_key)
-        #raw = baseline * (external + white_noise)  # multiplicative-ish receiver response
-        raw = (external + white_noise)
-        # Add the portion of axion power that falls within this spectrum’s RF slice
-        idx = rf_index_map[i]
-        if axion is not None:
-            raw = raw + axion_power_global[idx]
+        spectra.append(raw)
+        for k, v in record.items():
+            meta_lists[k].append(v)
 
-        spectra.append(raw.astype(np.float64))
-        metadata = make_metadata()
-
+    metadata = SpectrumMetadata(**{k: np.array(v) for k, v in meta_lists.items()})
     return spectra, freqs_per_spec, rf_grid, rf_index_map, metadata
 
 # --- Minimal demo (optional) ---
