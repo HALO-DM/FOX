@@ -58,8 +58,8 @@ def load_yaml_config(path: pathlib.Path) -> dict:
             "rng_seed":       int(_get(sim, "rng_seed", 1234)),
             "noise_sigma":    float(_get(sim, "noise_sigma", 1.0)),
         },
-         "input": {
-            "read_input": bool(_get(out, "read_input", False)),
+        "input": {
+            "read_input": bool(_get(inp, "read_input", False)),
             "directory":        _get(inp, "directory", "scripts/qshs/output/qshs_import"),
             "input_file_name":  _get(inp, "input_file_name", "spectra.h5"),
         },
@@ -124,8 +124,6 @@ def main():
         s_ax = width_from_fq(f_ax)
         ax = AxionParams(f_axion_hz=float(f_ax), sigma_hz=s_ax, total_power=inj["total_power"])
     
-    
-
     if inp["read_input"]:
         # 1) Read in Data
         directory = inp["directory"]
@@ -140,20 +138,30 @@ def main():
         tune_step_bins=sim["tune_step_bins"], rng_seed=sim["rng_seed"],
         noise_sigma=sim["noise_sigma"], axion=ax
     )
+        
+        
+    res_freq_diff = []
+    for f in metadata["res_freq"]:
+        difference = f - metadata["res_freq"][0]
+        res_freq_diff.append(difference)
 
     # Removing any invalid data files
     specs_valid = []
     fper_valid = []
+    res_freq_diff_valid = []
     specs_invalid = []
     fper_invalid = []
+    res_freq_diff_invalid = []
 
     for i in range(len(specs)):
         if specs[i][0] > 1e-8:
             specs_invalid.append(specs[i])
             fper_invalid.append(fper[i])
+            res_freq_diff_invalid.append(res_freq_diff[i])
         else:
             specs_valid.append(specs[i])
             fper_valid.append(fper[i])
+            res_freq_diff_valid.append(res_freq_diff[i])
 
     # Always save one valid example raw spectrum
     plt.figure(figsize=(9,3))
@@ -229,31 +237,28 @@ def main():
         plt.title("All invalid raw spectra"); plt.grid(alpha=0.3); plt.tight_layout()
         plt.savefig(run_dir/"raw_invalid_spectrum_all.png", dpi=150); plt.close()
 
-
-    # Optional: plot all raw spectra in one figure with offset
+    # Optional: plot all valid raw spectra in one figure with offset
     if out["offset_combined_plot"]:
-        # metadata_df = pd.read_csv("output/qshs_spectra/run_07.07.2026_14.13.53/mode_fit_metadata_all.csv") # Feb
-        metadata_df = pd.read_csv("output/qshs_spectra/run_07.07.2026_14.40.47/mode_fit_metadata_all.csv") #Jan
-        # metadata_df = pd.read_csv("output/qshs_spectra/run_07.07.2026_09.54.56/mode_fit_metadata_all_Feb.csv")
         # Plot the resonance frequency offset againist the spectrum index
         plt.figure(figsize=(9,3))
-        plt.plot( range(len(metadata_df)),metadata_df["res_freq_diff"].values, marker=".")
+        plt.scatter( range(len(res_freq_diff_valid)),res_freq_diff_valid)
         plt.xlabel("Spectrum Index"); plt.ylabel("Resonance Frequency Offset [Hz]")
         plt.title("Resonance Frequency Offset vs Spectrum Index"); plt.grid(alpha=0.3); plt.tight_layout()
         plt.savefig(run_dir/"res_freq_offset_vs_index.png", dpi=150); plt.close()
 
         # Combine the offset spectra into one figure
         plt.figure(figsize=(9,3))
-        for i, (freqs, spec) in enumerate(zip(fper, specs)):
+        for i, (freqs, spec) in enumerate(zip(fper_valid, specs_valid)):
             if i % step != 0:
                 continue
             if max_plots is not None and count >= max_plots:
                 break
-            plt.plot((freqs/1e6 + metadata_df["res_freq_diff"].iloc[i]*1e3), spec, lw=0.6)
-        plt.xlabel("Frequency [MHz]"); plt.ylabel("Raw Power [arb]")
-        plt.title("All offset raw spectra"); plt.grid(alpha=0.3); plt.tight_layout()
-        plt.savefig(run_dir/"raw_spectrum_all_offset.png", dpi=150); plt.close()    
+            plt.plot((freqs/1e9 + res_freq_diff[i]), spec, lw=0.6)
+        plt.xlabel("Frequency [GHz]"); plt.ylabel("Raw Power [arb]")
+        plt.title("All valid spectra offset"); plt.grid(alpha=0.3); plt.tight_layout()
+        plt.savefig(run_dir/"raw_spectrum_all_valid_offset.png", dpi=150); plt.close()  
 
+ 
     t0 = time.time()
 
     # QC: drop bad spectra (default thresholds; adjust if desired)
