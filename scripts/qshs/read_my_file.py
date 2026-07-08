@@ -80,18 +80,18 @@ q_loaded_list = []
 #run_dir.mkdir(parents=True, exist_ok=True)
 
 # Directory of larger data set
-directory_all = 'input/Feb/All'
+""" directory_all = 'input/Feb/All'
 for filename in os.listdir(directory_all):
     if filename.endswith(".hdf5"):
-        spectra_list.append(f"All/{filename}")
+        spectra_list.append(f"Feb/All/{filename}") """
 
 
 # Test data set
-""" directory = 'input/Jan_QSHS'
+directory = 'input/Jan_QSHS'
 for filename in os.listdir(directory):
     if filename.endswith(".hdf5"):
-        spectra_list.append(f"{filename}")
- """
+        spectra_list.append(f"Jan_QSHS/{filename}")
+
 # Whether to plot the QSHS data and slow controls
 plot_qshs_data = False
 plot_slow_controls = False
@@ -101,8 +101,7 @@ invalid_files = [] # Some aspect of the file is missing
 
 for s in tqdm(spectra_list, desc="Processing spectra"):
     
-    with h5py.File(f"input/Feb/{s}", "r") as f:
-    # with h5py.File(f"input/Feb/{s}", "r") as f:
+    with h5py.File(f"input/{s}", "r") as f:
         '''f.visititems(print_hdf5_structure)
         f.visititems(inspect)
         data = hdf5_to_object(f)
@@ -272,7 +271,10 @@ for s in tqdm(spectra_list, desc="Processing spectra"):
             plt.close(fig)
 
 print(f"{len(invalid_files)}/{ len(spectra_list)} spectra are empty or invalid.")
-invalid_files_df = pd.DataFrame(invalid_files, columns=["bad_files"])
-invalid_files_df.to_csv(f"{run_dir}/invalid_files.csv", index=False)
-valid_files_df = pd.DataFrame(valid_files, columns=["valid_files"])
-valid_files_df.to_csv(f"{run_dir}/valid_files.csv", index=False)
+
+# Export list of valid and invalid files to hdf files
+with h5py.File(f"{run_dir}/valid_files.h5", "w") as f:
+    f.create_dataset("valid_files", data=valid_files, dtype=h5py.string_dtype(encoding='utf-8'))
+
+with h5py.File(f"{run_dir}/invalid_files.h5", "w") as f:
+    f.create_dataset("invalid_files", data=invalid_files, dtype=h5py.string_dtype(encoding='utf-8'))
