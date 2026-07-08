@@ -59,6 +59,7 @@ def load_yaml_config(path: pathlib.Path) -> dict:
             "noise_sigma":    float(_get(sim, "noise_sigma", 1.0)),
         },
          "input": {
+            "read_input": bool(_get(out, "read_input", False)),
             "directory":        _get(inp, "directory", "scripts/qshs/output/qshs_import"),
             "input_file_name":  _get(inp, "input_file_name", "spectra.h5"),
         },
@@ -123,12 +124,23 @@ def main():
         s_ax = width_from_fq(f_ax)
         ax = AxionParams(f_axion_hz=float(f_ax), sigma_hz=s_ax, total_power=inj["total_power"])
     
-    directory = inp["directory"]
-    input_file_name = inp["input_file_name"]
+    
 
-    # 1) Read in Data
-    sset = read_hdf5(f"{directory}/{input_file_name}")
-    specs, fper, rf, rf_map, metadata = sset.spectra, sset.freqs_per_spec, sset.rf_grid, sset.rf_index_map, sset.metadata
+    if inp["read_input"]:
+        # 1) Read in Data
+        directory = inp["directory"]
+        input_file_name = inp["input_file_name"]
+        sset = read_hdf5(f"{directory}/{input_file_name}")
+        specs, fper, rf, rf_map, metadata = sset.spectra, sset.freqs_per_spec, sset.rf_grid, sset.rf_index_map, sset.metadata
+    else:
+        # 1) Simulate
+        specs, fper, rf, rf_map, metadata = simulate_spectra(
+        n_spectra=sim["n_spectra"], n_bins=sim["n_bins"],
+        bin_width_hz=sim["bin_width_hz"], f_start_hz=sim["f_start_hz"],
+        tune_step_bins=sim["tune_step_bins"], rng_seed=sim["rng_seed"],
+        noise_sigma=sim["noise_sigma"], axion=ax
+    )
+
     # Removing any invalid data files
     specs_valid = []
     fper_valid = []
@@ -306,7 +318,9 @@ def main():
     Dr, sr, _ = rebin_ml(combined, sigma_c, C=C)
     freqs_r = rf[:len(Dr)*C:C] + (C//2)*sim["bin_width_hz"]
     f0 = freqs_r[len(freqs_r)//2]
-    f0 = np.average(metadata["res_freq"]) * 1e9
+    f0 = np.average(metadata["res_freq"])
+    if f0 >= 1e3:
+        f0 *= 1e9
     Lq = shm_maxwell_template(K=K, bin_width_hz=C*sim["bin_width_hz"], f0_hz=f0)
     Dg, sg = grand_spectrum_ml(Dr, sr, Lq)
     Dg, sg = Dr, sr

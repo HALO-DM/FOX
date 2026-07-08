@@ -44,6 +44,12 @@ def make_frequency_axes(
         freqs_per_spec[i] = rf_grid[idx]
     return freqs_per_spec, rf_grid, rf_index_map
 
+def make_metadata():
+    print("Please add some metadata")
+    metadata = None
+
+    return metadata
+
 def simulate_baseline(
     n_bins: int,
     rng: np.random.Generator,
@@ -155,8 +161,9 @@ def simulate_spectra(
             raw = raw + axion_power_global[idx]
 
         spectra.append(raw.astype(np.float64))
+        metadata = make_metadata()
 
-    return spectra, freqs_per_spec, rf_grid, rf_index_map
+    return spectra, freqs_per_spec, rf_grid, rf_index_map, metadata
 
 # --- Minimal demo (optional) ---
 if __name__ == "__main__":
