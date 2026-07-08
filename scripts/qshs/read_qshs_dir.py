@@ -17,7 +17,7 @@ def main():
     )
     p.add_argument(
         "--input-dir",
-        default="input/Jan_QSHS",
+        default="input/Feb/All",
         help="Directory containing QSHS .hdf5 files.",
     )
     p.add_argument(
@@ -42,6 +42,7 @@ def main():
         help="Number of spectra to plot for diagnostics.",
     )
     args = p.parse_args()
+
 
     input_dir = Path(args.input_dir)
     outdir = Path(args.outdir)

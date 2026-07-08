@@ -137,9 +137,8 @@ def main():
         bin_width_hz=sim["bin_width_hz"], f_start_hz=sim["f_start_hz"],
         tune_step_bins=sim["tune_step_bins"], rng_seed=sim["rng_seed"],
         noise_sigma=sim["noise_sigma"], axion=ax
-    )
-        
-        
+    )  
+
     res_freq_diff = []
     for f in metadata["res_freq"]:
         difference = f - metadata["res_freq"][0]
@@ -149,19 +148,24 @@ def main():
     specs_valid = []
     fper_valid = []
     res_freq_diff_valid = []
+    files_valid = []
     specs_invalid = []
     fper_invalid = []
     res_freq_diff_invalid = []
+    files_invalid = []
 
     for i in range(len(specs)):
         if specs[i][0] > 1e-8:
             specs_invalid.append(specs[i])
             fper_invalid.append(fper[i])
             res_freq_diff_invalid.append(res_freq_diff[i])
+            files_invalid.append(metadata['date'][i])
         else:
             specs_valid.append(specs[i])
             fper_valid.append(fper[i])
             res_freq_diff_valid.append(res_freq_diff[i])
+            files_valid.append(metadata['date'][i])
+
 
     # Always save one valid example raw spectrum
     plt.figure(figsize=(9,3))
@@ -274,8 +278,6 @@ def main():
             for i in range(2, -1, -1):
                 spec[j+i] = spec[j+i+1]
                 spec[j-i-1] = spec[j-i-2]
-
-        
 
 
     # 2) baseline removal

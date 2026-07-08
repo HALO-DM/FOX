@@ -8,8 +8,11 @@ simulation:
   noise_sigma: 1.0
 
 input:
-  read_input: true
-  directory: "output/qshs_conversion/run_07.07.2026_11.35.42"  # path to the directory containing the converted HDF5 files
+  read_input: True
+  # directory: "output/qshs_conversion/run_07.07.2026_14.12.42-Feb" #Feb  # path to the directory containing the converted HDF5 files
+  # directory: "output/qshs_conversion/run_07.07.2026_14.41.27-Jan" #Jan
+  directory: "output/qshs_conversion/run_07.07.2026_16.07.37-All" #All
+  # directory: "output/qshs_conversion" #Test
   input_file_name: "converted_spectra.h5"
 
 injection:
