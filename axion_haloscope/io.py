@@ -446,8 +446,9 @@ def read_qshs_hdf5_dir(
             invalid_files.append(fp)
             continue
 
-    invalid_files_df = pd.DataFrame(invalid_files, columns=["bad_files"])
-    invalid_files_df.to_csv(f"{run_dir}/invalid_files.csv", index=False)
+    with h5py.File(f"{run_dir}/invalid_files.h5", "w") as f:
+        f.create_dataset("invalid_files", data=invalid_files, dtype=h5py.string_dtype(encoding='utf-8'))
+
 
     # Build one common grid for all files.
     #
