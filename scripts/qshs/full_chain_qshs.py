@@ -9,6 +9,7 @@ import numpy as np
 import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
+import datetime
 
 from axion_haloscope.io import read_qshs_hdf5_dir
 from axion_haloscope.data_quality import filter_spectrum_set, too_noisy, restrict_frequency_range
@@ -55,6 +56,10 @@ def main():
     outdir = Path(args.outdir)
     outdir.mkdir(parents=True, exist_ok=True)
 
+    timestamp = datetime.datetime.now().strftime("%d.%m.%Y_%H.%M.%S")
+    run_dir = outdir / f"run_{timestamp}"
+    run_dir.mkdir(parents=True, exist_ok=True)
+
     # ------------------------------------------------------------------
     # 1. Read QSHS HDF5 directory
     # ------------------------------------------------------------------
@@ -63,6 +68,7 @@ def main():
         pattern=args.pattern,
         use_shifted_frequency=True,
         sort_frequency=True,
+        run_dir=run_dir,
     )
 
     print(f"[I/O] Loaded {sset.n_spectra()} QSHS spectra")
