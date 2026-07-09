@@ -137,41 +137,36 @@ def main():
         bin_width_hz=sim["bin_width_hz"], f_start_hz=sim["f_start_hz"],
         tune_step_bins=sim["tune_step_bins"], rng_seed=sim["rng_seed"],
         noise_sigma=sim["noise_sigma"], axion=ax
-    )  
+    )
+    
 
+    # QC: drop bad spectra (default thresholds; adjust if desired)
+    sset = SpectrumSet(spectra=list(specs), freqs_per_spec=list(fper), rf_grid=rf, rf_index_map=list(rf_map), metadata=(metadata))
+    sset_qc, sset_qc_invalid_noise ,kept, bad_too_noisey = filter_spectrum_set(sset, predicate=lambda s,f,i: too_noisy(s,f,i, rms_max=3.0))
+    sset_qc, sset_qc_invalid_power, kept, bad_high_power = filter_spectrum_set(sset, predicate=lambda s,f,i: power_too_high(s,f,i, p_max=1e-8))
+    print(f"[QC] kept {len(kept)}/{sset.n_spectra()} spectra; removed {len(bad_too_noisey)} spectra as too noisey; removed {len(bad_high_power)} spectra as power too high.")
+
+    with open(run_dir/'invalid_spectra.txt', 'w+') as f:
+        f.write('Spectra removed as too noisey | ')
+        for s in bad_too_noisey:
+            f.write('%s\n' %s)
+        
+        f.write('Spectra removed as power too high')
+        for s in bad_high_power:
+            f.write('%s\n' %s)
+    
+    
+    sset_qc_invalid = sset_qc_invalid_power
+    # replace arrays with filtered ones for the rest of the chain
+    specs, fper, rf, rf_map, metadata = sset_qc.spectra, sset_qc.freqs_per_spec, sset_qc.rf_grid, sset_qc.rf_index_map, sset_qc.metadata
+    # Seperate invalid spectra to plot
+    specs_invalid, fper_invalid, rf_invalid, rf_map_invalid, metadata_invalid = sset_qc_invalid.spectra, sset_qc_invalid.freqs_per_spec, sset_qc_invalid.rf_grid, sset_qc_invalid.rf_index_map, sset_qc_invalid.metadata
+
+    # Calculate difference in resonant frequency of the cavity between the spectra
     res_freq_diff = []
     for f in metadata["res_freq"]:
         difference = f - metadata["res_freq"][0]
         res_freq_diff.append(difference)
-
-    # Removing any invalid data files
-    specs_invalid =[]
-    """ specs_valid = []
-    fper_valid = []
-    res_freq_diff_valid = []
-    files_valid = []
-    rf_map_valid = []
-    specs_invalid = []
-    fper_invalid = []
-    res_freq_diff_invalid = []
-    files_invalid = []
-
-    for i in range(len(specs)):
-        if specs[i][0] > 1e-8:
-            specs_invalid.append(specs[i])
-            fper_invalid.append(fper[i])
-            res_freq_diff_invalid.append(res_freq_diff[i])
-            files_invalid.append(metadata['date'][i])
-        else:
-            specs_valid.append(specs[i])
-            fper_valid.append(fper[i])
-            res_freq_diff_valid.append(res_freq_diff[i])
-            files_valid.append(metadata['date'][i])
-            rf_map_valid.append(rf_map[i])
-
-    specs = specs_valid
-    fper = fper_valid
-    rf_map = rf_map_valid """
 
     # Always save one valid example raw spectrum
     plt.figure(figsize=(9,3))
@@ -189,7 +184,7 @@ def main():
     step = max(1, int(out["plots_step"]))
     max_plots = None if out["max_plots"] is None else int(out["max_plots"])
 
-    # Save one invalid example raw spectrum if exists
+    # Save one invalid example raw spectrum if it exists
     if len(specs_invalid) != 0:
         plt.figure(figsize=(9,3))
         plt.plot(fper_invalid[0]/1e9, specs_invalid[0], lw=0.6)
@@ -206,7 +201,7 @@ def main():
         step = max(1, int(out["plots_step"]))
         max_plots = None if out["max_plots"] is None else int(out["max_plots"])
 
-    # Optional: save per-spectrum PNGs + spectra.npz
+    # Optional: save per-spectrum PNGs + spectra.npz for valid data
     if out["save_data"]:
         count = 0
         for i, (freqs, spec) in enumerate(zip(fper, specs)):
@@ -223,7 +218,7 @@ def main():
             count += 1
         np.savez(run_dir/"spectra.npz", spectra=np.array(specs), freqs=fper, rf_grid=rf)
 
-    # Optional: plot all valid raw spectra in one figure
+    # Optional: plot all valid/invalid raw spectra in one figure
     if out["combined_plot"]:
         plt.figure(figsize=(9,3))
         for i, (freqs, spec) in enumerate(zip(fper, specs)):
@@ -252,7 +247,7 @@ def main():
     if out["offset_combined_plot"]:
         # Plot the resonance frequency offset againist the spectrum index
         plt.figure(figsize=(9,3))
-        plt.scatter( range(len(res_freq_diff_valid)),res_freq_diff_valid)
+        plt.scatter( range(len(res_freq_diff)),res_freq_diff)
         plt.xlabel("Spectrum Index"); plt.ylabel("Resonance Frequency Offset [Hz]")
         plt.title("Resonance Frequency Offset vs Spectrum Index"); plt.grid(alpha=0.3); plt.tight_layout()
         plt.savefig(run_dir/"res_freq_offset_vs_index.png", dpi=150); plt.close()
@@ -271,14 +266,6 @@ def main():
 
  
     t0 = time.time()
-
-    # QC: drop bad spectra (default thresholds; adjust if desired)
-    sset = SpectrumSet(spectra=list(specs), freqs_per_spec=list(fper), rf_grid=rf, rf_index_map=list(rf_map), metadata=(metadata))
-    sset_qc, kept, bad_too_noisey = filter_spectrum_set(sset, predicate=lambda s,f,i: too_noisy(s,f,i, rms_max=3.0))
-    sset_qc, kept, bad_high_power = filter_spectrum_set(sset, predicate=lambda s,f,i: power_too_high(s,f,i, p_max=1e-8))
-    print(f"[QC] kept {len(kept)}/{sset.n_spectra()} spectra; removed {len(bad_too_noisey)} spectra as too noisey; removed {len(bad_high_power)} spectra as power too high ;dropped: {bad_too_noisey + bad_high_power}")
-    # replace arrays with filtered ones for the rest of the chain
-    specs, fper, rf, rf_map, metadata = sset_qc.spectra, sset_qc.freqs_per_spec, sset_qc.rf_grid, sset_qc.rf_index_map, sset_qc.metadata
 
     for spec, freq in zip(specs, fper):
         x = np.where(freq == 0)[0]
