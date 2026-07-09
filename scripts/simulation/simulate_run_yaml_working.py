@@ -149,6 +149,7 @@ def main():
     fper_valid = []
     res_freq_diff_valid = []
     files_valid = []
+    rf_map_valid = []
     specs_invalid = []
     fper_invalid = []
     res_freq_diff_invalid = []
@@ -165,7 +166,11 @@ def main():
             fper_valid.append(fper[i])
             res_freq_diff_valid.append(res_freq_diff[i])
             files_valid.append(metadata['date'][i])
+            rf_map_valid.append(rf_map[i])
 
+    specs = specs_valid
+    fper = fper_valid
+    rf_map = rf_map_valid
 
     # Always save one valid example raw spectrum
     plt.figure(figsize=(9,3))
@@ -227,8 +232,10 @@ def main():
                 break
             plt.plot(freqs/1e9, spec, lw=0.6)
         plt.xlabel("Frequency [GHz]"); plt.ylabel("Raw Power [arb]")
+        plt.xlim(-0.00001,0.00001)
         plt.title("All valid raw spectra"); plt.grid(alpha=0.3); plt.tight_layout()
         plt.savefig(run_dir/"raw_valid_spectrum_all.png", dpi=150); plt.close()
+
 
         plt.figure(figsize=(9,3))
         for i, (freqs, spec) in enumerate(zip(fper_invalid, specs_invalid)):
@@ -252,7 +259,7 @@ def main():
 
         # Combine the offset spectra into one figure
         plt.figure(figsize=(9,3))
-        for i, (freqs, spec) in enumerate(zip(fper_valid, specs_valid)):
+        for i, (freqs, spec) in enumerate(zip(fper, specs)):
             if i % step != 0:
                 continue
             if max_plots is not None and count >= max_plots:
@@ -278,6 +285,7 @@ def main():
             for i in range(2, -1, -1):
                 spec[j+i] = spec[j+i+1]
                 spec[j-i-1] = spec[j-i-2]
+    
 
 
     # 2) baseline removal
@@ -300,13 +308,24 @@ def main():
             subtract_one=True,
         )
         proc.append(processed)
+    
+    plt.figure(figsize=(9,3))
+    for i, (freqs, spec) in enumerate(zip(fper_valid, proc)):
+        if i % step != 0:
+            continue
+        if max_plots is not None and count >= max_plots:
+            break
+        plt.plot(freqs/1e9, spec, lw=0.6)
+    plt.xlabel("Frequency [GHz]"); plt.ylabel("Raw Power [arb]")
+    plt.xlim(0, 0.002)
+    plt.title("All valid raw spectra"); plt.grid(alpha=0.3); plt.tight_layout()
+    plt.savefig(run_dir/"raw_valid_spectrum_all.png", dpi=150); plt.close()
 
-        
 
     # 3) combine
     combined, sigma_c, counts = combine_ml(proc, rf_map, total_rf_bins=len(rf))
 
-    cut_ind = 1000
+    cut_ind = 2000
 
     combined = np.delete(combined, np.s_[:cut_ind])
     rf = np.delete(rf, np.s_[:cut_ind])
