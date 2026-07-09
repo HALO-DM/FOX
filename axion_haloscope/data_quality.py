@@ -9,6 +9,22 @@ BadPredicate = Callable[[np.ndarray, np.ndarray, int], bool]
 def placeholder_bad_predicate(s: np.ndarray, f: np.ndarray, i: int) -> bool:
     return False
 
+
+def power_too_high(
+    s: np.ndarray,
+    f: np.ndarray,
+    i: int,
+    *,
+    p_max: float = 1e-8,
+) -> bool:
+    """
+    Flag a spectrum as BAD if its max power exceeds the max power limit p_max.
+    - units are in the spectrum’s native (arb) units.
+    """
+    max_power = np.nanmax(s)
+
+    return max_power > p_max
+
 def too_noisy(
     s: np.ndarray,
     f: np.ndarray,

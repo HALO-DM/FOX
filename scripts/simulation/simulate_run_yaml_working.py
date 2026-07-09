@@ -25,7 +25,7 @@ from axion_haloscope.rebin      import rebin_ml, grand_spectrum_ml
 from axion_haloscope.lineshape  import shm_maxwell_template
 from axion_haloscope.detection  import threshold_for_detection, find_candidates
 from axion_haloscope.limit      import compute_local_snr_template, coupling_limit, plot_exclusion
-from axion_haloscope.data_quality import filter_spectrum_set, too_noisy
+from axion_haloscope.data_quality import filter_spectrum_set, too_noisy, power_too_high
 from axion_haloscope.io import SpectrumSet, SpectrumMetadata, read_hdf5
 from axion_haloscope.data_quality import filter_spectrum_set, too_noisy
 from axion_haloscope.width_fq   import width_from_fq
@@ -145,7 +145,8 @@ def main():
         res_freq_diff.append(difference)
 
     # Removing any invalid data files
-    specs_valid = []
+    specs_invalid =[]
+    """ specs_valid = []
     fper_valid = []
     res_freq_diff_valid = []
     files_valid = []
@@ -170,17 +171,17 @@ def main():
 
     specs = specs_valid
     fper = fper_valid
-    rf_map = rf_map_valid
+    rf_map = rf_map_valid """
 
     # Always save one valid example raw spectrum
     plt.figure(figsize=(9,3))
-    plt.plot(fper_valid[0]/1e9, specs_valid[0], lw=0.6)
+    plt.plot(fper[0]/1e9, specs[0], lw=0.6)
     plt.xlabel("Frequency [GHz]"); plt.ylabel("Raw Power [arb]")
     plt.title("Example valid raw spectrum"); plt.grid(alpha=0.3); plt.tight_layout()
     plt.savefig(run_dir/"valid_raw_spectrum.png", dpi=150); plt.close()
 
     plt.figure(figsize=(9,3))
-    plt.plot(fper_valid[-1]/1e9, specs_valid[-1], lw=0.6)
+    plt.plot(fper[-1]/1e9, specs[-1], lw=0.6)
     plt.xlabel("Frequency [GHz]"); plt.ylabel("Raw Power [arb]")
     plt.title("Example valid raw spectrum"); plt.grid(alpha=0.3); plt.tight_layout()
     plt.savefig(run_dir/"valid_raw_spectrum_last.png", dpi=150); plt.close()
@@ -225,7 +226,7 @@ def main():
     # Optional: plot all valid raw spectra in one figure
     if out["combined_plot"]:
         plt.figure(figsize=(9,3))
-        for i, (freqs, spec) in enumerate(zip(fper_valid, specs_valid)):
+        for i, (freqs, spec) in enumerate(zip(fper, specs)):
             if i % step != 0:
                 continue
             if max_plots is not None and count >= max_plots:
@@ -235,16 +236,17 @@ def main():
         plt.title("All valid raw spectra"); plt.grid(alpha=0.3); plt.tight_layout()
         plt.savefig(run_dir/"raw_valid_spectrum_all.png", dpi=150); plt.close()
 
-        plt.figure(figsize=(9,3))
-        for i, (freqs, spec) in enumerate(zip(fper_invalid, specs_invalid)):
-            if i % step != 0:
-                continue
-            if max_plots is not None and count >= max_plots:
-                break
-            plt.plot(freqs/1e9, spec, lw=0.6)
-        plt.xlabel("Frequency [GHz]"); plt.ylabel("Raw Power [arb]")
-        plt.title("All invalid raw spectra"); plt.grid(alpha=0.3); plt.tight_layout()
-        plt.savefig(run_dir/"raw_invalid_spectrum_all.png", dpi=150); plt.close()
+        if len(specs_invalid) != 0:
+            plt.figure(figsize=(9,3))
+            for i, (freqs, spec) in enumerate(zip(fper_invalid, specs_invalid)):
+                if i % step != 0:
+                    continue
+                if max_plots is not None and count >= max_plots:
+                    break
+                plt.plot(freqs/1e9, spec, lw=0.6)
+            plt.xlabel("Frequency [GHz]"); plt.ylabel("Raw Power [arb]")
+            plt.title("All invalid raw spectra"); plt.grid(alpha=0.3); plt.tight_layout()
+            plt.savefig(run_dir/"raw_invalid_spectrum_all.png", dpi=150); plt.close()
 
     # Optional: plot all valid raw spectra in one figure with offset
     if out["offset_combined_plot"]:
@@ -272,8 +274,9 @@ def main():
 
     # QC: drop bad spectra (default thresholds; adjust if desired)
     sset = SpectrumSet(spectra=list(specs), freqs_per_spec=list(fper), rf_grid=rf, rf_index_map=list(rf_map), metadata=(metadata))
-    sset_qc, kept, bad = filter_spectrum_set(sset, predicate=lambda s,f,i: too_noisy(s,f,i, rms_max=3.0))
-    print(f"[QC] kept {len(kept)}/{sset.n_spectra()} spectra; dropped: {bad}")
+    sset_qc, kept, bad_too_noisey = filter_spectrum_set(sset, predicate=lambda s,f,i: too_noisy(s,f,i, rms_max=3.0))
+    sset_qc, kept, bad_high_power = filter_spectrum_set(sset, predicate=lambda s,f,i: power_too_high(s,f,i, p_max=1e-8))
+    print(f"[QC] kept {len(kept)}/{sset.n_spectra()} spectra; removed {len(bad_too_noisey)} spectra as too noisey; removed {len(bad_high_power)} spectra as power too high ;dropped: {bad_too_noisey + bad_high_power}")
     # replace arrays with filtered ones for the rest of the chain
     specs, fper, rf, rf_map, metadata = sset_qc.spectra, sset_qc.freqs_per_spec, sset_qc.rf_grid, sset_qc.rf_index_map, sset_qc.metadata
 
@@ -283,6 +286,7 @@ def main():
             for i in range(2, -1, -1):
                 spec[j+i] = spec[j+i+1]
                 spec[j-i-1] = spec[j-i-2]
+
 
 
     # 2) baseline removal
