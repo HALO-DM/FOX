@@ -422,7 +422,7 @@ def read_qshs_hdf5_dir(
     spectra = []
     freqs_per_spec = []
     spec_metadata = []
-    invalid_files = []
+    invalid_files = [] # Some aspect of the file is missing
     for fp in files:
         try:    
             one = read_qshs_hdf5(
@@ -432,23 +432,25 @@ def read_qshs_hdf5_dir(
                 center_frequency_hz=center_frequency_hz,
                 sort_frequency=sort_frequency,
             )
-
-            if np.all(one.spectra[0] == 0):
+            # Seeing if the data is all zeros
+            """ if np.all(one.spectra[0] == 0):
                 invalid_files.append(fp)
                 continue
             else:
-                spectra.append(one.spectra[0])
+                spectra.append(one.spectra[0]) """
             
-
+            spectra.append(one.spectra[0])
             freqs_per_spec.append(one.freqs_per_spec[0])
             spec_metadata.append(one.metadata)
         except json.decoder.JSONDecodeError:
             invalid_files.append(fp)
             continue
 
-    with h5py.File(f"{run_dir}/invalid_files.h5", "w") as f:
-        f.create_dataset("invalid_files", data=invalid_files, dtype=h5py.string_dtype(encoding='utf-8'))
-
+    print(f"{len(invalid_files)} / {len(files)}, files are invalid because some aspect of the data is missing.")
+    with open(run_dir/'unloadable_files.txt', 'w+') as f:
+        f.write('Unloadable Files ')
+        for file in invalid_files:
+            f.write(f"\n {str(file)}")
 
     # Build one common grid for all files.
     #
