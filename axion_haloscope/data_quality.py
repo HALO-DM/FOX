@@ -85,6 +85,7 @@ def filter_spectrum_set(
     else:
         bad = identify_bad_spectra(sset, predicate=predicate)  # defaults to keep-all
     keep = [i for i in range(n) if i not in set(bad)]
+
     filtered = SpectrumSet(
         spectra=[sset.spectra[i] for i in keep],
         freqs_per_spec=[sset.freqs_per_spec[i] for i in keep],
@@ -92,7 +93,14 @@ def filter_spectrum_set(
         rf_index_map=[sset.rf_index_map[i] for i in keep],
         metadata=sset.metadata
     )
-    return filtered, keep, bad
+    removed = SpectrumSet(
+        spectra=[sset.spectra[i] for i in bad],
+        freqs_per_spec=[sset.freqs_per_spec[i] for i in bad],
+        rf_grid=sset.rf_grid,
+        rf_index_map=[sset.rf_index_map[i] for i in bad],
+        metadata=sset.metadata
+    )
+    return filtered, removed, keep, bad
 
 
 
