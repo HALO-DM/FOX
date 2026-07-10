@@ -11,7 +11,7 @@ input:
   read_input: True
   # directory: "output/qshs_conversion/run_07.07.2026_14.12.42-Feb" #Feb  # path to the directory containing the converted HDF5 files
   # directory: "output/qshs_conversion/run_07.07.2026_14.41.27-Jan" #Jan
-  directory: "output/qshs_conversion/run_07.07.2026_16.07.37-All" #All
+  directory: "output/qshs_conversion/run_10.07.2026_12.24.42" #All
   # directory: "output/qshs_conversion" #Test
   input_file_name: "converted_spectra.h5"
 
@@ -30,8 +30,10 @@ quality:
 
 
 baseline:
-  sg_window: 401
-  sg_poly: 4
+  sg_window_warm: 201
+  sg_poly_warm: 4
+  sg_window_cold: 201
+  sg_poly_cold: 4
 
 rebin:
   C: 10
@@ -45,8 +47,8 @@ detection:
 
 output:
   save_data: false      # save per-spectrum PNGs + spectra.npz
-  combined_plot: true  # save combined PNG of all spectra
-  offset_combined_plot: true # save combined PNG of all spectra with offset
+  combined_plot: false  # save combined PNG of all spectra
+  offset_combined_plot: false # save combined PNG of all spectra with offset
   plots_step: 1         # plot every Nth spectrum
   # max_plots: 100      # optional cap
   root: "output"        # base output folder

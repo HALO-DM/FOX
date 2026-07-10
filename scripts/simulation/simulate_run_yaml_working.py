@@ -69,8 +69,10 @@ def load_yaml_config(path: pathlib.Path) -> dict:
             "total_power": float(_get(inj, "total_power", 20.0)),
         },
         "baseline": {
-            "sg_window": int(_get(base, "sg_window", 401)),
-            "sg_poly":   int(_get(base, "sg_poly", 4)),
+            "sg_window_warm": int(_get(base, "sg_window_warm", 251)),
+            "sg_poly_warm":   int(_get(base, "sg_poly_warm", 2)),
+            "sg_window_cold": int(_get(base, "sg_window_cold", 401)),
+            "sg_poly_cold":   int(_get(base, "sg_poly_cold", 4)),
         },
         "rebin": {
             "C": int(_get(rb, "C", 10)),
@@ -279,7 +281,22 @@ def main():
  
     t0 = time.time()
 
-    for spec, freq in zip(specs, fper):
+    # QC: drop bad spectra (default thresholds; adjust if desired)
+    sset = SpectrumSet(spectra=list(specs), freqs_per_spec=list(fper), rf_grid=rf, rf_index_map=list(rf_map), metadata=(metadata))
+    sset_qc, removed, kept, bad = filter_spectrum_set(sset, predicate=lambda s,f,i: too_noisy(s,f,i, rms_max=3.0))
+    #print(f"[QC] kept {len(kept)}/{sset.n_spectra()} spectra; dropped: {bad}")
+    # replace arrays with filtered ones for the rest of the chain
+    specs, fper, rf, rf_map, metadata = sset_qc.spectra, sset_qc.freqs_per_spec, sset_qc.rf_grid, sset_qc.rf_index_map, sset_qc.metadata
+
+    cut_min_val = -0.5e6
+    cut_max_val = 2.5e6
+    cut_min_idx = np.abs(fper[0] - cut_min_val).argmin()
+    cut_max_idx = np.abs(fper[0] - cut_max_val).argmin()
+
+    new_specs = []
+    new_freqs = []
+    new_rf_map = []
+    for spec, freq, rf_vals in zip(specs, fper, rf_map):
         x = np.where(freq == 0)[0]
         for j in x:
             for i in range(2, -1, -1):
@@ -287,12 +304,117 @@ def main():
                 spec[j-i-1] = spec[j-i-2]
 
 
+        spec = spec[cut_min_idx:cut_max_idx]
+        freq = freq[cut_min_idx:cut_max_idx]
+        rf_vals = rf_vals[cut_min_idx:cut_max_idx]
+        
+
+        new_specs.append(spec)
+        new_freqs.append(freq)
+        new_rf_map.append(rf_vals)
+
+    specs = new_specs
+    fper = new_freqs
+    rf = rf[cut_min_idx:cut_max_idx]
+    rf_map = new_rf_map
+
+    plt.figure(figsize=(9,3))
+    plt.plot(fper[0]/1e9, specs[0], lw=0.6)
+    plt.xlabel("Frequency [GHz]"); plt.ylabel("Raw Power [arb]")
+    plt.title("Example valid raw spectrum"); plt.grid(alpha=0.3); plt.tight_layout()
+    plt.savefig(run_dir/"trimmed_spectrum_first.png", dpi=150); plt.close()
+
+    plt.figure(figsize=(9,3))
+    plt.plot(fper[0]/1e9, specs[0], lw=0.6)
+    plt.xlabel("Frequency [GHz]"); plt.ylabel("Raw Power [arb]")
+    plt.title("Example valid raw spectrum"); plt.grid(alpha=0.3); plt.tight_layout()
+    plt.savefig(run_dir/"trimmed_spectrum_last.png", dpi=150); plt.close()
 
     # 2) baseline removal
+    spacing_minutes = 30
+    date_times = metadata["date"]
+    dts=[]
+    for date_time in date_times:
+        try:
+            dt = datetime.datetime.strptime(date_time, "%Y-%m-%d %H:%M:%S")
+            dts.append(dt)
+        except ValueError as e:
+            print(f"{date_time} -> {e}")
+
+    groups = []
+    n = len(dts)
+    threshold = spacing_minutes * 60  # seconds
+    i = 0
+    counter = 0
+    while i < n:
+        j = i + 1
+        while j < n and (dts[j] - dts[i]).total_seconds() < threshold:
+            j += 1
+        counter += 1
+        groups.append([[specs[k],counter, fper[k]] for k in range(i, j)])
+        i = j
+
+    sigma_cut = 3
+    specs = []
+    fper = []
+
+    def interpolate_nans(y):
+        y = np.asarray(y, dtype=float)
+        nans = np.isnan(y)
+        if nans.any():
+            if nans.all():
+                return np.nan_to_num(y)  
+            x = np.arange(len(y))
+            y = y.copy()
+            y[nans] = np.interp(x[nans], x[~nans], y[~nans])
+        return y
+
+
+
+    for group_index, group in enumerate(groups):
+
+        fresh_group = []
+
+        for run in range(3):
+            fresh_specs = []
+            fresh_freqs = []
+            average_spectra = np.mean([x[0] for x in group], axis=0)
+            sd_spectra = np.std([x[0] for x in group], axis=0)
+            _, baseline = remove_baseline(
+                spectrum=average_spectra,
+                window_length=base["sg_window_warm"],
+                polyorder=base["sg_poly_warm"],
+                )
+
+            for spectra, idxk, frequencies in group:
+
+                deviation = np.abs(spectra - baseline)
+                mask_idx = np.argwhere(deviation > sigma_cut * sd_spectra)
+                mask = np.zeros(len(spectra))
+                mask[mask_idx] = True
+
+                spec = np.ma.masked_array(spectra, mask)
+                freq = np.ma.masked_array(frequencies, mask)
+
+                cleaned_spec = interpolate_nans(spec.filled(np.nan))
+                cleaned_freq = interpolate_nans(freq.filled(np.nan))
+
+                if run == 2:
+                    cleaned_spec -= baseline
+                fresh_specs.append(cleaned_spec)
+                fresh_freqs.append(cleaned_freq)
+
+            fresh_group.append((fresh_specs, fresh_freqs))
+        
+        
+
+        specs.extend(np.array(fresh_group[-1][0]))
+        fper.extend(np.array(fresh_group[-1][1]))
+
     _= remove_baseline(
     spectrum=specs[0],
-    window_length=base["sg_window"],
-    polyorder=base["sg_poly"],
+    window_length=base["sg_window_cold"],
+    polyorder=base["sg_poly_cold"],
     subtract_one=True,
     diagnostic={"outfile": run_dir / "baseline_s000_before_after.png",
                 "title": "Baseline removal (spectrum 0)"},
@@ -303,25 +425,22 @@ def main():
     for s in specs:
         processed, _baseline = remove_baseline(
             s,
-            window_length=base["sg_window"],
-            polyorder=base["sg_poly"],
+            window_length=base["sg_window_cold"],
+            polyorder=base["sg_poly_cold"],
             subtract_one=True,
         )
         proc.append(processed)
 
 
+    # Normalise rf_map
+    rf_map_new = []
+    for i in rf_map:
+        j = i - i[0]
+    rf_map_new.append(j)
+
 
     # 3) combine
-    combined, sigma_c, counts = combine_ml(proc, rf_map, total_rf_bins=len(rf))
-
-    cut_ind = 1000
-
-    combined = np.delete(combined, np.s_[:cut_ind])
-    rf = np.delete(rf, np.s_[:cut_ind])
-
-    combined = np.delete(combined, np.s_[-cut_ind:])
-    rf = np.delete(rf, np.s_[-cut_ind:])
-
+    combined, sigma_c, counts = combine_ml(proc, rf_map_new, total_rf_bins=len(rf))
     plt.figure(figsize=(10,3))
     plt.plot(rf/1e9, combined, lw=0.8, color="black", label="combined")
     plt.title("Combined spectrum (baseline-removed)")
