@@ -400,6 +400,7 @@ def read_qshs_hdf5(
 
 def read_qshs_hdf5_dir(
     directory: str | Path,
+    valid_files_directory: str | Path,
     *,
     pattern: str = "*.hdf5",
     power_path: str = "/Power_Spectra",
@@ -425,6 +426,13 @@ def read_qshs_hdf5_dir(
 
     if not files:
         raise FileNotFoundError(f"No QSHS HDF5 files matching {pattern} in {directory}")
+    
+
+    
+    with h5py.File(valid_files_directory / "valid_files.h5", "r") as h5:
+        valid_file_names = h5["valid_files"][()]
+
+    valid_file_names_set = set(valid_file_names)
 
     spectra = []
     freqs_per_spec = []
@@ -441,10 +449,10 @@ def read_qshs_hdf5_dir(
                 sort_frequency=sort_frequency,
             )
             
-            spectra.append(one.spectra[0])
-            freqs_per_spec.append(one.freqs_per_spec[0])
-            spec_metadata.append(one.metadata)
-
+            if one.metadata.file_name is valid_file_names_set:
+                spectra.append(one.spectra[0])
+                freqs_per_spec.append(one.freqs_per_spec[0])
+                spec_metadata.append(one.metadata)
         except json.decoder.JSONDecodeError:
             missing_modefit.append(os.path.basename(fp))
             continue

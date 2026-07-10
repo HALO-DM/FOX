@@ -17,7 +17,7 @@ def main():
     )
     p.add_argument(
         "--input-dir",
-        default="input/Feb/All",
+        default="input/Feb",
         help="Directory containing QSHS .hdf5 files.",
     )
     p.add_argument(
@@ -31,6 +31,11 @@ def main():
         help="Output directory for diagnostics and converted file.",
     )
     p.add_argument(
+        "--valid_files_dir",
+        default="output/qshs_spectra/run_10.07.2026_17.05.47",
+        help="Save merged SpectrumSet as FOX-native spectra.h5.",
+    )
+    p.add_argument(
         "--save-fox-h5",
         action="store_false",
         help="Save merged SpectrumSet as FOX-native spectra.h5.",
@@ -38,13 +43,14 @@ def main():
     p.add_argument(
         "--max-plot",
         type=int,
-        default=100,
+        default=0,
         help="Number of spectra to plot for diagnostics.",
     )
     args = p.parse_args()
 
 
     input_dir = Path(args.input_dir)
+    value_list_dir = Path(args.valid_files_dir)
     outdir = Path(args.outdir)
     outdir.mkdir(parents=True, exist_ok=True)
 
@@ -54,6 +60,7 @@ def main():
 
     sset = read_qshs_hdf5_dir(
         input_dir,
+        value_list_dir,
         pattern=args.pattern,
         use_shifted_frequency=True,
         sort_frequency=True,
@@ -78,7 +85,7 @@ def main():
         )
         ax.grid(alpha=0.3)
         fig.tight_layout()
-        fig.savefig(outdir / f"qshs_spectrum_{i:03d}.png", dpi=150)
+        fig.savefig(run_dir / f"qshs_spectrum_{i:03d}.png", dpi=150)
         plt.close(fig)
 
     if args.save_fox_h5:
@@ -86,7 +93,7 @@ def main():
         write_hdf5(sset, out_h5)
         print(f"[QSHS] Saved FOX-native HDF5: {out_h5}")
 
-    print(f"[QSHS] Diagnostics saved in {outdir}")
+    print(f"[QSHS] Diagnostics saved in {run_dir}")
 
 
 if __name__ == "__main__":

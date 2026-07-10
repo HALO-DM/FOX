@@ -80,28 +80,29 @@ q_loaded_list = []
 #run_dir.mkdir(parents=True, exist_ok=True)
 
 # Directory of larger data set
-""" directory_all = 'input/Feb/All'
+directory_all = 'input/Feb'
 for filename in os.listdir(directory_all):
     if filename.endswith(".hdf5"):
-        spectra_list.append(f"Feb/All/{filename}") """
+        spectra_list.append(f"{filename}") 
 
 
 # Test data set
-directory = 'input/Jan_QSHS'
+'''directory = 'input/Jan_QSHS'
 for filename in os.listdir(directory):
     if filename.endswith(".hdf5"):
-        spectra_list.append(f"Jan_QSHS/{filename}")
+        spectra_list.append(f"Jan_QSHS/{filename}")'''
 
 # Whether to plot the QSHS data and slow controls
 plot_qshs_data = False
 plot_slow_controls = False
+save_slow_controls = False
 
 valid_files = []
 invalid_files = [] # Some aspect of the file is missing
 
 for s in tqdm(spectra_list, desc="Processing spectra"):
     
-    with h5py.File(f"input/{s}", "r") as f:
+    with h5py.File(f"{directory_all}/{s}", "r") as f:
         '''f.visititems(print_hdf5_structure)
         f.visititems(inspect)
         data = hdf5_to_object(f)
@@ -198,12 +199,12 @@ for s in tqdm(spectra_list, desc="Processing spectra"):
         df = pd.DataFrame(flat_rows)
 
         table_str = tabulate(df, headers="keys", tablefmt="plain", showindex=False, stralign="left", numalign="left")
+        if save_slow_controls:
+            with open(f"{run_dir}/slow_controls_summary_{spectra_list.index(s)}.txt", "w") as f:
+                f.write(table_str)
 
-        with open(f"{run_dir}/slow_controls_summary_{spectra_list.index(s)}.txt", "w") as f:
-            f.write(table_str)
-
-            if plot_qshs_data:
-                fig, axes = plt.subplots(2, 2, figsize=(19, 9))
+                if plot_qshs_data:
+                    fig, axes = plt.subplots(2, 2, figsize=(19, 9))
 
         if plot_qshs_data:
             axes[0, 0].plot(raw_data[0],raw_data[1], label="Raw")
