@@ -2,17 +2,18 @@
 from __future__ import annotations
 from typing import Callable, Iterable, List, Tuple
 import numpy as np
-from .io import SpectrumSet
+from .io import SpectrumSet, SpectrumMetadata
 
-BadPredicate = Callable[[np.ndarray, np.ndarray, int], bool]
+BadPredicate = Callable[[np.ndarray, np.ndarray, SpectrumMetadata, int], bool]
 
-def placeholder_bad_predicate(s: np.ndarray, f: np.ndarray, i: int) -> bool:
+def placeholder_bad_predicate(s: np.ndarray, f: np.ndarray, md: SpectrumMetadata, i: int) -> bool:
     return False
 
 
 def power_too_high(
     s: np.ndarray,
     f: np.ndarray,
+    md: SpectrumMetadata,
     i: int,
     *,
     p_max: float = 1e-8,
@@ -28,6 +29,7 @@ def power_too_high(
 def spectra_is_zeros(
     s: np.ndarray,
     f: np.ndarray,
+    md: SpectrumMetadata,
     i: int,
 ) -> bool:
     """
@@ -36,9 +38,23 @@ def spectra_is_zeros(
 
     return np.all(s == 0)
 
+def metadata_is_zeros(
+    s: np.ndarray,
+    f: np.ndarray,
+    md: SpectrumMetadata,
+    i: int,
+    *,
+    item: str,
+) -> bool:
+    """
+    Flag a spectrum as BAD if an aspect of metadata is an array of zeros.
+    """
+    return np.all(md[item] == 0)
+
 def too_noisy(
     s: np.ndarray,
     f: np.ndarray,
+    md: SpectrumMetadata,
     i: int,
     *,
     rms_max: float = 3.0,
@@ -71,7 +87,7 @@ def identify_bad_spectra(sset: SpectrumSet, predicate: BadPredicate | None = Non
     bad: List[int] = []
     for i, (s, f) in enumerate(zip(sset.spectra, sset.freqs_per_spec)):
         try:
-            if pred(s, f, i):
+            if pred(s, f, sset.metadata, i):
                 bad.append(i)
         except Exception:
             bad.append(i)
@@ -82,7 +98,7 @@ def filter_spectrum_set(
     bad_indices: Iterable[int] | None = None,
     bad_mask: Iterable[bool] | None = None,
     predicate: BadPredicate | None = None,
-) -> Tuple[SpectrumSet, List[int], List[int]]:
+) -> Tuple[SpectrumSet, SpectrumSet, List[int], List[int]]:
     n = sset.n_spectra()
     if sum(x is not None for x in (bad_indices, bad_mask, predicate)) > 1:
         raise ValueError("Provide only one of bad_indices, bad_mask, or predicate.")
