@@ -116,7 +116,7 @@ def main():
         ax = AxionParams(f_axion_hz=float(f_ax), sigma_hz=s_ax, total_power=inj["total_power"])
 
     # 1) simulate
-    specs, fper, rf, rf_map = simulate_spectra(
+    specs, fper, rf, rf_map, metadata = simulate_spectra(
         n_spectra=sim["n_spectra"], n_bins=sim["n_bins"],
         bin_width_hz=sim["bin_width_hz"], f_start_hz=sim["f_start_hz"],
         tune_step_bins=sim["tune_step_bins"], rng_seed=sim["rng_seed"],
@@ -161,7 +161,7 @@ def main():
 
     # QC: drop bad spectra (default thresholds; adjust if desired)
     sset = SpectrumSet(spectra=list(specs), freqs_per_spec=list(fper), rf_grid=rf, rf_index_map=list(rf_map), metadata=None)
-    sset_qc, kept, bad = filter_spectrum_set(sset, predicate=lambda s,f,i: too_noisy(s,f,i, rms_max=3.0))
+    sset_qc, removed, kept, bad = filter_spectrum_set(sset, predicate=lambda s,f,i: too_noisy(s,f,i, rms_max=3.0))
     print(f"[QC] kept {len(kept)}/{sset.n_spectra()} spectra; dropped: {bad}")
     # replace arrays with filtered ones for the rest of the chain
     specs, fper, rf, rf_map = sset_qc.spectra, sset_qc.freqs_per_spec, sset_qc.rf_grid, sset_qc.rf_index_map
@@ -190,7 +190,6 @@ def main():
         )
         proc.append(processed)
 
-        
 
     # 3) combine
     combined, sigma_c, counts = combine_ml(proc, rf_map, total_rf_bins=len(rf))

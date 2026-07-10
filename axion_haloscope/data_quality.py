@@ -118,7 +118,9 @@ def filter_spectrum_set(
         freqs_per_spec=[sset.freqs_per_spec[i] for i in keep],
         rf_grid=sset.rf_grid,
         rf_index_map=[sset.rf_index_map[i] for i in keep],
-        metadata=sset.metadata
+        metadata={key: (value[keep] if isinstance(value, np.ndarray) else [value[i] for i in keep])
+                 for key, value in sset.metadata.items()
+                 }
     )
     removed = SpectrumSet(
         spectra=[sset.spectra[i] for i in bad],
