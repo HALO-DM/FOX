@@ -152,15 +152,15 @@ removed {len(bad_zero_power)} spectra as power data is array of zeros.")
         f.write(' Spectra removed as too noisey | ') 
     
         for s in bad_too_noisey:
-            f.write( f"\n {str(sset_qc_invalid_noise.metadata['date'][s])}  |")
+            f.write( f"\n {str(sset_qc_invalid_noise.metadata['file_name'][s])}  |")
         
         f.write('Spectra removed as power too high  |')
         for s in bad_high_power:
-            f.write(f"\n {str(sset_qc_invalid_power.metadata['date'][s])}")
+            f.write(f"\n {str(sset_qc_invalid_power.metadata['file_name'][s])}")
         
         f.write('Spectra removed as spectra data is zeros')
         for s in bad_zero_power:
-            f.write(f"\n {str(sset_qc_invalid_power_0.metadata['date'][s])}")
+            f.write(f"\n {str(sset_qc_invalid_power_0.metadata['file_name'][s])}")
 
    
     # replace arrays with filtered ones for the rest of the chain

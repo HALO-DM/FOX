@@ -5,7 +5,7 @@ import dataclasses
 from pathlib import Path
 from typing import List, Tuple, Optional, Dict
 import h5py, json, sys
-import pandas as pd
+import os
 
 @dataclass
 class SpectrumMetadata:
@@ -13,6 +13,7 @@ class SpectrumMetadata:
     Metadata innit
 
     date            : list of floats
+    file_name       : list of strings
     b_vals          : list of floats
     temps           : list of floats
     q_factor        : list of floats
@@ -23,6 +24,7 @@ class SpectrumMetadata:
     """
 
     date: np.ndarray
+    file_name: np.ndarray
     b_vals: np.ndarray
     temps: np.ndarray
     q_factor: np.ndarray
@@ -327,6 +329,10 @@ def read_qshs_hdf5(
         arr = np.asarray(h5[power_path][()], dtype=float)
         slow_controls_mode_fit   = h5["Slow_Controls/Mode-Fit"][()]
 
+        file_name_str = h5.attrs["This_File"]
+        if isinstance(file_name_str, bytes):
+            file_name_str = file_name_str.decode("utf-8")
+
         # attribute lookup, not a dataset lookup
         date_str = h5.attrs["Date-Time"]
         if isinstance(date_str, bytes):
@@ -347,6 +353,7 @@ def read_qshs_hdf5(
 
         spec_metadata = SpectrumMetadata(
             date=date_str,
+            file_name=file_name_str,
             b_vals=None,
             temps=None,
             q_factor=q_loaded_str,
@@ -439,12 +446,12 @@ def read_qshs_hdf5_dir(
             spec_metadata.append(one.metadata)
 
         except json.decoder.JSONDecodeError:
-            missing_modefit.append(fp)
+            missing_modefit.append(os.path.basename(fp))
             continue
 
-    print(f"{len(missing_modefit)} / {len(files)}, files are invalid because metadata is missing.")
+    print(f"{len(missing_modefit)} / {len(files)}, files are unloadable as metadata is missing.")
     with open(run_dir/'unloadable_files.txt', 'w+') as f:
-        f.write('Unloadable Files as missing metadata')
+        f.write('Unloadable files as missing metadata')
         for file in missing_modefit:
             f.write(f"\n {str(file)}")
 
