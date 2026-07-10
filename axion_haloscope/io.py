@@ -433,12 +433,6 @@ def read_qshs_hdf5_dir(
                 center_frequency_hz=center_frequency_hz,
                 sort_frequency=sort_frequency,
             )
-            # Seeing if the data is all zeros
-            """ if np.all(one.spectra[0] == 0):
-                invalid_files.append(fp)
-                continue
-            else:
-                spectra.append(one.spectra[0]) """
             
             spectra.append(one.spectra[0])
             freqs_per_spec.append(one.freqs_per_spec[0])

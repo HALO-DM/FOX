@@ -25,6 +25,17 @@ def power_too_high(
 
     return max_power > p_max
 
+def spectra_is_zeros(
+    s: np.ndarray,
+    f: np.ndarray,
+    i: int,
+) -> bool:
+    """
+    Flag a spectrum as BAD if its power spectra is an array of zeros.
+    """
+
+    return np.all(s == 0)
+
 def too_noisy(
     s: np.ndarray,
     f: np.ndarray,
