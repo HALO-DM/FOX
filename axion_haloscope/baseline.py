@@ -35,7 +35,7 @@ def remove_baseline(
     if subtract_one:
         processed = processed - 1.0
     if add_one:
-        processed = processed + 3.0
+        processed = processed + 1.0
 
     # --- optional diagnostics
     if diagnostic:
