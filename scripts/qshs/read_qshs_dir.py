@@ -33,7 +33,7 @@ def main():
     p.add_argument(
         "--valid_files_dir",
         default="output/qshs_spectra/run_10.07.2026_17.05.47",
-        help="Save merged SpectrumSet as FOX-native spectra.h5.",
+        help="List of valid hdf5 files",
     )
     p.add_argument(
         "--save-fox-h5",
