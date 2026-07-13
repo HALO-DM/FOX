@@ -15,7 +15,6 @@ matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 import time
 import h5py
-import pandas as pd
 
 
 from axion_haloscope.simulation import simulate_spectra, AxionParams
@@ -25,9 +24,8 @@ from axion_haloscope.rebin      import rebin_ml, grand_spectrum_ml
 from axion_haloscope.lineshape  import shm_maxwell_template
 from axion_haloscope.detection  import threshold_for_detection, find_candidates
 from axion_haloscope.limit      import compute_local_snr_template, coupling_limit, plot_exclusion
-from axion_haloscope.data_quality import filter_spectrum_set, too_noisy, power_too_high, spectra_is_zeros, metadata_is_zeros
+from axion_haloscope.data_quality import filter_spectrum_set, too_noisy, power_too_high, spectra_is_zeros
 from axion_haloscope.io import SpectrumSet, SpectrumMetadata, read_hdf5
-from axion_haloscope.data_quality import filter_spectrum_set, too_noisy
 from axion_haloscope.width_fq   import width_from_fq
 
 
@@ -140,41 +138,66 @@ def main():
         tune_step_bins=sim["tune_step_bins"], rng_seed=sim["rng_seed"],
         noise_sigma=sim["noise_sigma"], axion=ax
     )
-    
+
+
     # QC: drop bad spectra (default thresholds; adjust if desired)
-    metadata_items = ["temps", "q_factor", "res_freq", "bandwidth", "tuning_angle", "volume"] # bvals not included as always 0
+    sset, sset_power, kept, bad_power = filter_spectrum_set(
+        sset,
+        predicate=lambda s, f, md, i: power_too_high(
+            s,
+            f,
+            md,
+            i,
+            p_max=1e-8,
+        ),
+    )
 
-    checks = [
-        ("too noisy",              lambda s, f, md, i: too_noisy(s, f, md, i, rms_max=3.0)),
-        ("power too high",         lambda s, f, md, i: power_too_high(s, f, md, i, p_max=1e-8)),
-        ("power data is zeros",    lambda s, f, md, i: spectra_is_zeros(s, f, md, i)),
-    ] + [
-        (f"{item} metadata is zeros", (lambda item: lambda s, f, md, i: metadata_is_zeros(s, f, md, i, item=item))(item))
-        for item in metadata_items]
+    sset, sset_noise, kept, bad_noise = filter_spectrum_set(
+        sset,
+        predicate=lambda s, f, md, i,: too_noisy(
+            s,
+            f,
+            md,
+            i,
+            rms_max=3.0,
+        ),
+    )
 
-    sset_qc = sset
-    removed_by_check: dict[str, tuple[SpectrumSet, list[int]]] = {}
+    sset, sset_zeros, kept, bad_zeros = filter_spectrum_set(
+        sset,
+        predicate=lambda s, f, md, i: spectra_is_zeros(
+            s,
+            f,
+            md,
+            i,
+        ),
+    )
 
-    for label, pred in checks:
-        sset_qc, removed_set, kept, bad = filter_spectrum_set(sset_qc, predicate=pred)
-        removed_by_check[label] = (removed_set, bad)
-
-    n_metadata_removed = sum(len(bad) for label, (_, bad) in removed_by_check.items() if "metadata" in label)
-    print(f"[QC] kept {len(kept)}/{sset.n_spectra()} spectra; "
-        + "; ".join(f"removed {len(bad)} as {label}" for label, (_, bad) in removed_by_check.items() if "metadata" not in label)
-        + f"; removed {n_metadata_removed} spectra as some aspect of metadata is zeros.")
+    print(f"[QC2] kept {len(kept)}/{len(kept) + len(bad_power) + len(bad_noise) + len(bad_zeros)} spectra \
+; {len(bad_power)} spectra were removed as power is too high \
+; {len(bad_noise)} spectra were removed as too noisy \
+; and {len(bad_zeros)} spectra were removed as spectra are arrays of zeros.")
 
     with open(run_dir / "invalid_spectra.txt", "w") as f:
-        for label, (removed_set, bad) in removed_by_check.items():
-            f.write(f"\nSpectra removed as {label}")
-            for s in bad:
-                f.write(f"\n {removed_set.metadata['file_name'][s]} |")
+        f.write(f"\nSpectra removed as power too high")
+        f.write(f"\n----------------------------------")
+        for s in bad_power:
+            f.write(f"\n {sset_power.metadata['file_name'][s]}")
+
+        f.write(f"\nSpectra removed as too noisy")
+        f.write(f"\n-----------------------------")
+        for s in bad_noise:
+            f.write(f"\n {sset_noise.metadata['file_name'][s]}")
+
+        f.write(f"\nSpectra removed as power data is zeros")
+        f.write(f"\n---------------------------------------")
+        for s in bad_zeros:
+            f.write(f"\n {sset_zeros.metadata['file_name'][s]}")
 
     # replace arrays with filtered ones for the rest of the chain
-    specs, fper, rf, rf_map, metadata = sset_qc.spectra, sset_qc.freqs_per_spec, sset_qc.rf_grid, sset_qc.rf_index_map, sset_qc.metadata
+    specs, fper, rf, rf_map, metadata = sset.spectra, sset.freqs_per_spec, sset.rf_grid, sset.rf_index_map, sset.metadata
     # Seperate invalid spectra to plot
-    sset_qc_invalid_power, bad_high_power = removed_by_check["power too high"]
-    specs_invalid_power, fper_invalid_power, rf_invalid, rf_map_invalid, metadata_invalid = sset_qc_invalid_power.spectra, sset_qc_invalid_power.freqs_per_spec, sset_qc_invalid_power.rf_grid, sset_qc_invalid_power.rf_index_map, sset_qc_invalid_power.metadata
+    specs_invalid_power, fper_invalid_power, rf_invalid, rf_map_invalid, metadata_invalid = sset_power.spectra, sset_power.freqs_per_spec, sset_power.rf_grid, sset_power.rf_index_map, sset_power.metadata
 
     # Calculate difference in resonant frequency of the cavity between the spectra
     res_freq_diff = []
@@ -281,12 +304,6 @@ def main():
  
     t0 = time.time()
 
-    # QC: drop bad spectra (default thresholds; adjust if desired)
-    sset = SpectrumSet(spectra=list(specs), freqs_per_spec=list(fper), rf_grid=rf, rf_index_map=list(rf_map), metadata=(metadata))
-    sset_qc, removed, kept, bad = filter_spectrum_set(sset, predicate=lambda s,f,i: too_noisy(s,f,i, rms_max=3.0))
-    #print(f"[QC] kept {len(kept)}/{sset.n_spectra()} spectra; dropped: {bad}")
-    # replace arrays with filtered ones for the rest of the chain
-    specs, fper, rf, rf_map, metadata = sset_qc.spectra, sset_qc.freqs_per_spec, sset_qc.rf_grid, sset_qc.rf_index_map, sset_qc.metadata
 
     cut_min_val = -0.5e6
     cut_max_val = 2.5e6
