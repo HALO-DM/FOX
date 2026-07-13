@@ -66,7 +66,7 @@ def _build_rf_grid_and_map(freqs_per_spec: List[np.ndarray],
     tol is the allowed fractional snapping error to the nearest bin.
     """
     if bin_width is None:
-        bin_width = _infer_bin_width(freqs_per_spec[0])
+        bin_width = _infer_bin_width(freqs_per_spec[-1])
 
     # global min freq
     f0 = float(min(float(f.min()) for f in freqs_per_spec))
@@ -430,9 +430,7 @@ def read_qshs_hdf5_dir(
 
     
     with h5py.File(valid_files_directory / "valid_files.h5", "r") as h5:
-        valid_file_names = h5["valid_files"][()]
-
-    valid_file_names_set = set(valid_file_names)
+        valid_file_names = [f.decode('utf-8') for f in h5["valid_files"][:]]
 
     spectra = []
     freqs_per_spec = []
@@ -448,8 +446,7 @@ def read_qshs_hdf5_dir(
                 center_frequency_hz=center_frequency_hz,
                 sort_frequency=sort_frequency,
             )
-            
-            if one.metadata.file_name is valid_file_names_set:
+            if one.metadata.file_name in valid_file_names:
                 spectra.append(one.spectra[0])
                 freqs_per_spec.append(one.freqs_per_spec[0])
                 spec_metadata.append(one.metadata)
