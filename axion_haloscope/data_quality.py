@@ -22,21 +22,10 @@ def power_too_high(
     Flag a spectrum as BAD if its max power exceeds the max power limit p_max.
     - units are in the spectrum’s native (arb) units.
     """
-    max_power = np.nanmax(s)
+    max_power = np.nanmean(s)
 
     return max_power > p_max
 
-def spectra_is_zeros(
-    s: np.ndarray,
-    f: np.ndarray,
-    md: SpectrumMetadata,
-    i: int,
-) -> bool:
-    """
-    Flag a spectrum as BAD if its power spectra is an array of zeros.
-    """
-
-    return np.all(s == 0)
 
 def metadata_is_zeros(
     s: np.ndarray,

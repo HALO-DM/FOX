@@ -80,7 +80,7 @@ q_loaded_list = []
 #run_dir.mkdir(parents=True, exist_ok=True)
 
 # Directory of larger data set
-directory_all = 'input/Feb'
+directory_all = 'input/Feb/All'
 for filename in os.listdir(directory_all):
     if filename.endswith(".hdf5"):
         spectra_list.append(f"{filename}") 
@@ -117,6 +117,11 @@ for s in tqdm(spectra_list, desc="Processing spectra"):
         slow_controls_status   = f["Slow_Controls/Status"][()]
         slow_controls_temperatures   = f["Slow_Controls/Temperatures"][()]
 
+        # --- Power ---
+        if np.all(power_spectra == 0):
+            invalid_files.append([s, "power spectra is zeros"])
+            continue
+
         # --- Hardware ---
         hardware_data = json.loads(slow_controls_hardware.decode("utf-8"))
         hardware_rows = []
@@ -135,10 +140,9 @@ for s in tqdm(spectra_list, desc="Processing spectra"):
             mode_fit_data = json.loads(raw)
             valid_files.append(s)
         except json.JSONDecodeError:
-            invalid_files.append(s)
+            invalid_files.append([s, "modefit data is missing"])
             continue
             
-
         modefit_rows = []
         if plot_slow_controls:
             fig, axes = plt.subplots(4, 1, figsize=(19, 19))
@@ -271,7 +275,7 @@ for s in tqdm(spectra_list, desc="Processing spectra"):
             plt.savefig(f"{run_dir}/smith_chart_{spectra_list.index(s)}.png", dpi=150)
             plt.close(fig)
 
-print(f"{len(invalid_files)}/{ len(spectra_list)} spectra are empty or invalid.")
+print(f"[QC1] {len(invalid_files)}/{ len(spectra_list)} are invalid files.")
 
 # Export list of valid and invalid files to hdf files
 with h5py.File(f"{run_dir}/valid_files.h5", "w") as f:

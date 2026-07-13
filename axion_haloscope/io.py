@@ -435,7 +435,7 @@ def read_qshs_hdf5_dir(
     spectra = []
     freqs_per_spec = []
     spec_metadata = []
-    missing_modefit = []
+    # missing_modefit = []
     for fp in files:
         
         try:    
@@ -446,19 +446,14 @@ def read_qshs_hdf5_dir(
                 center_frequency_hz=center_frequency_hz,
                 sort_frequency=sort_frequency,
             )
+
             if one.metadata.file_name in valid_file_names:
                 spectra.append(one.spectra[0])
                 freqs_per_spec.append(one.freqs_per_spec[0])
                 spec_metadata.append(one.metadata)
         except json.decoder.JSONDecodeError:
-            missing_modefit.append(os.path.basename(fp))
             continue
-
-    print(f"{len(missing_modefit)} / {len(files)}, files are unloadable as metadata is missing.")
-    with open(run_dir/'unloadable_files.txt', 'w+') as f:
-        f.write('Unloadable files as missing metadata')
-        for file in missing_modefit:
-            f.write(f"\n {str(file)}")
+        
 
     # Build one common grid for all files.
     #

@@ -24,7 +24,7 @@ from axion_haloscope.rebin      import rebin_ml, grand_spectrum_ml
 from axion_haloscope.lineshape  import shm_maxwell_template
 from axion_haloscope.detection  import threshold_for_detection, find_candidates
 from axion_haloscope.limit      import compute_local_snr_template, coupling_limit, plot_exclusion
-from axion_haloscope.data_quality import filter_spectrum_set, too_noisy, power_too_high, spectra_is_zeros
+from axion_haloscope.data_quality import filter_spectrum_set, too_noisy, power_too_high, metadata_is_zeros
 from axion_haloscope.io import SpectrumSet, SpectrumMetadata, read_hdf5
 from axion_haloscope.width_fq   import width_from_fq
 
@@ -163,20 +163,34 @@ def main():
         ),
     )
 
-    sset, sset_zeros, kept, bad_zeros = filter_spectrum_set(
+
+    sset, sset_zeros_bandwidth, kept, bad_zeros_bandwidth = filter_spectrum_set(
         sset,
-        predicate=lambda s, f, md, i: spectra_is_zeros(
+        predicate=lambda s, f, md, i: metadata_is_zeros(
             s,
             f,
             md,
             i,
+            item = "bandwidth",
         ),
     )
 
-    print(f"[QC2] kept {len(kept)}/{len(kept) + len(bad_power) + len(bad_noise) + len(bad_zeros)} spectra \
+    sset, sset_zeros_res_freq, kept, bad_zeros_res_freq = filter_spectrum_set(
+        sset,
+        predicate=lambda s, f, md, i: metadata_is_zeros(
+            s,
+            f,
+            md,
+            i,
+            item = "res_freq",
+        ),
+    )
+
+    print(f"[QC2] kept {len(kept)}/{len(kept) + len(bad_power) + len(bad_noise) + len(bad_zeros_bandwidth) + len(bad_zeros_res_freq)} spectra \
 ; {len(bad_power)} spectra were removed as power is too high \
 ; {len(bad_noise)} spectra were removed as too noisy \
-; and {len(bad_zeros)} spectra were removed as spectra are arrays of zeros.")
+; {len(bad_zeros_bandwidth)} spectra were removed as bandwidth are arrays of zeros \
+; {len(bad_zeros_res_freq)} spectra were removed as res_freq are arrays of zeros.")
 
     with open(run_dir / "invalid_spectra.txt", "w") as f:
         f.write(f"\nSpectra removed as power too high")
@@ -189,10 +203,15 @@ def main():
         for s in bad_noise:
             f.write(f"\n {sset_noise.metadata['file_name'][s]}")
 
-        f.write(f"\nSpectra removed as power data is zeros")
+        f.write(f"\nSpectra removed as bandwdith data is zeros")
         f.write(f"\n---------------------------------------")
-        for s in bad_zeros:
-            f.write(f"\n {sset_zeros.metadata['file_name'][s]}")
+        for s in bad_zeros_bandwidth:
+            f.write(f"\n {sset_zeros_bandwidth.metadata['file_name'][s]}")
+
+        f.write(f"\nSpectra removed as res_freq data is zeros")
+        f.write(f"\n---------------------------------------")
+        for s in bad_zeros_res_freq:
+            f.write(f"\n {sset_zeros_res_freq.metadata['file_name'][s]}")
 
     # replace arrays with filtered ones for the rest of the chain
     specs, fper, rf, rf_map, metadata = sset.spectra, sset.freqs_per_spec, sset.rf_grid, sset.rf_index_map, sset.metadata
