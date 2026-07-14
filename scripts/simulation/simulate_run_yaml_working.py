@@ -462,7 +462,7 @@ def main():
 
 
 
-    _group_mean_res = 1e9 * np.array([
+    _group_mean_res = np.array([
     np.nanmean([item[2] for item in group], axis=0)
     for group in groups
     ])
@@ -489,9 +489,38 @@ def main():
     ax.set_xlabel("IF frequency  [MHz]")
     ax.set_ylabel("PSD  [V²/Hz]")
     ax.set_title("Group-averaged spectra — all groups")
-    ax.set_xlim(0,2)
     plt.tight_layout()
     plt.savefig("zgh.png", dpi = 150, bbox_inches='tight')
+    plt.close()
+
+
+
+    group_sg_fits = []
+    for g, group in enumerate(groups):
+        if group is None:
+            group_sg_fits.append(None)
+            continue
+
+        _, baseline = remove_baseline(
+                spectrum=np.mean([x[0] for x in group], axis=0),
+                window_length=base["sg_window_warm"],
+                polyorder=base["sg_poly_warm"],
+                )
+        group_sg_fits.append(baseline)
+
+
+    fig, ax = plt.subplots(figsize=(13, 5))
+    for g, (group, fit) in enumerate(zip(groups, group_sg_fits)):
+        ax.plot(np.mean([x[1] for x in group], axis=0)/1e6, np.mean([x[0] for x in group], axis=0),   lw=1.0, alpha=0.55, color=_gcol(g), label=f"Grp {g}")
+        ax.plot(np.mean([x[1] for x in group], axis=0)/1e6, fit, lw=1.8, alpha=0.95, color=_gcol(g), linestyle="--")
+    sm_res2 = ScalarMappable(cmap=_cmap_g, norm=_norm_res)
+    sm_res2.set_array([])
+    fig.colorbar(sm_res2, ax=ax, label="Mean cavity resonance  [GHz]")
+    ax.set_xlabel("IF frequency  [MHz]")
+    ax.set_ylabel("PSD  [V²/Hz]")
+    ax.set_title("Group-averaged spectra with initial SG fits  (dashed = fit)")
+    plt.tight_layout()
+    plt.savefig("gay aaa.png", dpi = 150, bbox_inches='tight')
     plt.close()
 
 

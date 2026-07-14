@@ -20,7 +20,7 @@ def remove_baseline(
     Savitzky–Golay baseline removal.
 
     Returns:
-      (processed, baseline)            when diagnostic is falsy or diagnostic={"outfile": ...}
+      (processed, baseline)            when diagnostic is false or diagnostic={"outfile": ...}
       (processed, baseline, figure)    when diagnostic is True or dict without 'outfile'
     """
     # --- compute baseline & processed
