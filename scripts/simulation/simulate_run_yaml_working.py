@@ -366,6 +366,38 @@ def main():
     plt.title("Example valid raw spectrum"); plt.grid(alpha=0.3); plt.tight_layout()
     plt.savefig(run_dir/"trimmed_spectrum_last.png", dpi=150); plt.close()
 
+
+    # ==============
+    # GAIN ALIGNMENT
+    # ==============
+
+    gain_alignment = True
+
+    if gain_alignment:
+        # Average every spectra (local averages)
+        psd_averages = []
+        for spec in specs:
+            av = np.mean(spec)
+            psd_averages.append(av)
+
+        # Average the averages (global average)
+        global_average = np.mean(psd_averages)
+
+        # Calculate differences in global and local averages
+        psd_differences = []
+        for psd in psd_averages:
+            difference = global_average - psd
+            psd_differences.append(difference)
+
+        # Apply the differences to each spectrum
+        shifted_spectra = []
+        for spec,diff in zip(specs, psd_differences):
+            shift = spec + diff
+            shifted_spectra.append(shift)
+
+        # Reassign specs as the shifted spectrum
+        specs = shifted_spectra
+
     # 2) baseline removal
     spacing_minutes = 30
     date_times = metadata["date"]
@@ -381,16 +413,14 @@ def main():
     n = len(dts)
     threshold = spacing_minutes * 60  # seconds
     i = 0
-    counter = 0
     while i < n:
         j = i + 1
         while j < n and (dts[j] - dts[i]).total_seconds() < threshold:
             j += 1
-        counter += 1
-        groups.append([[specs[k],counter, fper[k]] for k in range(i, j)])
+        groups.append([[specs[k], fper[k], metadata["res_freq"][k]] for k in range(i, j)])
         i = j
 
-    sigma_cut = 3
+    sigma_cut = 3.5
     specs = []
     fper = []
 
@@ -404,11 +434,47 @@ def main():
             y = y.copy()
             y[nans] = np.interp(x[nans], x[~nans], y[~nans])
         return y
+    _cmap_g = plt.cm.viridis
 
 
 
-    for group_index, group in enumerate(groups):
+    _group_mean_res = 1e9 * np.array([
+    np.nanmean([item[2] for item in group], axis=0)
+    for group in groups
+    ])
+    
+    
+    from matplotlib.colors import Normalize 
+    _finite_res = _group_mean_res[np.isfinite(_group_mean_res)]
+    _norm_res = Normalize(
+        vmin=np.nanmin(_finite_res) if len(_finite_res) else 0,
+        vmax=np.nanmax(_finite_res) if len(_finite_res) else 1,
+    )
+    def _gcol(g):
+        v = _group_mean_res[g]
+        if not np.isfinite(v):
+            return "grey"
+        return _cmap_g(_norm_res(v))
+    from matplotlib.cm import ScalarMappable
+    fig, ax = plt.subplots(figsize=(13, 5))
+    for g, group in enumerate(groups):
+        if g < 28:
+            ax.plot(np.mean([x[1] for x in group], axis=0)/1e6, np.mean([x[0] for x in group], axis=0), alpha=0.8, color=_gcol(g), label =f"Grp {g}")
+    sm_res = ScalarMappable(cmap=_cmap_g, norm=_norm_res)
+    sm_res.set_array([])
+    fig.colorbar(sm_res, ax=ax, label="Mean cavity resonance  [GHz]")
+    ax.set_xlabel("IF frequency  [MHz]")
+    ax.set_ylabel("PSD  [V²/Hz]")
+    ax.set_title("Group-averaged spectra — all groups")
+    ax.set_xlim(0,2)
+    plt.tight_layout()
+    plt.savefig("zgh.png", dpi = 150)
+    plt.close()
+    sys.exit()
 
+
+
+    for group in groups:
         fresh_group = []
 
         for run in range(3):
@@ -422,7 +488,7 @@ def main():
                 polyorder=base["sg_poly_warm"],
                 )
 
-            for spectra, idxk, frequencies in group:
+            for spectra, frequencies in group:
 
                 deviation = np.abs(spectra - baseline)
                 mask_idx = np.argwhere(deviation > sigma_cut * sd_spectra)
@@ -436,7 +502,7 @@ def main():
                 cleaned_freq = interpolate_nans(freq.filled(np.nan))
 
                 if run == 2:
-                    cleaned_spec -= baseline
+                    cleaned_spec /= baseline
                 fresh_specs.append(cleaned_spec)
                 fresh_freqs.append(cleaned_freq)
 
