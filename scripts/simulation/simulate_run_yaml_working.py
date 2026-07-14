@@ -12,6 +12,7 @@ import numpy as np
 import yaml
 import matplotlib
 matplotlib.use("Agg")
+import matplotlib as mpl
 import matplotlib.pyplot as plt
 import time
 import h5py
@@ -29,6 +30,11 @@ from axion_haloscope.io import SpectrumSet, SpectrumMetadata, read_hdf5
 from axion_haloscope.width_fq   import width_from_fq
 
 
+mpl.rcParams.update({
+    "font.family": "serif",
+    "font.serif":  ["Times New Roman"],
+    "font.size":   16,
+})
 
 def _get(d, key, default):
     v = d.get(key, default)
@@ -324,8 +330,8 @@ def main():
     t0 = time.time()
 
 
-    cut_min_val = -0.5e6
-    cut_max_val = 2.5e6
+    cut_min_val = -0.3e6
+    cut_max_val = 2.3e6
     cut_min_idx = np.abs(fper[0] - cut_min_val).argmin()
     cut_max_idx = np.abs(fper[0] - cut_max_val).argmin()
 
@@ -367,9 +373,9 @@ def main():
     plt.savefig(run_dir/"trimmed_spectrum_last.png", dpi=150); plt.close()
 
 
-    # ==============
+    # =======================================================================
     # GAIN ALIGNMENT
-    # ==============
+    # =======================================================================
 
     gain_alignment = True
 
@@ -377,11 +383,11 @@ def main():
         # Average every spectra (local averages)
         psd_averages = []
         for spec in specs:
-            av = np.mean(spec)
+            av = np.nanmean(spec)
             psd_averages.append(av)
 
         # Average the averages (global average)
-        global_average = np.mean(psd_averages)
+        global_average = np.nanmedian(psd_averages)
 
         # Calculate differences in global and local averages
         psd_differences = []
@@ -398,7 +404,12 @@ def main():
         # Reassign specs as the shifted spectrum
         specs = shifted_spectra
 
-    # 2) baseline removal
+
+    # =======================================================================
+    # Warm Baseline Removal
+    # =======================================================================
+
+
     spacing_minutes = 30
     date_times = metadata["date"]
     dts=[]
@@ -420,9 +431,7 @@ def main():
         groups.append([[specs[k], fper[k], metadata["res_freq"][k]] for k in range(i, j)])
         i = j
 
-    sigma_cut = 3.5
-    specs = []
-    fper = []
+    
 
     def interpolate_nans(y):
         y = np.asarray(y, dtype=float)
@@ -458,8 +467,7 @@ def main():
     from matplotlib.cm import ScalarMappable
     fig, ax = plt.subplots(figsize=(13, 5))
     for g, group in enumerate(groups):
-        if g < 28:
-            ax.plot(np.mean([x[1] for x in group], axis=0)/1e6, np.mean([x[0] for x in group], axis=0), alpha=0.8, color=_gcol(g), label =f"Grp {g}")
+        ax.plot(np.mean([x[1] for x in group], axis=0)/1e6, np.mean([x[0] for x in group], axis=0), alpha=0.8, color=_gcol(g), label =f"Grp {g}")
     sm_res = ScalarMappable(cmap=_cmap_g, norm=_norm_res)
     sm_res.set_array([])
     fig.colorbar(sm_res, ax=ax, label="Mean cavity resonance  [GHz]")
@@ -468,12 +476,14 @@ def main():
     ax.set_title("Group-averaged spectra — all groups")
     ax.set_xlim(0,2)
     plt.tight_layout()
-    plt.savefig("zgh.png", dpi = 150)
+    plt.savefig("zgh.png", dpi = 150, bbox_inches='tight')
     plt.close()
-    sys.exit()
 
 
 
+    sigma_cut = 3.5
+    specs = []
+    fper = []
     for group in groups:
         fresh_group = []
 
@@ -488,7 +498,7 @@ def main():
                 polyorder=base["sg_poly_warm"],
                 )
 
-            for spectra, frequencies in group:
+            for spectra, frequencies, _ in group:
 
                 deviation = np.abs(spectra - baseline)
                 mask_idx = np.argwhere(deviation > sigma_cut * sd_spectra)
@@ -512,6 +522,11 @@ def main():
 
         specs.extend(np.array(fresh_group[-1][0]))
         fper.extend(np.array(fresh_group[-1][1]))
+
+
+    # =======================================================================
+    # Cold Baseline Removal
+    # =======================================================================
 
     _= remove_baseline(
     spectrum=specs[0],
