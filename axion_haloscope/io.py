@@ -14,6 +14,7 @@ class SpectrumMetadata:
 
     date            : list of floats
     file_name       : list of strings
+    invalid_files   : list of strings
     b_vals          : list of floats
     temps           : list of floats
     q_factor        : list of floats
@@ -25,6 +26,7 @@ class SpectrumMetadata:
 
     date: np.ndarray
     file_name: np.ndarray
+    invalid_files: np.ndarray
     b_vals: np.ndarray
     temps: np.ndarray
     q_factor: np.ndarray
@@ -247,18 +249,21 @@ def _read_metadata_group(h5file: h5py.File) -> Dict[str, list]:
 
     field_values: Dict[str, list] = {}
     for field_name in field_names:
-        dset = grp[field_name]
-        raw = dset[()]
-
-        if h5py.check_string_dtype(dset.dtype):
-            decoded = [v.decode() if isinstance(v, bytes) else v for v in raw]
-            field_values[field_name] = [v if v != "" else None for v in decoded]
-
-        elif h5py.check_vlen_dtype(dset.dtype):
-            field_values[field_name] = [None if (v.size == 1 and np.isnan(v[0])) else np.asarray(v, np.float64) for v in raw]
-
+        if field_name == "invalid_files":
+            field_values[field_name] = None
         else:
-            field_values[field_name] = [None if np.isnan(v) else float(v) for v in raw]
+            dset = grp[field_name]
+            raw = dset[()]
+
+            if h5py.check_string_dtype(dset.dtype):
+                decoded = [v.decode() if isinstance(v, bytes) else v for v in raw]
+                field_values[field_name] = [v if v != "" else None for v in decoded]
+
+            elif h5py.check_vlen_dtype(dset.dtype):
+                field_values[field_name] = [None if (v.size == 1 and np.isnan(v[0])) else np.asarray(v, np.float64) for v in raw]
+
+            else:
+                field_values[field_name] = [None if np.isnan(v) else float(v) for v in raw]
 
     return field_values
 
@@ -296,8 +301,6 @@ def read_hdf5(path: str | Path) -> SpectrumSet:
         rf_index_map=rf_index_map,
         metadata=metadata
     )
-
-
 
 
 def read_qshs_hdf5(
@@ -354,6 +357,7 @@ def read_qshs_hdf5(
         spec_metadata = SpectrumMetadata(
             date=date_str,
             file_name=file_name_str,
+            invalid_files= None,
             b_vals=None,
             temps=None,
             q_factor=q_loaded_str,
@@ -454,6 +458,82 @@ def read_qshs_hdf5_dir(
         except json.decoder.JSONDecodeError:
             continue
         
+
+    # Build one common grid for all files.
+    #
+    # In shifted-frequency mode, all spectra likely share the same frequency-offset
+    # grid. That means they will all overlap perfectly.
+    #
+    # Later, when using absolute RF center frequencies per file, this same helper
+    # will let spectra land at different RF positions.
+    rf_grid, rf_index_map = _build_rf_grid_and_map(
+        freqs_per_spec,
+        bin_width=bin_width,
+    )
+
+    return SpectrumSet(
+        spectra=spectra,
+        freqs_per_spec=freqs_per_spec,
+        rf_grid=rf_grid,
+        rf_index_map=rf_index_map,
+        metadata=spec_metadata
+    )
+
+
+def read_qshs_hdf5_dir2(
+    directory: str | Path,
+    valid_files: List,
+    invalid_files: List,
+    *,
+    pattern: str = "*.hdf5",
+    power_path: str = "/Power_Spectra",
+    use_shifted_frequency: bool = True,
+    center_frequency_hz: float | None = None,
+    sort_frequency: bool = True,
+    bin_width: float | None = None,
+    run_dir: str | Path | None = None,
+) -> SpectrumSet:
+    """
+    Read a directory of QSHS HDF5 files.
+
+    Assumes:
+      - one spectrum per file
+      - each file has /Power_Spectra with row 0 = frequency offset
+        and row 1 = power
+
+    Returns one merged SpectrumSet containing all spectra.
+    """
+
+    directory = Path(directory)
+    files = sorted(directory.glob(pattern))
+
+    if not files:
+        raise FileNotFoundError(f"No QSHS HDF5 files matching {pattern} in {directory}")
+    
+    spectra = []
+    freqs_per_spec = []
+    spec_metadata = []
+
+    for fp in files:
+        
+        try:    
+            one = read_qshs_hdf5(
+                fp,
+                power_path=power_path,
+                use_shifted_frequency=use_shifted_frequency,
+                center_frequency_hz=center_frequency_hz,
+                sort_frequency=sort_frequency,
+            )
+
+            if one.metadata.file_name in valid_files:
+                spectra.append(one.spectra[0])
+                freqs_per_spec.append(one.freqs_per_spec[0])
+                spec_metadata.append(one.metadata)
+        except json.decoder.JSONDecodeError:
+            continue
+
+    """ for m in spec_metadata:
+        m.invalid_files = np.array(invalid_files) """
 
     # Build one common grid for all files.
     #
