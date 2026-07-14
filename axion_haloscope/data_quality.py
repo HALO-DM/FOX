@@ -102,12 +102,16 @@ def filter_spectrum_set(
         bad = identify_bad_spectra(sset, predicate=predicate)  # defaults to keep-all
     keep = [i for i in range(n) if i not in set(bad)]
 
+
+
     filtered = SpectrumSet(
         spectra=[sset.spectra[i] for i in keep],
         freqs_per_spec=[sset.freqs_per_spec[i] for i in keep],
         rf_grid=sset.rf_grid,
         rf_index_map=[sset.rf_index_map[i] for i in keep],
-        metadata={key: (value[keep] if isinstance(value, np.ndarray) else [value[i] for i in keep])
+        metadata={key: (
+                    value if key == "invalid_files"
+                    else (value[keep] if isinstance(value, np.ndarray) else [value[i] for i in keep]))
                  for key, value in sset.metadata.items()
                  }
     )

@@ -260,19 +260,26 @@ def _read_metadata_group(h5file: h5py.File) -> Dict[str, list]:
     field_names = list(SpectrumMetadata.__dataclass_fields__.keys())
 
     field_values: Dict[str, list] = {}
+
     for field_name in field_names:
-        dset = grp[field_name]
-        raw = dset[()]
 
-        if h5py.check_string_dtype(dset.dtype):
-            decoded = [v.decode() if isinstance(v, bytes) else v for v in raw]
-            field_values[field_name] = [v if v != "" else None for v in decoded]
-
-        elif h5py.check_vlen_dtype(dset.dtype):
-            field_values[field_name] = [None if (v.size == 1 and np.isnan(v[0])) else np.asarray(v, np.float64) for v in raw]
-
+        if field_name == "invalid_files":
+            dset = grp["invalid_files"]
+            raw = dset[()]
+            field_values["invalid_files"] = [[v.decode() if isinstance(v, bytes) else v for v in row] for row in raw]
         else:
-            field_values[field_name] = [None if np.isnan(v) else float(v) for v in raw]
+            dset = grp[field_name]
+            raw = dset[()]
+
+            if h5py.check_string_dtype(dset.dtype):
+                decoded = [v.decode() if isinstance(v, bytes) else v for v in raw]
+                field_values[field_name] = [v if v != "" else None for v in decoded]
+
+            elif h5py.check_vlen_dtype(dset.dtype):
+                field_values[field_name] = [None if (v.size == 1 and np.isnan(v[0])) else np.asarray(v, np.float64) for v in raw]
+
+            else:
+                field_values[field_name] = [None if np.isnan(v) else float(v) for v in raw]
 
     return field_values
 
@@ -504,6 +511,7 @@ def read_qshs_hdf5_dir2(
 ) -> SpectrumSet:
     """
     Read a directory of QSHS HDF5 files.
+    Adapted to include list input of invalid file names.
 
     Assumes:
       - one spectrum per file
