@@ -26,7 +26,7 @@ from axion_haloscope.lineshape  import shm_maxwell_template
 from axion_haloscope.detection  import threshold_for_detection, find_candidates
 from axion_haloscope.limit      import compute_local_snr_template, coupling_limit, plot_exclusion
 from axion_haloscope.data_quality import filter_spectrum_set, too_noisy, power_too_high, metadata_is_zeros
-from axion_haloscope.io import SpectrumSet, SpectrumMetadata, read_hdf5
+from axion_haloscope.io import SpectrumSet, SpectrumMetadata, read_hdf5, write_hdf5
 from axion_haloscope.width_fq   import width_from_fq
 
 
@@ -192,35 +192,50 @@ def main():
         ),
     )
 
-    print(f"[QC2] kept {len(kept)}/{len(kept) + len(bad_power) + len(bad_noise) + len(bad_zeros_bandwidth) + len(bad_zeros_res_freq)} spectra \
-; {len(bad_power)} spectra were removed as power is too high \
-; {len(bad_noise)} spectra were removed as too noisy \
-; {len(bad_zeros_bandwidth)} spectra were removed as bandwidth are arrays of zeros \
-; {len(bad_zeros_res_freq)} spectra were removed as res_freq are arrays of zeros.")
-
-    with open(run_dir / "invalid_spectra.txt", "w") as f:
-        f.write(f"\nSpectra removed as power too high")
-        f.write(f"\n----------------------------------")
-        for s in bad_power:
-            f.write(f"\n {sset_power.metadata['file_name'][s]}")
-
-        f.write(f"\nSpectra removed as too noisy")
-        f.write(f"\n-----------------------------")
-        for s in bad_noise:
-            f.write(f"\n {sset_noise.metadata['file_name'][s]}")
-
-        f.write(f"\nSpectra removed as bandwdith data is zeros")
-        f.write(f"\n---------------------------------------")
-        for s in bad_zeros_bandwidth:
-            f.write(f"\n {sset_zeros_bandwidth.metadata['file_name'][s]}")
-
-        f.write(f"\nSpectra removed as res_freq data is zeros")
-        f.write(f"\n---------------------------------------")
-        for s in bad_zeros_res_freq:
-            f.write(f"\n {sset_zeros_res_freq.metadata['file_name'][s]}")
-
     # replace arrays with filtered ones for the rest of the chain
     specs, fper, rf, rf_map, metadata = sset.spectra, sset.freqs_per_spec, sset.rf_grid, sset.rf_index_map, sset.metadata
+
+    invalid_files = metadata["invalid_files"]
+
+    bad_zero_power = []
+    bad_no_metadata = []
+
+    for f in invalid_files:
+        if f[1] == "power spectra is zeros":
+            bad_zero_power.append(f)
+        elif f[1] == "modefit data is missing":
+            bad_no_metadata.append(f)
+
+    for s in bad_power:
+        invalid_files.append([sset_power.metadata["file_name"][s], "power is too high"])
+
+    for s in bad_noise:
+        invalid_files.append([sset_noise.metadata["file_name"][s], "data is too noisy"])
+    
+    for s in bad_zeros_bandwidth:
+        invalid_files.append([sset_zeros_bandwidth.metadata["file_name"][s], "bandwidth data is zeros"])
+
+    for s in bad_zeros_res_freq:
+        invalid_files.append([sset_zeros_res_freq.metadata["file_name"][s], "res_freq data is zeros"])
+
+    # sset.metadata["invalid_files"] = invalid_files
+    
+    """ out_h5 = f"{run_dir}/converted_spectra.h5"
+    write_hdf5(sset, out_h5)
+    print(f"[QSHS] Saved FOX-native HDF5: {out_h5}") """
+
+
+    print(f"[QC]: {len(invalid_files)} / {len(kept) +len(invalid_files)} files are invalid.")
+    print(f"[QC]: {len(bad_no_metadata)} spectra were removed as files were missing metadata.")
+    print(f"[QC]: {len(bad_zero_power)} spectra were removed as power data were arrays of zeros.")
+    print(f"[QC]: {len(bad_power)} spectra were removed as power is too high.")
+    print(f"[QC]: {len(bad_noise)} spectra were removed as too noisy.")
+    print(f"[QC]: {len(bad_zeros_bandwidth)} spectra were removed as bandwidth were arrays of zeros.")
+    print(f"[QC]: {len(bad_zeros_res_freq)} spectra were removed as res_freq were arrays of zeros.")
+    print(f"{len(kept)} / {len(kept) + len(invalid_files)} files are valid and suitable for anaylsis.")
+          
+
+
     # Seperate invalid spectra to plot
     specs_invalid_power, fper_invalid_power, rf_invalid, rf_map_invalid, metadata_invalid = sset_power.spectra, sset_power.freqs_per_spec, sset_power.rf_grid, sset_power.rf_index_map, sset_power.metadata
 
