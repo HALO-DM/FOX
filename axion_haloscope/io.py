@@ -187,6 +187,10 @@ def _write_metadata_group(h5file: h5py.File, metadata: list, vlen_f64) -> None:
     n = len(metadata)
     field_names = [f.name for f in dataclasses.fields(metadata[0])]
     for field_name in field_names:
+
+        if field_name == "invalid_files":
+            continue
+
         values = [getattr(m, field_name) for m in metadata]
         # ragged/array fields (b_vals, temps) -> vlen float64, NaN row if missing
         if any(isinstance(v, np.ndarray) for v in values):
@@ -211,6 +215,14 @@ def _write_metadata_group(h5file: h5py.File, metadata: list, vlen_f64) -> None:
             dtype=np.float64,
         )
         grp.create_dataset(field_name, data=arr)
+
+    invalid_files = getattr(metadata[0], "invalid_files", None)
+    if invalid_files is not None and len(invalid_files) > 0:
+        grp.create_dataset(
+            "invalid_files",
+            data=np.asarray(invalid_files, dtype=str).tolist(),
+            dtype=h5py.string_dtype(),
+        )
 
 def write_hdf5(sset: SpectrumSet, path: str | Path,
                compression: str | None = "gzip", compression_opts: int = 4) -> None:
@@ -249,21 +261,18 @@ def _read_metadata_group(h5file: h5py.File) -> Dict[str, list]:
 
     field_values: Dict[str, list] = {}
     for field_name in field_names:
-        if field_name == "invalid_files":
-            field_values[field_name] = None
+        dset = grp[field_name]
+        raw = dset[()]
+
+        if h5py.check_string_dtype(dset.dtype):
+            decoded = [v.decode() if isinstance(v, bytes) else v for v in raw]
+            field_values[field_name] = [v if v != "" else None for v in decoded]
+
+        elif h5py.check_vlen_dtype(dset.dtype):
+            field_values[field_name] = [None if (v.size == 1 and np.isnan(v[0])) else np.asarray(v, np.float64) for v in raw]
+
         else:
-            dset = grp[field_name]
-            raw = dset[()]
-
-            if h5py.check_string_dtype(dset.dtype):
-                decoded = [v.decode() if isinstance(v, bytes) else v for v in raw]
-                field_values[field_name] = [v if v != "" else None for v in decoded]
-
-            elif h5py.check_vlen_dtype(dset.dtype):
-                field_values[field_name] = [None if (v.size == 1 and np.isnan(v[0])) else np.asarray(v, np.float64) for v in raw]
-
-            else:
-                field_values[field_name] = [None if np.isnan(v) else float(v) for v in raw]
+            field_values[field_name] = [None if np.isnan(v) else float(v) for v in raw]
 
     return field_values
 
@@ -532,8 +541,8 @@ def read_qshs_hdf5_dir2(
         except json.decoder.JSONDecodeError:
             continue
 
-    """ for m in spec_metadata:
-        m.invalid_files = np.array(invalid_files) """
+    for m in spec_metadata:
+        m.invalid_files = np.array(invalid_files)
 
     # Build one common grid for all files.
     #

@@ -17,6 +17,18 @@ from tqdm import tqdm
 
 from axion_haloscope.io import read_qshs_hdf5_dir2, write_hdf5
 
+# ---------
+# 
+# ---------
+input_dir = "input/Feb/All"
+
+plot_qshs_data = False
+plot_slow_controls = False
+save_slow_controls = False
+
+pattern = "*.hdf5"
+save_fox_h5 = True
+
 # ---------------
 # Functions
 # ---------------
@@ -94,19 +106,13 @@ spectra_list = []
 res_freqs_list = []
 bandwidths_list = []
 q_loaded_list = []
-
-input_dir = 'input/Feb/All'
+valid_files = []
+invalid_files = []
 
 for filename in os.listdir(input_dir):
     if filename.endswith(".hdf5"):
         spectra_list.append(f"{filename}") 
 
-plot_qshs_data = False
-plot_slow_controls = False
-save_slow_controls = False
-
-valid_files = []
-invalid_files = []
 
 # ----------------------------
 # Looping through the Spectra
@@ -202,7 +208,6 @@ for s in tqdm(spectra_list, desc="Processing spectra"):
                 "Power (dBm)": power,
             })
 
-
         flat_rows = (
             flatten_to_kv(hardware_rows, "Hardware") +
             modefit_rows +
@@ -286,23 +291,10 @@ for s in tqdm(spectra_list, desc="Processing spectra"):
             plt.savefig(f"{run_dir}/smith_chart_{spectra_list.index(s)}.png", dpi=150)
             plt.close(fig)
 
-print(f"[QC] {len(invalid_files)}/{ len(spectra_list)} are invalid files.")
-
-# Export list of valid and invalid files to hdf files
-with h5py.File(f"{run_dir}/valid_files.h5", "w") as f:
-    f.create_dataset("valid_files", data=valid_files, dtype=h5py.string_dtype(encoding='utf-8'))
-
-with h5py.File(f"{run_dir}/invalid_files.h5", "w") as f:
-    f.create_dataset("invalid_files", data=invalid_files, dtype=h5py.string_dtype(encoding='utf-8'))
-
 
 # ------------------------
 # Second Half of the Code
 # ------------------------
-
-pattern = "*.hdf5"
-save_fox_h5 = True
-max_plot = 0
 
 sset = read_qshs_hdf5_dir2(
     input_dir,
@@ -314,34 +306,13 @@ sset = read_qshs_hdf5_dir2(
     run_dir=run_dir,
 )
 
-# Some way to add the invalid files and reasons into the metadata of the spectrum set
-
-print(f"[QSHS] Loaded {sset.n_spectra()} spectra")
+print(f"[QSHS] Successfully loaded {sset.n_spectra()}/ {len(spectra_list)} spectra, {len(invalid_files)} files are invalid.")
 print(
     f"[QSHS] Shifted frequency span: "
     f"{sset.rf_grid[0]/1e6:.6f} to {sset.rf_grid[-1]/1e6:.6f} MHz"
 )
 
-# Plot a few spectra to verify import.
-nplot = min(max_plot, sset.n_spectra())
-for i in range(nplot):
-    fig, ax = plt.subplots(figsize=(9, 3))
-    ax.plot(sset.freqs_per_spec[i] / 1e6, sset.spectra[i], lw=0.7)
-    ax.set(
-        xlabel="Frequency offset [MHz]",
-        ylabel="Power",
-        title=f"QSHS imported spectrum {i}",
-    )
-    ax.grid(alpha=0.3)
-    fig.tight_layout()
-    fig.savefig(run_dir / f"qshs_spectrum_{i:03d}.png", dpi=150)
-    plt.close(fig)
-
 if save_fox_h5:
     out_h5 = f"{run_dir}/converted_spectra.h5"
     write_hdf5(sset, out_h5)
     print(f"[QSHS] Saved FOX-native HDF5: {out_h5}")
-
-print(f"[QSHS] Diagnostics saved in {run_dir}")
-
-
