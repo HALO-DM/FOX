@@ -15,6 +15,7 @@ matplotlib.use("Agg")
 import matplotlib as mpl
 import matplotlib.pyplot as plt
 import time
+import pandas as pd
 import h5py
 
 
@@ -212,20 +213,26 @@ def main():
             bad_no_metadata.append(f)
 
     for s in bad_power:
-        invalid_files.append([sset_power.metadata["file_name"][s], "power is too high"])
+        invalid_files.append([sset_power.metadata["file_name"][s], "power is too high", sset_power.metadata["date"][s]])
 
     for s in bad_noise:
-        invalid_files.append([sset_noise.metadata["file_name"][s], "data is too noisy"])
+        invalid_files.append([sset_noise.metadata["file_name"][s], "data is too noisy", sset_noise.metadata["date"][s]])
     
     for s in bad_zeros_bandwidth:
-        invalid_files.append([sset_zeros_bandwidth.metadata["file_name"][s], "bandwidth data is zeros"])
+        invalid_files.append([sset_zeros_bandwidth.metadata["file_name"][s], "bandwidth data is zeros", sset_zeros_bandwidth.metadata["date"][s]])
 
     for s in bad_zeros_res_freq:
-        invalid_files.append([sset_zeros_res_freq.metadata["file_name"][s], "res_freq data is zeros"])
+        invalid_files.append([sset_zeros_res_freq.metadata["file_name"][s], "res_freq data is zeros", sset_zeros_res_freq.metadata["file_name"][s]])
 
     # Create new SSet with new invalid files list to export
     valid_files = sset.metadata["file_name"]
     input_dir = "input/Feb/All"
+
+    # Ordering invalid files list
+    invalid_files_df = pd.DataFrame(data=invalid_files, columns=["File_name", "Reason", "Date_Time"])
+    invalid_files_df["Date_Time"] = pd.to_datetime(invalid_files_df["Date_Time"], format="%Y-%m-%d %H:%M:%S")
+    invalid_files_df = invalid_files_df.sort_values(by="Date_Time")
+    invalid_files = invalid_files_df.values.tolist()
 
     sset_export = read_qshs_hdf5_dir2(
         input_dir,
@@ -256,7 +263,7 @@ def main():
     # =======================================================================
 
     # Seperate invalid spectra to plot
-    specs_invalid_power, fper_invalid_power, rf_invalid, rf_map_invalid, metadata_invalid = sset_power.spectra, sset_power.freqs_per_spec, sset_power.rf_grid, sset_power.rf_index_map, sset_power.metadata
+    specs_invalid_power, fper_invalid_power, _, _, _ = sset_power.spectra, sset_power.freqs_per_spec, sset_power.rf_grid, sset_power.rf_index_map, sset_power.metadata
 
     # Calculate difference in resonant frequency of the cavity between the spectra
     res_freq_diff = []

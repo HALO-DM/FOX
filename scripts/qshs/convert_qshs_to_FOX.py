@@ -124,10 +124,12 @@ def main():
             slow_controls_mode_fit   = f["Slow_Controls/Mode-Fit"][()]
             slow_controls_status   = f["Slow_Controls/Status"][()]
             slow_controls_temperatures   = f["Slow_Controls/Temperatures"][()]
+            data = hdf5_to_object(f)
+            date_time = data.attrs["Date-Time"]
 
             # --- Power ---
             if np.all(power_spectra == 0):
-                invalid_files.append([s, "power spectra is zeros"])
+                invalid_files.append([s, "power spectra is zeros", date_time])
                 continue
 
             # --- Hardware ---
@@ -147,7 +149,7 @@ def main():
                 mode_fit_data = json.loads(raw)
                 valid_files.append(s)
             except json.JSONDecodeError:
-                invalid_files.append([s, "modefit data is missing"])
+                invalid_files.append([s, "modefit data is missing", date_time])
                 continue
                 
             modefit_rows = []
@@ -286,6 +288,12 @@ def main():
                 plt.close(fig)
 
 
+    # Time ordering of invalid files by 
+    invalid_files_df = pd.DataFrame(data=invalid_files, columns=["File_name", "Reason", "Date_Time"])
+    invalid_files_df["Date_Time"] = pd.to_datetime(invalid_files_df["Date_Time"], format="%Y-%m-%d %H:%M:%S")
+    invalid_files_df = invalid_files_df.sort_values(by="Date_Time")
+    invalid_files = invalid_files_df.values.tolist()
+    
     # ----------------------------
     # Create complete SpectrumSet
     # ----------------------------
