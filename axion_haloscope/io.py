@@ -258,15 +258,19 @@ def _read_metadata_group(h5file: h5py.File) -> Dict[str, list]:
 
     grp = h5file["metadata"]
     field_names = list(SpectrumMetadata.__dataclass_fields__.keys())
-
     field_values: Dict[str, list] = {}
 
     for field_name in field_names:
 
         if field_name == "invalid_files":
-            dset = grp["invalid_files"]
-            raw = dset[()]
-            field_values["invalid_files"] = [[v.decode() if isinstance(v, bytes) else v for v in row] for row in raw]
+            if "invalid_files" in grp:
+                dset = grp["invalid_files"]
+                raw = dset[()]
+                field_values["invalid_files"] = [[v.decode() if isinstance(v, bytes) else v for v in row] for row in raw]
+            else:
+                field_values["invalid_files"] = []
+                continue
+
         else:
             dset = grp[field_name]
             raw = dset[()]
