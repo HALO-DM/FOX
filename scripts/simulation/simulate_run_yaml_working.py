@@ -26,7 +26,7 @@ from axion_haloscope.lineshape  import shm_maxwell_template
 from axion_haloscope.detection  import threshold_for_detection, find_candidates
 from axion_haloscope.limit      import compute_local_snr_template, coupling_limit, plot_exclusion
 from axion_haloscope.data_quality import filter_spectrum_set, too_noisy, power_too_high, metadata_is_zeros
-from axion_haloscope.io import SpectrumSet, SpectrumMetadata, read_hdf5, write_hdf5
+from axion_haloscope.io import SpectrumSet, SpectrumMetadata, read_hdf5, write_hdf5, read_qshs_hdf5_dir2
 from axion_haloscope.width_fq   import width_from_fq
 
 
@@ -130,6 +130,10 @@ def main():
         s_ax = width_from_fq(f_ax)
         ax = AxionParams(f_axion_hz=float(f_ax), sigma_hz=s_ax, total_power=inj["total_power"])
     
+    # =======================================================================
+    # Data input
+    # =======================================================================
+
     if inp["read_input"]:
         # 1) Read in Data
         directory = inp["directory"]
@@ -145,8 +149,9 @@ def main():
         noise_sigma=sim["noise_sigma"], axion=ax
     )
 
-
-    # QC: drop bad spectra (default thresholds; adjust if desired)
+    # =======================================================================
+    # Quality Control
+    # =======================================================================
     sset, sset_power, kept, bad_power = filter_spectrum_set(
         sset,
         predicate=lambda s, f, md, i: power_too_high(
@@ -195,8 +200,8 @@ def main():
     # replace arrays with filtered ones for the rest of the chain
     specs, fper, rf, rf_map, metadata = sset.spectra, sset.freqs_per_spec, sset.rf_grid, sset.rf_index_map, sset.metadata
 
-    invalid_files = metadata["invalid_files"]
-
+    # Append invalid files list with the new files found
+    invalid_files = sset.metadata["invalid_files"]
     bad_zero_power = []
     bad_no_metadata = []
 
@@ -218,11 +223,23 @@ def main():
     for s in bad_zeros_res_freq:
         invalid_files.append([sset_zeros_res_freq.metadata["file_name"][s], "res_freq data is zeros"])
 
-    # sset.metadata["invalid_files"] = invalid_files
-    
-    """ out_h5 = f"{run_dir}/converted_spectra.h5"
-    write_hdf5(sset, out_h5)
-    print(f"[QSHS] Saved FOX-native HDF5: {out_h5}") """
+    # Create new SSet with new invalid files list to export
+    valid_files = sset.metadata["file_name"]
+    input_dir = "input/Feb/All"
+
+    sset_export = read_qshs_hdf5_dir2(
+        input_dir,
+        valid_files,
+        invalid_files,
+        pattern="*.hdf5",
+        use_shifted_frequency=True,
+        sort_frequency=True,
+        run_dir=run_dir,
+    )
+
+    out_h5 = f"{run_dir}/final_converted_spectra.h5"
+    write_hdf5(sset_export, out_h5)
+    print(f"[QSHS] Final SpectrumSet saved to: {out_h5}")
 
 
     print(f"[QC]: {len(invalid_files)} / {len(kept) +len(invalid_files)} files are invalid.")
@@ -233,8 +250,10 @@ def main():
     print(f"[QC]: {len(bad_zeros_bandwidth)} spectra were removed as bandwidth were arrays of zeros.")
     print(f"[QC]: {len(bad_zeros_res_freq)} spectra were removed as res_freq were arrays of zeros.")
     print(f"{len(kept)} / {len(kept) + len(invalid_files)} files are valid and suitable for anaylsis.")
-          
-
+    
+    # =======================================================================
+    # Spectra Plotting
+    # =======================================================================
 
     # Seperate invalid spectra to plot
     specs_invalid_power, fper_invalid_power, rf_invalid, rf_map_invalid, metadata_invalid = sset_power.spectra, sset_power.freqs_per_spec, sset_power.rf_grid, sset_power.rf_index_map, sset_power.metadata
