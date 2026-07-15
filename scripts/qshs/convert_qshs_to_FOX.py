@@ -5,11 +5,12 @@ from types import SimpleNamespace
 import numpy as np
 import json
 import pandas as pd
-import datetime, os
+import datetime, os, sys
 import matplotlib.pyplot as plt
 
 from tabulate import tabulate
 from tqdm import tqdm
+from pysmithchart import SmithAxes
 
 from axion_haloscope.io import read_qshs_hdf5_dir2, write_hdf5
 
@@ -183,8 +184,7 @@ def main():
                 plt.tight_layout()
                 plt.savefig(f"{run_dir}/qshs_slow_controls_data_{spectra_list.index(s)}.png", dpi=150)
                 plt.close(fig)
-
-
+            
             # --- Status ---
             raw = slow_controls_status.item()
             if isinstance(raw, bytes):
@@ -220,6 +220,7 @@ def main():
 
             # Optional: Plot QSHS data
             if plot_qshs_data:
+                fig, axes = plt.subplots(2, 2, figsize=(19, 9))
                 axes[0, 0].plot(raw_data[0],raw_data[1], label="Raw")
                 axes[0, 0].set_title("Raw Data")
                 axes[0, 0].set_xlabel("Sample index")
