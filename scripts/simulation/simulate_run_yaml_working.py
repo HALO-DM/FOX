@@ -73,6 +73,14 @@ def load_yaml_config(path: pathlib.Path) -> dict:
             "f_axion_hz":  inj.get("f_axion_hz", None),  # optional
             "total_power": float(_get(inj, "total_power", 20.0)),
         },
+        "quality": {
+            "max_power_filter": bool(_get(qc, "max_power_filter", True)),
+            "p_max": float(_get(qc, "p_max", 1e-8)),
+            "noise_filter": bool(_get(qc, "noise_filter", True)),
+            "rms_max": int(_get(qc, "rms_max", 3)),
+            "bandwidth_zeros_filter": bool(_get(qc, "bandwidth_zeros_filter", True)),
+            "res_freq_zeros_filter": bool(_get(qc, "res_freq_zeros_filter", True)),
+        },
         "baseline": {
             "sg_window_warm": int(_get(base, "sg_window_warm", 251)),
             "sg_poly_warm":   int(_get(base, "sg_poly_warm", 2)),
@@ -112,7 +120,7 @@ def main():
         sys.exit(f"Config file not found: {cfg_path}")
 
     cfg = load_yaml_config(cfg_path)
-    sim, inp, inj, base, rb, det, out = (cfg[k] for k in ("simulation","input","injection","baseline","rebin","detection","output"))
+    sim, inp, inj, qc, base, rb, det, out = (cfg[k] for k in ("simulation","input","injection","quality","baseline","rebin","detection","output"))
 
     # Output folder
     out_root = pathlib.Path(out["root"])/ "sim_spectra"
@@ -153,55 +161,7 @@ def main():
     # =======================================================================
     # Quality Control
     # =======================================================================
-    sset, sset_power, kept, bad_power = filter_spectrum_set(
-        sset,
-        predicate=lambda s, f, md, i: power_too_high(
-            s,
-            f,
-            md,
-            i,
-            p_max=1e-8,
-        ),
-    )
 
-    sset, sset_noise, kept, bad_noise = filter_spectrum_set(
-        sset,
-        predicate=lambda s, f, md, i,: too_noisy(
-            s,
-            f,
-            md,
-            i,
-            rms_max=3.0,
-        ),
-    )
-
-
-    sset, sset_zeros_bandwidth, kept, bad_zeros_bandwidth = filter_spectrum_set(
-        sset,
-        predicate=lambda s, f, md, i: metadata_is_zeros(
-            s,
-            f,
-            md,
-            i,
-            item = "bandwidth",
-        ),
-    )
-
-    sset, sset_zeros_res_freq, kept, bad_zeros_res_freq = filter_spectrum_set(
-        sset,
-        predicate=lambda s, f, md, i: metadata_is_zeros(
-            s,
-            f,
-            md,
-            i,
-            item = "res_freq",
-        ),
-    )
-
-    # replace arrays with filtered ones for the rest of the chain
-    specs, fper, rf, rf_map, metadata = sset.spectra, sset.freqs_per_spec, sset.rf_grid, sset.rf_index_map, sset.metadata
-
-    # Append invalid files list with the new files found
     invalid_files = sset.metadata["invalid_files"]
     bad_zero_power = []
     bad_no_metadata = []
@@ -212,17 +172,76 @@ def main():
         elif f[1] == "modefit data is missing":
             bad_no_metadata.append(f)
 
-    for s in bad_power:
-        invalid_files.append([sset_power.metadata["file_name"][s], "power is too high", sset_power.metadata["date"][s]])
+    print(f"[QC]: {len(bad_no_metadata)} spectra were removed as files were missing metadata.")
+    print(f"[QC]: {len(bad_zero_power)} spectra were removed as power data were arrays of zeros.")
 
-    for s in bad_noise:
-        invalid_files.append([sset_noise.metadata["file_name"][s], "data is too noisy", sset_noise.metadata["date"][s]])
-    
-    for s in bad_zeros_bandwidth:
-        invalid_files.append([sset_zeros_bandwidth.metadata["file_name"][s], "bandwidth data is zeros", sset_zeros_bandwidth.metadata["date"][s]])
+    if qc["max_power_filter"]:
+        sset, sset_power, kept, bad_power = filter_spectrum_set(
+            sset,
+            predicate=lambda s, f, md, i: power_too_high(
+                s,
+                f,
+                md,
+                i,
+                p_max=qc["p_max"],
+            ),
+        )
+        for s in bad_power:
+            invalid_files.append([sset_power.metadata["file_name"][s], "power is too high", sset_power.metadata["date"][s]])
+        print(f"[QC]: {len(bad_power)} spectra were removed as power is too high.")
 
-    for s in bad_zeros_res_freq:
-        invalid_files.append([sset_zeros_res_freq.metadata["file_name"][s], "res_freq data is zeros", sset_zeros_res_freq.metadata["file_name"][s]])
+        # Seperate invalid spectra to plot
+        specs_invalid_power, fper_invalid_power, _, _, _ = sset_power.spectra, sset_power.freqs_per_spec, sset_power.rf_grid, sset_power.rf_index_map, sset_power.metadata
+
+    if qc["noise_filter"]:
+        sset, sset_noise, kept, bad_noise = filter_spectrum_set(
+            sset,
+            predicate=lambda s, f, md, i,: too_noisy(
+                s,
+                f,
+                md,
+                i,
+                rms_max=qc["rms_max"],
+            ),
+        )
+        for s in bad_noise:
+            invalid_files.append([sset_noise.metadata["file_name"][s], "data is too noisy", sset_noise.metadata["date"][s]])
+        print(f"[QC]: {len(bad_noise)} spectra were removed as too noisy.")
+
+    if qc["bandwidth_zeros_filter"]:
+        sset, sset_zeros_bandwidth, kept, bad_zeros_bandwidth = filter_spectrum_set(
+            sset,
+            predicate=lambda s, f, md, i: metadata_is_zeros(
+                s,
+                f,
+                md,
+                i,
+                item = "bandwidth",
+            ),
+        )
+        for s in bad_zeros_bandwidth:
+            invalid_files.append([sset_zeros_bandwidth.metadata["file_name"][s], "bandwidth data is zeros", sset_zeros_bandwidth.metadata["date"][s]])
+        print(f"[QC]: {len(bad_zeros_bandwidth)} spectra were removed as bandwidth were arrays of zeros.")
+
+    if qc["res_freq_zeros_filter"]:
+        sset, sset_zeros_res_freq, kept, bad_zeros_res_freq = filter_spectrum_set(
+            sset,
+            predicate=lambda s, f, md, i: metadata_is_zeros(
+                s,
+                f,
+                md,
+                i,
+                item = "res_freq",
+            ),
+        )
+        for s in bad_zeros_res_freq:
+            invalid_files.append([sset_zeros_res_freq.metadata["file_name"][s], "res_freq data is zeros", sset_zeros_res_freq.metadata["file_name"][s]])
+        print(f"[QC]: {len(bad_zeros_res_freq)} spectra were removed as res_freq were arrays of zeros.")
+
+    print(f"[QC]:{len(kept)} / {len(kept) + len(invalid_files)} files are valid and suitable for anaylsis, {len(invalid_files)} files are invalid.")
+
+    # replace arrays with filtered ones for the rest of the chain
+    specs, fper, rf, rf_map, metadata = sset.spectra, sset.freqs_per_spec, sset.rf_grid, sset.rf_index_map, sset.metadata
 
     # Create new SSet with new invalid files list to export
     valid_files = sset.metadata["file_name"]
@@ -247,23 +266,10 @@ def main():
     out_h5 = f"{run_dir}/final_converted_spectra.h5"
     write_hdf5(sset_export, out_h5)
     print(f"[QSHS] Final SpectrumSet saved to: {out_h5}")
-
-
-    print(f"[QC]: {len(invalid_files)} / {len(kept) +len(invalid_files)} files are invalid.")
-    print(f"[QC]: {len(bad_no_metadata)} spectra were removed as files were missing metadata.")
-    print(f"[QC]: {len(bad_zero_power)} spectra were removed as power data were arrays of zeros.")
-    print(f"[QC]: {len(bad_power)} spectra were removed as power is too high.")
-    print(f"[QC]: {len(bad_noise)} spectra were removed as too noisy.")
-    print(f"[QC]: {len(bad_zeros_bandwidth)} spectra were removed as bandwidth were arrays of zeros.")
-    print(f"[QC]: {len(bad_zeros_res_freq)} spectra were removed as res_freq were arrays of zeros.")
-    print(f"{len(kept)} / {len(kept) + len(invalid_files)} files are valid and suitable for anaylsis.")
     
     # =======================================================================
     # Spectra Plotting
     # =======================================================================
-
-    # Seperate invalid spectra to plot
-    specs_invalid_power, fper_invalid_power, _, _, _ = sset_power.spectra, sset_power.freqs_per_spec, sset_power.rf_grid, sset_power.rf_index_map, sset_power.metadata
 
     # Calculate difference in resonant frequency of the cavity between the spectra
     res_freq_diff = []
@@ -288,21 +294,22 @@ def main():
     max_plots = None if out["max_plots"] is None else int(out["max_plots"])
 
     # Save one invalid example raw spectrum if it exists
-    if len(specs_invalid_power) != 0:
-        plt.figure(figsize=(9,3))
-        plt.plot(fper_invalid_power[0]/1e9, specs_invalid_power[0], lw=0.6)
-        plt.xlabel("Frequency [GHz]"); plt.ylabel("Raw Power [arb]")
-        plt.title("Example invalid raw spectrum"); plt.grid(alpha=0.3); plt.tight_layout()
-        plt.savefig(run_dir/"invalid_raw_spectrum.png", dpi=150); plt.close()
+    if qc["max_power_filter"]:
+        if len(specs_invalid_power) != 0:
+            plt.figure(figsize=(9,3))
+            plt.plot(fper_invalid_power[0]/1e9, specs_invalid_power[0], lw=0.6)
+            plt.xlabel("Frequency [GHz]"); plt.ylabel("Raw Power [arb]")
+            plt.title("Example invalid raw spectrum"); plt.grid(alpha=0.3); plt.tight_layout()
+            plt.savefig(run_dir/"invalid_raw_spectrum.png", dpi=150); plt.close()
 
-        plt.figure(figsize=(9,3))
-        plt.plot(fper_invalid_power[-1]/1e9, specs_invalid_power[-1], lw=0.6)
-        plt.xlabel("Frequency [GHz]"); plt.ylabel("Raw Power [arb]")
-        plt.title("Example invalid raw spectrum"); plt.grid(alpha=0.3); plt.tight_layout()
-        plt.savefig(run_dir/"invalid_raw_spectrum_last.png", dpi=150); plt.close()
+            plt.figure(figsize=(9,3))
+            plt.plot(fper_invalid_power[-1]/1e9, specs_invalid_power[-1], lw=0.6)
+            plt.xlabel("Frequency [GHz]"); plt.ylabel("Raw Power [arb]")
+            plt.title("Example invalid raw spectrum"); plt.grid(alpha=0.3); plt.tight_layout()
+            plt.savefig(run_dir/"invalid_raw_spectrum_last.png", dpi=150); plt.close()
 
-        step = max(1, int(out["plots_step"]))
-        max_plots = None if out["max_plots"] is None else int(out["max_plots"])
+            step = max(1, int(out["plots_step"]))
+            max_plots = None if out["max_plots"] is None else int(out["max_plots"])
 
     # Optional: save per-spectrum PNGs + spectra.npz for valid data
     if out["save_data"]:
