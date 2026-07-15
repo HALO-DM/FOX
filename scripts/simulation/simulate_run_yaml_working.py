@@ -64,7 +64,7 @@ def load_yaml_config(path: pathlib.Path) -> dict:
             "noise_sigma":    float(_get(sim, "noise_sigma", 1.0)),
         },
         "input": {
-            "read_input": bool(_get(inp, "read_input", False)),
+            "read_input":       bool(_get(inp, "read_input", False)),
             "directory":        _get(inp, "directory", "scripts/qshs/output/qshs_import"),
             "input_file_name":  _get(inp, "input_file_name", "spectra.h5"),
         },
@@ -74,12 +74,12 @@ def load_yaml_config(path: pathlib.Path) -> dict:
             "total_power": float(_get(inj, "total_power", 20.0)),
         },
         "quality": {
-            "max_power_filter": bool(_get(qc, "max_power_filter", True)),
-            "p_max": float(_get(qc, "p_max", 1e-8)),
-            "noise_filter": bool(_get(qc, "noise_filter", True)),
-            "rms_max": int(_get(qc, "rms_max", 3)),
-            "bandwidth_zeros_filter": bool(_get(qc, "bandwidth_zeros_filter", True)),
-            "res_freq_zeros_filter": bool(_get(qc, "res_freq_zeros_filter", True)),
+            "max_power_filter":         bool(_get(qc, "max_power_filter", True)),
+            "p_max":                    float(_get(qc, "p_max", 1e-8)),
+            "noise_filter":             bool(_get(qc, "noise_filter", True)),
+            "rms_max":                  int(_get(qc, "rms_max", 3)),
+            "bandwidth_zeros_filter":   bool(_get(qc, "bandwidth_zeros_filter", True)),
+            "res_freq_zeros_filter":    bool(_get(qc, "res_freq_zeros_filter", True)),
         },
         "baseline": {
             "sg_window_warm": int(_get(base, "sg_window_warm", 251)),
@@ -189,8 +189,7 @@ def main():
         for s in bad_power:
             invalid_files.append([sset_power.metadata["file_name"][s], "power is too high", sset_power.metadata["date"][s]])
         print(f"[QC]: {len(bad_power)} spectra were removed as power is too high.")
-
-        # Seperate invalid spectra to plot
+        # Seperate invalid power spectra to plot
         specs_invalid_power, fper_invalid_power, _, _, _ = sset_power.spectra, sset_power.freqs_per_spec, sset_power.rf_grid, sset_power.rf_index_map, sset_power.metadata
 
     if qc["noise_filter"]:
@@ -207,6 +206,8 @@ def main():
         for s in bad_noise:
             invalid_files.append([sset_noise.metadata["file_name"][s], "data is too noisy", sset_noise.metadata["date"][s]])
         print(f"[QC]: {len(bad_noise)} spectra were removed as too noisy.")
+        # Seperate invalid noise spectra to plot
+        specs_invalid_noise, fper_invalid_noise, _, _, _ = sset_noise.spectra, sset_noise.freqs_per_spec, sset_noise.rf_grid, sset_noise.rf_index_map, sset_noise.metadata
 
     if qc["bandwidth_zeros_filter"]:
         sset, sset_zeros_bandwidth, kept, bad_zeros_bandwidth = filter_spectrum_set(
@@ -293,20 +294,37 @@ def main():
     step = max(1, int(out["plots_step"]))
     max_plots = None if out["max_plots"] is None else int(out["max_plots"])
 
-    # Save one invalid example raw spectrum if it exists
+    # Save one invalid example raw spectrum for each case if it exists
     if qc["max_power_filter"]:
         if len(specs_invalid_power) != 0:
             plt.figure(figsize=(9,3))
             plt.plot(fper_invalid_power[0]/1e9, specs_invalid_power[0], lw=0.6)
             plt.xlabel("Frequency [GHz]"); plt.ylabel("Raw Power [arb]")
-            plt.title("Example invalid raw spectrum"); plt.grid(alpha=0.3); plt.tight_layout()
-            plt.savefig(run_dir/"invalid_raw_spectrum.png", dpi=150); plt.close()
+            plt.title("Example invalid raw spectrum (high power)"); plt.grid(alpha=0.3); plt.tight_layout()
+            plt.savefig(run_dir/"invalid_power_raw_spectrum.png", dpi=150); plt.close()
 
             plt.figure(figsize=(9,3))
             plt.plot(fper_invalid_power[-1]/1e9, specs_invalid_power[-1], lw=0.6)
             plt.xlabel("Frequency [GHz]"); plt.ylabel("Raw Power [arb]")
-            plt.title("Example invalid raw spectrum"); plt.grid(alpha=0.3); plt.tight_layout()
-            plt.savefig(run_dir/"invalid_raw_spectrum_last.png", dpi=150); plt.close()
+            plt.title("Example invalid raw spectrum (high power)"); plt.grid(alpha=0.3); plt.tight_layout()
+            plt.savefig(run_dir/"invalid_power_raw_spectrum_last.png", dpi=150); plt.close()
+
+            step = max(1, int(out["plots_step"]))
+            max_plots = None if out["max_plots"] is None else int(out["max_plots"])
+
+    if qc["noise_filter"]:
+        if len(specs_invalid_noise) != 0:
+            plt.figure(figsize=(9,3))
+            plt.plot(fper_invalid_noise[0]/1e9, specs_invalid_noise[0], lw=0.6)
+            plt.xlabel("Frequency [GHz]"); plt.ylabel("Raw Power [arb]")
+            plt.title("Example invalid raw spectrum (too noisey)"); plt.grid(alpha=0.3); plt.tight_layout()
+            plt.savefig(run_dir/"invalid_noise_raw_spectrum.png", dpi=150); plt.close()
+
+            plt.figure(figsize=(9,3))
+            plt.plot(fper_invalid_noise[-1]/1e9, specs_invalid_noise[-1], lw=0.6)
+            plt.xlabel("Frequency [GHz]"); plt.ylabel("Raw Power [arb]")
+            plt.title("Example invalid raw spectrum (too noisey)"); plt.grid(alpha=0.3); plt.tight_layout()
+            plt.savefig(run_dir/"invalid_noise_raw_spectrum_last.png", dpi=150); plt.close()
 
             step = max(1, int(out["plots_step"]))
             max_plots = None if out["max_plots"] is None else int(out["max_plots"])
