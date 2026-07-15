@@ -67,6 +67,7 @@ def load_yaml_config(path: pathlib.Path) -> dict:
             "read_input":       bool(_get(inp, "read_input", False)),
             "directory":        _get(inp, "directory", "scripts/qshs/output/qshs_import"),
             "input_file_name":  _get(inp, "input_file_name", "spectra.h5"),
+            "full_data_directory": _get(inp, "full_data_directory", "input/Feb/All"),
         },
         "injection": {
             "enabled":     bool(_get(inj, "enabled", False)),
@@ -246,7 +247,7 @@ def main():
 
     # Create new SSet with new invalid files list to export
     valid_files = sset.metadata["file_name"]
-    input_dir = "input/Feb/All"
+    input_dir = inp["full_data_directory"]
 
     # Ordering invalid files list
     invalid_files_df = pd.DataFrame(data=invalid_files, columns=["File_name", "Reason", "Date_Time"])
