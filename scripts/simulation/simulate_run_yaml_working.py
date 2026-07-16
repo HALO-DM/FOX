@@ -13,6 +13,8 @@ import yaml
 import matplotlib
 matplotlib.use("Agg")
 import matplotlib as mpl
+from matplotlib.cm import ScalarMappable
+from matplotlib.colors import Normalize 
 import matplotlib.pyplot as plt
 import time
 import pandas as pd
@@ -110,6 +112,42 @@ def load_yaml_config(path: pathlib.Path) -> dict:
     }
     return cfg
 
+def filter_by_datetime(data, start, end, key="date"):
+    '''
+    Filters data by a predetermined time range
+    '''
+
+    specs, fper, rf, rf_map, metadata = data.spectra, data.freqs_per_spec, data.rf_grid, data.rf_index_map, data.metadata
+
+    dt = np.array([
+        datetime.datetime.strptime(str(x), "%Y-%m-%d %H:%M:%S") if x is not None else None
+        for x in metadata[key]
+    ])
+
+    start_dt = datetime.datetime.strptime(start, "%Y-%m-%d %H:%M:%S")
+    end_dt   = datetime.datetime.strptime(end,   "%Y-%m-%d %H:%M:%S")
+
+    mask = np.array([(d is not None) and (start_dt <= d <= end_dt) for d in dt])
+    print(mask)
+    print("=" * 60)
+    print(f"Timestamp filter: keeping {np.sum(mask)} / {len(mask)} files")
+    print("=" * 60)
+
+    spectra  = [b for a, b in zip(mask, specs) if a]
+    freqs_per_spec  = [b for a, b in zip(mask, fper) if a]
+    rf_index_map  = [b for a, b in zip(mask, rf_map) if a]
+    spec_metadata  = {   
+        k: [v for keep, v in zip(mask, vals) if keep]
+        for k, vals in metadata.items()
+    }
+
+    return SpectrumSet(
+        spectra=spectra,
+        freqs_per_spec=freqs_per_spec,
+        rf_grid=rf,
+        rf_index_map=rf_index_map,
+        metadata=spec_metadata
+    )
 
 def main():
     ap = argparse.ArgumentParser(description="Simulate haloscope run from YAML config")
@@ -240,12 +278,9 @@ def main():
             invalid_files.append([sset_zeros_res_freq.metadata["file_name"][s], "res_freq data is zeros", sset_zeros_res_freq.metadata["file_name"][s]])
         print(f"[QC]: {len(bad_zeros_res_freq)} spectra were removed as res_freq were arrays of zeros.")
 
-    print(f"[QC]:{len(kept)} / {len(kept) + len(invalid_files)} files are valid and suitable for anaylsis, {len(invalid_files)} files are invalid.")
+    print(f"[QC]: {len(kept)} / {len(kept) + len(invalid_files)} files are valid and suitable for anaylsis, {len(invalid_files)} files are invalid.")
 
-    # replace arrays with filtered ones for the rest of the chain
-    specs, fper, rf, rf_map, metadata = sset.spectra, sset.freqs_per_spec, sset.rf_grid, sset.rf_index_map, sset.metadata
-
-    # Create new SSet with new invalid files list to export
+    '''# Create new SSet with new invalid files list to export
     valid_files = sset.metadata["file_name"]
     input_dir = inp["full_data_directory"]
 
@@ -267,8 +302,39 @@ def main():
 
     out_h5 = f"{run_dir}/final_converted_spectra.h5"
     write_hdf5(sset_export, out_h5)
-    print(f"[QSHS] Final SpectrumSet saved to: {out_h5}")
+    print(f"[QSHS] Final SpectrumSet saved to: {out_h5}")'''
+
+
+
+    # =======================================================================
+    # TIME CUTTING
+    # =======================================================================
+
+    n_before = len(metadata["file_name"])
+
+    TIME_ARR = [
+    ["2026-01-27 00:00:00", "2026-01-31 09:55:41"], #-10 run, folder is Jan
+    ["2026-01-27 14:30:00", "2026-01-28 04:50:00"],
+    ['2026-02-01 00:10:58', '2026-02-10 18:10:58'], #-20 run, change to Feb
+    ['2026-02-01 00:10:58', '2026-02-05 19:10:58'], #one small jmup
+    ['2026-02-05 00:10:58', '2026-02-05 19:10:58'], #full linear section
+    ['2026-02-01 00:10:58', '2026-02-04 22:30:58'] #low freq linear section
+    ]
+    TIME_IND = 1
+
+    sset = filter_by_datetime(
+        sset,
+        TIME_ARR[TIME_IND][0],
+        TIME_ARR[TIME_IND][1],
+    )
+
+    print("[TF]", TIME_ARR[TIME_IND][0], "-->", TIME_ARR[TIME_IND][1])
+    print(f"[TF] {len(sset.metadata['file_name'])} files kept after time filter "
+      f"(removed {n_before - len(sset.metadata['file_name'])})")
     
+    # replace arrays with filtered ones for the rest of the chain
+    specs, fper, rf, rf_map, metadata = sset.spectra, sset.freqs_per_spec, sset.rf_grid, sset.rf_index_map, sset.metadata
+
     # =======================================================================
     # Spectra Plotting
     # =======================================================================
@@ -396,6 +462,10 @@ def main():
  
     t0 = time.time()
 
+    # =======================================================================
+    # SPECTRUM CUTS
+    # =======================================================================
+
 
     cut_min_val = -0.3e6
     cut_max_val = 2.3e6
@@ -510,7 +580,10 @@ def main():
             y = y.copy()
             y[nans] = np.interp(x[nans], x[~nans], y[~nans])
         return y
-    _cmap_g = plt.cm.viridis
+    
+
+    _cmap_g_1 = plt.cm.viridis
+    _cmap_g_2 = plt.cm.inferno
 
 
 
@@ -520,29 +593,35 @@ def main():
     ])
     
     
-    from matplotlib.colors import Normalize 
     _finite_res = _group_mean_res[np.isfinite(_group_mean_res)]
     _norm_res = Normalize(
         vmin=np.nanmin(_finite_res) if len(_finite_res) else 0,
         vmax=np.nanmax(_finite_res) if len(_finite_res) else 1,
     )
-    def _gcol(g):
+    def _gcol_1(g):
         v = _group_mean_res[g]
         if not np.isfinite(v):
             return "grey"
-        return _cmap_g(_norm_res(v))
-    from matplotlib.cm import ScalarMappable
+        return _cmap_g_1(_norm_res(v))
+    
+    def _gcol_2(g):
+        v = _group_mean_res[g]
+        if not np.isfinite(v):
+            return "grey"
+        return _cmap_g_2(_norm_res(v))
+
+
     fig, ax = plt.subplots(figsize=(13, 5))
     for g, group in enumerate(groups):
-        ax.plot(np.mean([x[1] for x in group], axis=0)/1e6, np.mean([x[0] for x in group], axis=0), alpha=0.8, color=_gcol(g), label =f"Grp {g}")
-    sm_res = ScalarMappable(cmap=_cmap_g, norm=_norm_res)
+        ax.plot(np.mean([x[1] for x in group], axis=0)/1e6, np.mean([x[0] for x in group], axis=0), alpha=0.8, color=_gcol_1(g), label =f"Grp {g}")
+    sm_res = ScalarMappable(cmap=_cmap_g_1, norm=_norm_res)
     sm_res.set_array([])
     fig.colorbar(sm_res, ax=ax, label="Mean cavity resonance  [GHz]")
     ax.set_xlabel("IF frequency  [MHz]")
     ax.set_ylabel("PSD  [V²/Hz]")
     ax.set_title("Group-averaged spectra — all groups")
     plt.tight_layout()
-    plt.savefig("zgh.png", dpi = 150, bbox_inches='tight')
+    plt.savefig(f"{run_dir}/group_averaged_spectra.png", dpi = 150, bbox_inches='tight')
     plt.close()
 
 
@@ -563,16 +642,16 @@ def main():
 
     fig, ax = plt.subplots(figsize=(13, 5))
     for g, (group, fit) in enumerate(zip(groups, group_sg_fits)):
-        ax.plot(np.mean([x[1] for x in group], axis=0)/1e6, np.mean([x[0] for x in group], axis=0),   lw=1.0, alpha=0.55, color=_gcol(g), label=f"Grp {g}")
-        ax.plot(np.mean([x[1] for x in group], axis=0)/1e6, fit, lw=1.8, alpha=0.95, color=_gcol(g), linestyle="--")
-    sm_res2 = ScalarMappable(cmap=_cmap_g, norm=_norm_res)
+        ax.plot(np.mean([x[1] for x in group], axis=0)/1e6, np.mean([x[0] for x in group], axis=0),   lw=1.0, alpha=0.55, color=_gcol_1(g), label=f"Grp {g}")
+        ax.plot(np.mean([x[1] for x in group], axis=0)/1e6, fit, lw=1.8, alpha=0.95, color=_gcol_1(g), linestyle="--")
+    sm_res2 = ScalarMappable(cmap=_cmap_g_1, norm=_norm_res)
     sm_res2.set_array([])
     fig.colorbar(sm_res2, ax=ax, label="Mean cavity resonance  [GHz]")
     ax.set_xlabel("IF frequency  [MHz]")
     ax.set_ylabel("PSD  [V²/Hz]")
     ax.set_title("Group-averaged spectra with initial SG fits  (dashed = fit)")
     plt.tight_layout()
-    plt.savefig("gay aaa.png", dpi = 150, bbox_inches='tight')
+    plt.savefig(f"{run_dir}/group_averaged_spectra_with_sg_fits.png", dpi = 150, bbox_inches='tight')
     plt.close()
 
 
@@ -580,44 +659,106 @@ def main():
     sigma_cut = 3.5
     specs = []
     fper = []
-    for group in groups:
-        fresh_group = []
+    masked_total = [[] for _ in groups]
 
-        for run in range(3):
-            fresh_specs = []
-            fresh_freqs = []
-            average_spectra = np.mean([x[0] for x in group], axis=0)
-            sd_spectra = np.std([x[0] for x in group], axis=0)
+    persistent_masks = [
+        [np.zeros(len(item[0]), dtype=bool) for item in group]
+        for group in groups
+    ]
+
+    for run in range(1, 4):
+        masked_by_group = []
+        new_groups = []
+        new_group_sg_fits = []
+        new_persistent_masks = []
+
+        for group_idx, group in enumerate(groups):
+            group_masks = persistent_masks[group_idx]   
+
+            spectra_stack = np.array([x[0] for x in group])
+            mask_stack    = np.array(group_masks)
+
+            masked_stack = np.ma.masked_array(spectra_stack, mask=mask_stack)
+            average_spectra = masked_stack.mean(axis=0).filled(np.nan)
+            sd_spectra      = masked_stack.std(axis=0).filled(np.nan)
+
+            average_for_fit = interpolate_nans(average_spectra)
             _, baseline = remove_baseline(
-                spectrum=average_spectra,
+                spectrum=average_for_fit,
                 window_length=base["sg_window_warm"],
                 polyorder=base["sg_poly_warm"],
-                )
+            )
+            new_group_sg_fits.append(baseline)
 
-            for spectra, frequencies, _ in group:
+            masked_new = []
+            new_group = []
+            new_group_masks = []
+
+            for spec_idx, (spectra, frequencies, res_freq) in enumerate(group):
+                prev_mask = group_masks[spec_idx]
 
                 deviation = np.abs(spectra - baseline)
-                mask_idx = np.argwhere(deviation > sigma_cut * sd_spectra)
-                mask = np.zeros(len(spectra))
-                mask[mask_idx] = True
+                new_flags = (deviation > sigma_cut * sd_spectra) & ~prev_mask
 
-                spec = np.ma.masked_array(spectra, mask)
-                freq = np.ma.masked_array(frequencies, mask)
+                cum_mask = prev_mask | new_flags
 
-                cleaned_spec = interpolate_nans(spec.filled(np.nan))
-                cleaned_freq = interpolate_nans(freq.filled(np.nan))
+                spec_m = np.ma.masked_array(spectra, cum_mask)
+                freq_m = np.ma.masked_array(frequencies, cum_mask)
 
-                if run == 2:
-                    cleaned_spec /= baseline
-                fresh_specs.append(cleaned_spec)
-                fresh_freqs.append(cleaned_freq)
+                cleaned_spec = interpolate_nans(spec_m.filled(np.nan))
+                cleaned_freq = interpolate_nans(freq_m.filled(np.nan))
 
-            fresh_group.append((fresh_specs, fresh_freqs))
-        
-        
+                newly_masked_idx = np.where(new_flags)[0]
+                for idx in newly_masked_idx:
+                    masked_new.append([frequencies[idx], spectra[idx]])
 
-        specs.extend(np.array(fresh_group[-1][0]))
-        fper.extend(np.array(fresh_group[-1][1]))
+                new_group.append([cleaned_spec, cleaned_freq, res_freq])
+                new_group_masks.append(cum_mask)
+
+            masked_by_group.append(masked_new)
+            new_groups.append(new_group)
+            new_persistent_masks.append(new_group_masks)
+
+        fig, ax = plt.subplots(figsize=(13, 5))
+        for g, (group, fit) in enumerate(zip(groups, new_group_sg_fits)):
+            ax.plot(np.mean([x[1] for x in group], axis=0)/1e6, np.mean([x[0] for x in group], axis=0), lw=1.0, alpha=0.55, color=_gcol_1(g), label=f"Grp {g}")
+            ax.plot(np.mean([x[1] for x in group], axis=0)/1e6, fit, lw=1.8, alpha=0.95, color=_gcol_1(g), linestyle="--")
+            pts = np.array(masked_by_group[g])
+            if pts.size:
+                ax.scatter(pts[:, 0]/1e6, pts[:, 1], marker = ".", color=_gcol_2(g), zorder=5)
+            old_pts = np.array(masked_total[g])
+            if old_pts.size:
+                ax.scatter(old_pts[:, 0]/1e6, old_pts[:, 1], c="grey", zorder=4)
+
+        sm_res1 = ScalarMappable(cmap=_cmap_g_1, norm=_norm_res)
+        sm_res1.set_array([])
+        fig.colorbar(sm_res1, ax=ax, label="Mean cavity resonance  [GHz]", pad=0.02)
+
+        sm_res2 = ScalarMappable(cmap=_cmap_g_2, norm=_norm_res)
+        sm_res2.set_array([])
+        fig.colorbar(sm_res2, ax=ax, label="Mean cavity resonance  [GHz]", pad=0.10)
+
+        ax.set_xlabel("IF frequency  [MHz]")
+        ax.set_ylabel("PSD  [V²/Hz]")
+        ax.set_title("Group-averaged spectra with initial SG fits  (dashed = fit)")
+        plt.tight_layout()
+        plt.savefig(f"{run_dir}/masked_bin_iteration_{run}.png", dpi=150, bbox_inches='tight')
+        plt.close()
+
+        for g in range(len(groups)):
+            masked_total[g].extend(masked_by_group[g])
+        groups = new_groups
+        group_sg_fits = new_group_sg_fits
+        persistent_masks = new_persistent_masks
+
+    specs = []
+    fper = []
+    for group, baseline in zip(groups, group_sg_fits):
+        group_spectra = np.array([item[0] for item in group])
+        group_freqs = np.array([item[1] for item in group])
+
+        specs.extend(group_spectra / baseline)
+        fper.extend(group_freqs)
 
 
     # =======================================================================
@@ -644,13 +785,7 @@ def main():
         )
         proc.append(processed)
 
-
-    # Normalise rf_map
-    rf_map_new = []
-    for i in rf_map:
-        j = i - i[0]
-    rf_map_new.append(j)
-
+    rf_map_new = [i - i[0] for i in rf_map]
 
     # 3) combine
     combined, sigma_c, counts = combine_ml(proc, rf_map_new, total_rf_bins=len(rf))
