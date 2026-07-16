@@ -31,6 +31,7 @@ class SpectrumMetadata:
     temps: np.ndarray
     q_factor: np.ndarray
     res_freq: np.ndarray
+    cw_freq: np.ndarry
     bandwidth: np.ndarray
     tuning_angle: np.ndarray
     volume: np.ndarray
@@ -351,6 +352,7 @@ def read_qshs_hdf5(
     with h5py.File(path, "r") as h5:
         arr = np.asarray(h5[power_path][()], dtype=float)
         slow_controls_mode_fit   = h5["Slow_Controls/Mode-Fit"][()]
+        slow_controls_status  = h5["Slow_Controls/Status"][()]
 
         file_name_str = h5.attrs["This_File"]
         if isinstance(file_name_str, bytes):
@@ -365,6 +367,11 @@ def read_qshs_hdf5(
         if isinstance(raw, bytes):
             raw = raw.decode("utf-8")
         mode_fit_data = json.loads(raw)
+
+        raw = slow_controls_status.item()
+        if isinstance(raw, bytes):
+            raw = raw.decode("utf-8")
+        status_data = json.loads(raw)
         
         for key, value in mode_fit_data.items():
             if key == "res_freq":
@@ -374,6 +381,10 @@ def read_qshs_hdf5(
             elif key == "q_loaded":
                 q_loaded_str = value
 
+        for key, value in status_data.items():
+            if key == "RF1":
+                cw_freq_str = value[0]
+
         spec_metadata = SpectrumMetadata(
             date=date_str,
             file_name=file_name_str,
@@ -382,6 +393,7 @@ def read_qshs_hdf5(
             temps=None,
             q_factor=q_loaded_str,
             res_freq=res_freq_str,
+            cw_freq = cw_freq_str,
             bandwidth=bandwidths_str,
             tuning_angle=None,
             volume=None,

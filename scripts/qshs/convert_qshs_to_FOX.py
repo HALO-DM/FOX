@@ -80,7 +80,7 @@ def main():
     # Initialising
     # ---------------
 
-    input_dir = "input/Feb/All"
+    input_dir = "input/Jan"
 
     plot_qshs_data = False
     plot_slow_controls = False
@@ -98,6 +98,7 @@ def main():
 
     spectra_list = []
     res_freqs_list = []
+    cw_freqs_list = []
     bandwidths_list = []
     q_loaded_list = []
     valid_files = []
@@ -176,6 +177,8 @@ def main():
                     modefit_rows.append({"SOURCE": "Mode-Fit", "FIELD": key, "VALUE": value})
                     if key == "res_freq":
                         res_freqs_list.append(value)
+                    elif key == "cw_freq":
+                        cw_freqs_list.append(value)
                     elif key == "bandwidth":
                         bandwidths_list.append(value)
                     elif key == "q_loaded":
