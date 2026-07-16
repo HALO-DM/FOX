@@ -283,22 +283,26 @@ def main():
 
     if qc["bad_time_filter"]:
         total_bad_time_filter = 0
-        for t in range(len(qc["start_time"])):
-            sset, sset_time_filtered, kept, bad_time_filter = filter_spectrum_set(
-                    sset,
-                    predicate=lambda s, f, md, i: time_filter(
-                        s,
-                        f,
-                        md,
-                        i,
-                        start_time = qc["start_time"][t],
-                        end_time = qc["end_time"][t],
-                    ),
-            )
-            total_bad_time_filter += len(bad_time_filter)
-            for s in bad_time_filter:
-                invalid_files.append([sset_time_filtered.metadata["file_name"][s], f"known bad data ({qc['start_time'][t]} - {qc['end_time'][t]})" , sset_time_filtered.metadata["date"][s]])
-        print(f"[QC]: {total_bad_time_filter} spectra were removed as within known bad data times.")
+        if len(qc["start_time"]) != len(qc["end_time"]):
+            print("The lists of start times and end times for cutting data are different lengths, please resolve this issue.")
+            sys.exit()
+        else:
+            for t in range(len(qc["start_time"])):
+                sset, sset_time_filtered, kept, bad_time_filter = filter_spectrum_set(
+                        sset,
+                        predicate=lambda s, f, md, i: time_filter(
+                            s,
+                            f,
+                            md,
+                            i,
+                            start_time = qc["start_time"][t],
+                            end_time = qc["end_time"][t],
+                        ),
+                )
+                total_bad_time_filter += len(bad_time_filter)
+                for s in bad_time_filter:
+                    invalid_files.append([sset_time_filtered.metadata["file_name"][s], f"known bad data ({qc['start_time'][t]} - {qc['end_time'][t]})" , sset_time_filtered.metadata["date"][s]])
+            print(f"[QC]: {total_bad_time_filter} spectra were removed as within known bad data times.")
 
     print(f"[QC]: {len(kept)} / {len(kept) + len(invalid_files)} files are valid and suitable for anaylsis, {len(invalid_files)} files are invalid.")
     # replace arrays with filtered ones for the rest of the chain
