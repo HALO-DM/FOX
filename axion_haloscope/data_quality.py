@@ -2,6 +2,7 @@
 from __future__ import annotations
 from typing import Callable, Iterable, List, Tuple
 import numpy as np
+from datetime import datetime
 from .io import SpectrumSet, SpectrumMetadata
 
 BadPredicate = Callable[[np.ndarray, np.ndarray, SpectrumMetadata, int], bool]
@@ -39,6 +40,31 @@ def metadata_is_zeros(
     Flag a spectrum as BAD if an aspect of metadata is an array of zeros.
     """
     return np.all(md[item] == 0)
+
+def time_filter(
+    s: np.ndarray,
+    f: np.ndarray,
+    md: SpectrumMetadata,
+    i: int,
+    *,
+    start_time: str,
+    end_time: str, 
+) -> bool:
+    """
+    Flag a spectrum as BAD if within time of known bad data.
+    """
+    date = md["date"][i]
+
+    if isinstance(date, str):
+        date = datetime.fromisoformat(date)
+
+    start = datetime.fromisoformat(start_time)
+    end = datetime.fromisoformat(end_time)
+
+    if start < date < end:
+        return True
+    else:
+        return False
 
 def too_noisy(
     s: np.ndarray,

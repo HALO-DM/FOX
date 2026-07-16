@@ -20,12 +20,15 @@ injection:
   total_power: 20.0
 
 quality:
-  max_power_filter: true   # filter the spectra for max mean power 
-  p_max: 1e-8           # max power allowed
-  noise_filter: true    # filter the spectra for noise
-  rms_max: 2.0          # max RMS allowed
-  bandwidth_zeros_filter: true    # filter the spectra for bandwdith data being arrays of zeros
-  res_freq_zeros_filter: true     # filter the spectra for res_freq data being arrays of zeros
+  max_power_filter: true            # filter the spectra for max mean power 
+  p_max: 1e-8                       # max power allowed
+  noise_filter: true                # filter the spectra for noise
+  rms_max: 2.0                      # max RMS allowed
+  bandwidth_zeros_filter: true      # filter the spectra for bandwdith data being arrays of zeros
+  res_freq_zeros_filter: true       # filter the spectra for res_freq data being arrays of zeros
+  bad_time_filter: false             # filter spectra within a known bad time frame
+  start_time: ["2026-01-28 00:00:00", "2026-01-28 12:00:00"] # List of start times of the known bad data in format YYYY-MM-DD HH:MM:SS
+  end_time: ["2026-01-28 01:00:00", "2026-01-28 16:00:00"]  # List of end times of the known bad data in format YYYY-MM-DD HH:MM:SS
 
 
 baseline:

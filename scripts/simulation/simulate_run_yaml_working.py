@@ -28,7 +28,7 @@ from axion_haloscope.rebin      import rebin_ml, grand_spectrum_ml
 from axion_haloscope.lineshape  import shm_maxwell_template
 from axion_haloscope.detection  import threshold_for_detection, find_candidates
 from axion_haloscope.limit      import compute_local_snr_template, coupling_limit, plot_exclusion
-from axion_haloscope.data_quality import filter_spectrum_set, too_noisy, power_too_high, metadata_is_zeros
+from axion_haloscope.data_quality import filter_spectrum_set, too_noisy, power_too_high, metadata_is_zeros, time_filter
 from axion_haloscope.io import SpectrumSet, SpectrumMetadata, read_hdf5, write_hdf5, read_qshs_hdf5_dir2
 from axion_haloscope.width_fq   import width_from_fq
 
@@ -83,6 +83,9 @@ def load_yaml_config(path: pathlib.Path) -> dict:
             "rms_max":                  int(_get(qc, "rms_max", 3)),
             "bandwidth_zeros_filter":   bool(_get(qc, "bandwidth_zeros_filter", True)),
             "res_freq_zeros_filter":    bool(_get(qc, "res_freq_zeros_filter", True)),
+            "bad_time_filter":          bool(_get(qc, "bad_time_filter", True)),
+            "start_time":               _get(qc, "start_time", None),
+            "end_time":                 _get(qc, "end_time", None),
         },
         "baseline": {
             "sg_window_warm": int(_get(base, "sg_window_warm", 251)),
@@ -275,10 +278,31 @@ def main():
             ),
         )
         for s in bad_zeros_res_freq:
-            invalid_files.append([sset_zeros_res_freq.metadata["file_name"][s], "res_freq data is zeros", sset_zeros_res_freq.metadata["file_name"][s]])
+            invalid_files.append([sset_zeros_res_freq.metadata["file_name"][s], "res_freq data is zeros", sset_zeros_res_freq.metadata["date"][s]])
         print(f"[QC]: {len(bad_zeros_res_freq)} spectra were removed as res_freq were arrays of zeros.")
 
+    if qc["bad_time_filter"]:
+        total_bad_time_filter = 0
+        for t in range(len(qc["start_time"])):
+            sset, sset_time_filtered, kept, bad_time_filter = filter_spectrum_set(
+                    sset,
+                    predicate=lambda s, f, md, i: time_filter(
+                        s,
+                        f,
+                        md,
+                        i,
+                        start_time = qc["start_time"][t],
+                        end_time = qc["end_time"][t],
+                    ),
+            )
+            total_bad_time_filter += len(bad_time_filter)
+            for s in bad_time_filter:
+                invalid_files.append([sset_time_filtered.metadata["file_name"][s], f"known bad data ({qc['start_time'][t]} - {qc['end_time'][t]})" , sset_time_filtered.metadata["date"][s]])
+        print(f"[QC]: {total_bad_time_filter} spectra were removed as within known bad data times.")
+
     print(f"[QC]: {len(kept)} / {len(kept) + len(invalid_files)} files are valid and suitable for anaylsis, {len(invalid_files)} files are invalid.")
+    # replace arrays with filtered ones for the rest of the chain
+    specs, fper, rf, rf_map, metadata = sset.spectra, sset.freqs_per_spec, sset.rf_grid, sset.rf_index_map, sset.metadata
 
     '''# Create new SSet with new invalid files list to export
     valid_files = sset.metadata["file_name"]
