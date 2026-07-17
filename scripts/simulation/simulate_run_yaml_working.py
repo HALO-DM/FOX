@@ -211,7 +211,7 @@ def main():
     for f in invalid_files:
         if f[1] == "power spectra is zeros":
             bad_zero_power.append(f)
-        elif f[1] == "modefit data is missing":
+        elif f[1] == "metadata is missing":
             bad_no_metadata.append(f)
 
     print(f"[QC]: {len(bad_no_metadata)} spectra were removed as files were missing metadata.")

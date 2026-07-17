@@ -6,6 +6,7 @@ from pathlib import Path
 from typing import List, Tuple, Optional, Dict
 import h5py, json, sys
 import os
+from tqdm import tqdm
 
 @dataclass
 class SpectrumMetadata:
@@ -19,6 +20,7 @@ class SpectrumMetadata:
     temps           : list of floats
     q_factor        : list of floats
     res_freq        : list of floats
+    cw_freq:        : list of floats
     bandwidth       : list of floats
     tuning_angle    : list of floats
     volume          : list of floats
@@ -31,7 +33,7 @@ class SpectrumMetadata:
     temps: np.ndarray
     q_factor: np.ndarray
     res_freq: np.ndarray
-    cw_freq: np.ndarry
+    cw_freq: np.ndarray
     bandwidth: np.ndarray
     tuning_angle: np.ndarray
     volume: np.ndarray
@@ -514,8 +516,6 @@ def read_qshs_hdf5_dir(
 
 def read_qshs_hdf5_dir2(
     directory: str | Path,
-    valid_files: List,
-    invalid_files: List,
     *,
     pattern: str = "*.hdf5",
     power_path: str = "/Power_Spectra",
@@ -527,7 +527,6 @@ def read_qshs_hdf5_dir2(
 ) -> SpectrumSet:
     """
     Read a directory of QSHS HDF5 files.
-    Adapted to include list input of invalid file names.
 
     Assumes:
       - one spectrum per file
@@ -546,8 +545,9 @@ def read_qshs_hdf5_dir2(
     spectra = []
     freqs_per_spec = []
     spec_metadata = []
+    invalid_files = []
 
-    for fp in files:
+    for fp in tqdm(files, desc="Processing spectra"):
         
         try:    
             one = read_qshs_hdf5(
@@ -558,11 +558,15 @@ def read_qshs_hdf5_dir2(
                 sort_frequency=sort_frequency,
             )
 
-            if one.metadata.file_name in valid_files:
+            if np.all(one.spectra[0] == 0):
+                invalid_files.append([one.metadata.file_name, "power spectra is zeros", one.metadata.date])
+                continue
+            else:
                 spectra.append(one.spectra[0])
                 freqs_per_spec.append(one.freqs_per_spec[0])
                 spec_metadata.append(one.metadata)
         except json.decoder.JSONDecodeError:
+            invalid_files.append([one.metadata.file_name, "metadata is missing", one.metadata.date])
             continue
 
     for m in spec_metadata:
