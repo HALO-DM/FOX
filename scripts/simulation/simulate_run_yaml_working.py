@@ -19,6 +19,7 @@ import matplotlib.pyplot as plt
 import time
 import pandas as pd
 import h5py
+import matplotlib.dates as mdates
 
 
 from axion_haloscope.simulation import simulate_spectra, AxionParams
@@ -80,7 +81,9 @@ def load_yaml_config(path: pathlib.Path) -> dict:
             "max_power_filter":         bool(_get(qc, "max_power_filter", True)),
             "p_max":                    float(_get(qc, "p_max", 1e-8)),
             "noise_filter":             bool(_get(qc, "noise_filter", True)),
-            "rms_max":                  int(_get(qc, "rms_max", 3)),
+            "rms_max":                  float(_get(qc, "rms_max", 1e-10)),
+            "nan_fail":                 bool(_get(qc, "nan_fail", True)),
+            "robust":                   bool(_get(qc, "robust", True)),    
             "bandwidth_zeros_filter":   bool(_get(qc, "bandwidth_zeros_filter", True)),
             "res_freq_zeros_filter":    bool(_get(qc, "res_freq_zeros_filter", True)),
             "bad_time_filter":          bool(_get(qc, "bad_time_filter", True)),
@@ -233,11 +236,27 @@ def main():
         print(f"[QC]: {len(bad_power)} spectra were removed as power is too high.")
         # Seperate invalid power spectra to plot
         specs_invalid_power, fper_invalid_power, _, _, _ = sset_power.spectra, sset_power.freqs_per_spec, sset_power.rf_grid, sset_power.rf_index_map, sset_power.metadata
+        if len(specs_invalid_power) != 0:
+            plt.figure(figsize=(9,3))
+            plt.plot(fper_invalid_power[0]/1e9, specs_invalid_power[0], lw=0.6)
+            plt.xlabel("Frequency [GHz]"); plt.ylabel("Raw Power [arb]")
+            plt.title("Example invalid raw spectrum (high power)"); plt.grid(alpha=0.3); plt.tight_layout()
+            plt.savefig(run_dir/"invalid_power_raw_spectrum.png", dpi=150); plt.close()
+
+            plt.figure(figsize=(9,3))
+            plt.plot(fper_invalid_power[-1]/1e9, specs_invalid_power[-1], lw=0.6)
+            plt.xlabel("Frequency [GHz]"); plt.ylabel("Raw Power [arb]")
+            plt.title("Example invalid raw spectrum (high power)"); plt.grid(alpha=0.3); plt.tight_layout()
+            plt.savefig(run_dir/"invalid_power_raw_spectrum_last.png", dpi=150); plt.close()
+
+            step = max(1, int(out["plots_step"]))
+            max_plots = None if out["max_plots"] is None else int(out["max_plots"])
+
 
     if qc["noise_filter"]:
         sset, sset_noise, kept, bad_noise = filter_spectrum_set(
             sset,
-            predicate=lambda s, f, md, i,: too_noisy(
+            predicate=lambda s, f, md, i: too_noisy(
                 s,
                 f,
                 md,
@@ -246,10 +265,67 @@ def main():
             ),
         )
         for s in bad_noise:
-            invalid_files.append([sset_noise.metadata["file_name"][s], "data is too noisy", sset_noise.metadata["date"][s]])
+            invalid_files.append([sset_noise.metadata["file_name"][s], "too noisy", sset_noise.metadata["date"][s]])
         print(f"[QC]: {len(bad_noise)} spectra were removed as too noisy.")
-        # Seperate invalid noise spectra to plot
+        # Seperate invalid power spectra to plot
         specs_invalid_noise, fper_invalid_noise, _, _, _ = sset_noise.spectra, sset_noise.freqs_per_spec, sset_noise.rf_grid, sset_noise.rf_index_map, sset_noise.metadata
+        if len(specs_invalid_noise) != 0:
+            plt.figure(figsize=(9,3))
+            plt.plot(fper_invalid_noise[0]/1e9, specs_invalid_noise[0], lw=0.6)
+            plt.xlabel("Frequency [GHz]"); plt.ylabel("Raw Power [arb]")
+            plt.title("Example invalid raw spectrum (too noisey)"); plt.grid(alpha=0.3); plt.tight_layout()
+            plt.savefig(run_dir/"invalid_noise_raw_spectrum.png", dpi=150); plt.close()
+
+            plt.figure(figsize=(9,3))
+            plt.plot(fper_invalid_noise[-1]/1e9, specs_invalid_noise[-1], lw=0.6)
+            plt.xlabel("Frequency [GHz]"); plt.ylabel("Raw Power [arb]")
+            plt.title("Example invalid raw spectrum (too noisey)"); plt.grid(alpha=0.3); plt.tight_layout()
+            plt.savefig(run_dir/"invalid_noise_raw_spectrum_last.png", dpi=150); plt.close()
+
+            step = max(1, int(out["plots_step"]))
+            max_plots = None if out["max_plots"] is None else int(out["max_plots"])
+
+
+    if qc["bad_time_filter"]:
+        total_bad_time_filter = 0
+        if len(qc["start_time"]) != len(qc["end_time"]):
+            print("The lists of start times and end times for cutting data are different lengths, please resolve this issue.")
+            sys.exit()
+        else:
+            for t in range(len(qc["start_time"])):
+                sset, sset_time_filtered, kept, bad_time_filter = filter_spectrum_set(
+                        sset,
+                        predicate=lambda s, f, md, i: time_filter(
+                            s,
+                            f,
+                            md,
+                            i,
+                            start_time = qc["start_time"][t],
+                            end_time = qc["end_time"][t],
+                        ),
+                )
+                total_bad_time_filter += len(bad_time_filter)
+                for s in bad_time_filter:
+                    invalid_files.append([sset_time_filtered.metadata["file_name"][s], f"known bad data ({qc['start_time'][t]}-{qc['end_time'][t]})" , sset_time_filtered.metadata["date"][s]])
+                
+                specs_invalid_time, fper_invalid_time, _, _, _ = sset_time_filtered.spectra, sset_time_filtered.freqs_per_spec, sset_time_filtered.rf_grid, sset_time_filtered.rf_index_map, sset_time_filtered.metadata
+                if len(specs_invalid_time) != 0:
+                    plt.figure(figsize=(9,3))
+                    plt.plot(fper_invalid_time[0]/1e9, specs_invalid_time[0], lw=0.6)
+                    plt.xlabel("Frequency [GHz]"); plt.ylabel("Raw Power [arb]")
+                    plt.title(f"Example invalid raw spectrum (invalid time {qc['start_time'][t]}-{qc['end_time'][t]})"); plt.grid(alpha=0.3); plt.tight_layout()
+                    plt.savefig(run_dir/f"invalid_time_raw_spectrum_{qc['start_time'][t]}-{qc['end_time'][t]}.png", dpi=150); plt.close()
+
+                    plt.figure(figsize=(9,3))
+                    plt.plot(fper_invalid_time[-1]/1e9, specs_invalid_time[-1], lw=0.6)
+                    plt.xlabel("Frequency [GHz]"); plt.ylabel("Raw Power [arb]")
+                    plt.title(f"Example invalid raw spectrum (invalid time {qc['start_time'][t]}-{qc['end_time'][t]})"); plt.grid(alpha=0.3); plt.tight_layout()
+                    plt.savefig(run_dir/f"invalid_time_raw_spectrum_last_{qc['start_time'][t]}-{qc['end_time'][t]}.png", dpi=150); plt.close()
+
+                    step = max(1, int(out["plots_step"]))
+                    max_plots = None if out["max_plots"] is None else int(out["max_plots"])
+            print(f"[QC]: {total_bad_time_filter} spectra were removed as within known bad data times.")
+
 
     if qc["bandwidth_zeros_filter"]:
         sset, sset_zeros_bandwidth, kept, bad_zeros_bandwidth = filter_spectrum_set(
@@ -281,28 +357,6 @@ def main():
             invalid_files.append([sset_zeros_res_freq.metadata["file_name"][s], "res_freq data is zeros", sset_zeros_res_freq.metadata["date"][s]])
         print(f"[QC]: {len(bad_zeros_res_freq)} spectra were removed as res_freq were arrays of zeros.")
 
-    if qc["bad_time_filter"]:
-        total_bad_time_filter = 0
-        if len(qc["start_time"]) != len(qc["end_time"]):
-            print("The lists of start times and end times for cutting data are different lengths, please resolve this issue.")
-            sys.exit()
-        else:
-            for t in range(len(qc["start_time"])):
-                sset, sset_time_filtered, kept, bad_time_filter = filter_spectrum_set(
-                        sset,
-                        predicate=lambda s, f, md, i: time_filter(
-                            s,
-                            f,
-                            md,
-                            i,
-                            start_time = qc["start_time"][t],
-                            end_time = qc["end_time"][t],
-                        ),
-                )
-                total_bad_time_filter += len(bad_time_filter)
-                for s in bad_time_filter:
-                    invalid_files.append([sset_time_filtered.metadata["file_name"][s], f"known bad data ({qc['start_time'][t]} - {qc['end_time'][t]})" , sset_time_filtered.metadata["date"][s]])
-            print(f"[QC]: {total_bad_time_filter} spectra were removed as within known bad data times.")
 
     print(f"[QC]: {len(kept)} / {len(kept) + len(invalid_files)} files are valid and suitable for anaylsis, {len(invalid_files)} files are invalid.")
     # replace arrays with filtered ones for the rest of the chain
@@ -363,9 +417,9 @@ def main():
     # replace arrays with filtered ones for the rest of the chain
     specs, fper, rf, rf_map, metadata = sset.spectra, sset.freqs_per_spec, sset.rf_grid, sset.rf_index_map, sset.metadata
 
-    # =======================================================================
+    # ===================
     # Spectra Plotting
-    # =======================================================================
+    # ===================
 
     # Calculate difference in resonant frequency of the cavity between the spectra
     res_freq_diff = []
@@ -388,41 +442,6 @@ def main():
 
     step = max(1, int(out["plots_step"]))
     max_plots = None if out["max_plots"] is None else int(out["max_plots"])
-
-    # Save one invalid example raw spectrum for each case if it exists
-    if qc["max_power_filter"]:
-        if len(specs_invalid_power) != 0:
-            plt.figure(figsize=(9,3))
-            plt.plot(fper_invalid_power[0]/1e9, specs_invalid_power[0], lw=0.6)
-            plt.xlabel("Frequency [GHz]"); plt.ylabel("Raw Power [arb]")
-            plt.title("Example invalid raw spectrum (high power)"); plt.grid(alpha=0.3); plt.tight_layout()
-            plt.savefig(run_dir/"invalid_power_raw_spectrum.png", dpi=150); plt.close()
-
-            plt.figure(figsize=(9,3))
-            plt.plot(fper_invalid_power[-1]/1e9, specs_invalid_power[-1], lw=0.6)
-            plt.xlabel("Frequency [GHz]"); plt.ylabel("Raw Power [arb]")
-            plt.title("Example invalid raw spectrum (high power)"); plt.grid(alpha=0.3); plt.tight_layout()
-            plt.savefig(run_dir/"invalid_power_raw_spectrum_last.png", dpi=150); plt.close()
-
-            step = max(1, int(out["plots_step"]))
-            max_plots = None if out["max_plots"] is None else int(out["max_plots"])
-
-    if qc["noise_filter"]:
-        if len(specs_invalid_noise) != 0:
-            plt.figure(figsize=(9,3))
-            plt.plot(fper_invalid_noise[0]/1e9, specs_invalid_noise[0], lw=0.6)
-            plt.xlabel("Frequency [GHz]"); plt.ylabel("Raw Power [arb]")
-            plt.title("Example invalid raw spectrum (too noisey)"); plt.grid(alpha=0.3); plt.tight_layout()
-            plt.savefig(run_dir/"invalid_noise_raw_spectrum.png", dpi=150); plt.close()
-
-            plt.figure(figsize=(9,3))
-            plt.plot(fper_invalid_noise[-1]/1e9, specs_invalid_noise[-1], lw=0.6)
-            plt.xlabel("Frequency [GHz]"); plt.ylabel("Raw Power [arb]")
-            plt.title("Example invalid raw spectrum (too noisey)"); plt.grid(alpha=0.3); plt.tight_layout()
-            plt.savefig(run_dir/"invalid_noise_raw_spectrum_last.png", dpi=150); plt.close()
-
-            step = max(1, int(out["plots_step"]))
-            max_plots = None if out["max_plots"] is None else int(out["max_plots"])
 
     # Optional: save per-spectrum PNGs + spectra.npz for valid data
     if out["save_data"]:
