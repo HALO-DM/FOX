@@ -134,7 +134,7 @@ def filter_by_datetime(data, start, end, key="date"):
     end_dt   = datetime.datetime.strptime(end,   "%Y-%m-%d %H:%M:%S")
 
     mask = np.array([(d is not None) and (start_dt <= d <= end_dt) for d in dt])
-    print(mask)
+
     print("=" * 60)
     print(f"Timestamp filter: keeping {np.sum(mask)} / {len(mask)} files")
     print("=" * 60)
@@ -403,6 +403,9 @@ def main():
     invalid_files_df["Date_Time"] = pd.to_datetime(invalid_files_df["Date_Time"], format="%Y-%m-%d %H:%M:%S")
     invalid_files_df = invalid_files_df.sort_values(by="Date_Time")
     invalid_files = invalid_files_df.values.tolist()
+    
+    print(type(metadata))
+
 
     sset_export = read_qshs_hdf5_dir2(
         input_dir,
@@ -414,12 +417,15 @@ def main():
         run_dir=run_dir,
     )
 
+    print(type(sset_export.metadata))
+
     out_h5 = f"{run_dir}/final_converted_spectra.h5"
     write_hdf5(sset_export, out_h5)
+    print(f"[QSHS] Final SpectrumSet saved to: {out_h5}")
+
+    out_h5 = f"{run_dir}/final_converted_spectra_without_extra_code.h5"
+    write_hdf5(sset, out_h5)
     print(f"[QSHS] Final SpectrumSet saved to: {out_h5}")'''
-
-
-
     # =======================================================================
     # TIME CUTTING
     # =======================================================================
@@ -442,21 +448,24 @@ def main():
         TIME_ARR[TIME_IND][1],
     )
 
-    print("[TF]", TIME_ARR[TIME_IND][0], "-->", TIME_ARR[TIME_IND][1])
-    print(f"[TF] {len(sset.metadata['file_name'])} files kept after time filter "
+    print("[TF]:", TIME_ARR[TIME_IND][0], "-->", TIME_ARR[TIME_IND][1])
+    print(f"[TF]: {len(sset.metadata['file_name'])} files kept after time filter "
       f"(removed {n_before - len(sset.metadata['file_name'])})")
     
     # replace arrays with filtered ones for the rest of the chain
     specs, fper, rf, rf_map, metadata = sset.spectra, sset.freqs_per_spec, sset.rf_grid, sset.rf_index_map, sset.metadata
 
-    # ===================
+    cw_freqs = np.array(metadata["cw_freq"])
+    res_freqs = np.array(metadata["res_freq"])
+
+    # =======================================================================
     # Spectra Plotting
     # ===================
 
     # Calculate difference in resonant frequency of the cavity between the spectra
     res_freq_diff = []
-    for f in metadata["res_freq"]:
-        difference = f - metadata["res_freq"][0]
+    for f in res_freqs:
+        difference = f - res_freqs[0]
         res_freq_diff.append(difference)
 
     # Always save one valid example raw spectrum
@@ -537,6 +546,33 @@ def main():
         plt.xlabel("Frequency [GHz]"); plt.ylabel("Raw Power [arb]")
         plt.title("All valid spectra offset"); plt.grid(alpha=0.3); plt.tight_layout()
         plt.savefig(run_dir/"raw_spectrum_all_valid_offset.png", dpi=150); plt.close()  
+
+    # Optional: plot all valid raw spectra in one figure with offset
+
+    colour_vals = np.abs(cw_freqs - res_freqs) / 1e9  # GHz → Hz
+
+
+    # DEBUGGING - show the total number of injections
+    # print(np.unique(np.round(colour_vals, 10), return_counts=True))
+    #if out["injection_histogram"]:
+    # Plot the resonance frequency offset againist the spectrum index
+    plt.figure(figsize=(9,3))
+    plt.hist(colour_vals, bins = len(np.unique(np.round(colour_vals, 10))))
+    plt.xlabel("Shifted Injected Frequency"); plt.ylabel("Count")
+    plt.title("Injected Frequency Histogram"); plt.grid(alpha=0.3); plt.tight_layout()
+    plt.savefig(run_dir/"shift.png", dpi=150); plt.close()
+
+    # Combine the offset spectra into one figure
+    plt.figure(figsize=(9,3))
+    for i, (freqs, spec) in enumerate(zip(fper, specs)):
+        if i % step != 0:
+            continue
+        if max_plots is not None and count >= max_plots:
+            break
+        plt.plot((freqs/1e9 + res_freq_diff[i]), spec, lw=0.6)
+    plt.xlabel("Frequency [GHz]"); plt.ylabel("Raw Power [arb]")
+    plt.title("All valid spectra offset"); plt.grid(alpha=0.3); plt.tight_layout()
+    plt.savefig(run_dir/"raw_spectrum_all_valid_offset.png", dpi=150); plt.close() 
 
  
     t0 = time.time()
@@ -838,6 +874,46 @@ def main():
 
         specs.extend(group_spectra / baseline)
         fper.extend(group_freqs)
+
+    colour_vals = np.abs(cw_freqs - res_freqs) / 1e9  # GHz → Hz
+
+
+    # DEBUGGING - show the total number of injections
+    # print(np.unique(np.round(colour_vals, 10), return_counts=True))
+
+
+    cbar_label  = r"$|f_{\rm CW} - f_{\rm res}|$  [Hz]"
+    cmap        = plt.cm.inferno
+    _finite     = colour_vals[np.isfinite(colour_vals)]
+    norm = Normalize(
+        vmin=np.percentile(_finite,  0),
+        vmax=np.percentile(_finite, 100),
+    )
+
+    fig, ax = plt.subplots(figsize = (13,5))
+    for spec, freq, cv in zip(specs, fper, colour_vals):
+        #ax.scatter(freqs, specs, color=_gcol_2(group_idx))
+        ax.plot(freq, spec, linestyle="", marker="o", markersize=3, color=cmap(norm(cv)), alpha=0.7)
+    ax.axhline(1.0, color="k", ls="--", lw=0.8, alpha=0.6)
+    sm = ScalarMappable(cmap=cmap, norm=norm)
+    sm.set_array([])
+    fig.colorbar(sm, ax=ax, label=cbar_label)
+
+    ax.set_xlabel("IF frequency  [MHz]")
+    ax.set_ylabel("PSD  [V²/Hz]")
+    ax.set_title("Group-averaged spectra with initial SG fits  (dashed = fit)")
+    plt.tight_layout()
+    plt.savefig(f"{run_dir}/spectra-baseline_removed.png", dpi=150, bbox_inches='tight')
+    plt.close()
+
+
+
+    sys.exit()
+
+
+
+
+
 
 
     # =======================================================================
