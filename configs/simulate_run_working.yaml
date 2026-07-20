@@ -31,9 +31,9 @@ quality:
 
 
 baseline:
-  sg_window_warm: 201
+  sg_window_warm: 351
   sg_poly_warm: 4
-  sg_window_cold: 201
+  sg_window_cold: 351
   sg_poly_cold: 4
 
 rebin:

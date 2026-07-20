@@ -880,7 +880,23 @@ def main():
     plt.savefig(f"{run_dir}/spectra-baseline_removed.png", dpi=150, bbox_inches='tight')
     plt.close()
 
+    fig, ax = plt.subplots(figsize = (13,5))
+    ax.plot(metadata["date"], colour_vals)
+    ax.set_xlabel("Date-Time")
+    ax.set_ylabel(cbar_label)
+    ax.set_title(f"Evolution of {cbar_label} w.r.t. Time")
+    plt.tight_layout()
+    plt.savefig(f"{run_dir}/evolution_of_frequency.png", dpi=150, bbox_inches='tight')
+    plt.close()
 
+    fig, ax = plt.subplots(figsize = (13,5))
+    ax.plot(metadata["date"], metadata["file_name"])
+    ax.set_xlabel("Date-Time")
+    ax.set_ylabel("Event")
+    ax.set_title(f"Evolution of {cbar_label} w.r.t. Time")
+    plt.tight_layout()
+    plt.savefig(f"{run_dir}/events_agaisnt_time.png", dpi=150, bbox_inches='tight')
+    plt.close()
 
     sys.exit()
 
