@@ -178,7 +178,7 @@ def read_csv_dir(csv_dir: str | Path,
 # ----------------------------
 # HDF5 I/O (compact + ragged-safe via vlen)
 # ----------------------------
-def _write_metadata_group(h5file: h5py.File, metadata: list, vlen_f64) -> None:
+def _write_metadata_group(h5file: h5py.File, metadata: dict, vlen_f64) -> None:
     """
     Write a list of per-spectrum SpectrumMetadata objects as one group,
     transposed into one dataset per field (length n_spectra each).
@@ -187,14 +187,13 @@ def _write_metadata_group(h5file: h5py.File, metadata: list, vlen_f64) -> None:
         return
     
     grp = h5file.create_group("metadata")
-    n = len(metadata)
-    field_names = [f.name for f in dataclasses.fields(metadata[0])]
+    field_names = [f for f in metadata.keys() if f != "invalid_files"]
+    n = len(next(iter(metadata.values())))
+
     for field_name in field_names:
-
-        if field_name == "invalid_files":
-            continue
-
-        values = [getattr(m, field_name) for m in metadata]
+        values = metadata[field_name]
+        values = list(values)
+        
         # ragged/array fields (b_vals, temps) -> vlen float64, NaN row if missing
         if any(isinstance(v, np.ndarray) for v in values):
             dset = grp.create_dataset(field_name, (n,), dtype=vlen_f64)
@@ -219,7 +218,7 @@ def _write_metadata_group(h5file: h5py.File, metadata: list, vlen_f64) -> None:
         )
         grp.create_dataset(field_name, data=arr)
 
-    invalid_files = getattr(metadata[0], "invalid_files", None)
+    invalid_files = metadata.get("invalid_files", None)
     if invalid_files is not None and len(invalid_files) > 0:
         grp.create_dataset(
             "invalid_files",
@@ -473,7 +472,7 @@ def read_qshs_hdf5_dir(
     spectra = []
     freqs_per_spec = []
     spec_metadata = []
-    # missing_modefit = []
+
     for fp in files:
         
         try:    
@@ -514,7 +513,7 @@ def read_qshs_hdf5_dir(
     )
 
 
-def read_qshs_hdf5_dir2(
+def read_qshs_hdf5_dir3(
     directory: str | Path,
     *,
     pattern: str = "*.hdf5",
@@ -533,7 +532,7 @@ def read_qshs_hdf5_dir2(
       - each file has /Power_Spectra with row 0 = frequency offset
         and row 1 = power
 
-    Returns one merged SpectrumSet containing all spectra.
+    Returns one merged SpectrumSet containing all spectra, with metadata as a dictionary.
     """
 
     directory = Path(directory)
@@ -544,7 +543,7 @@ def read_qshs_hdf5_dir2(
     
     spectra = []
     freqs_per_spec = []
-    spec_metadata = []
+    spec_metadata = {} #dict
     invalid_files = []
 
     for fp in tqdm(files, desc="Processing spectra"):
@@ -558,19 +557,27 @@ def read_qshs_hdf5_dir2(
                 sort_frequency=sort_frequency,
             )
 
+            one_metadata = dataclasses.asdict(one.metadata)
+
             if np.all(one.spectra[0] == 0):
                 invalid_files.append([one.metadata.file_name, "power spectra is zeros", one.metadata.date])
-                continue
             else:
                 spectra.append(one.spectra[0])
                 freqs_per_spec.append(one.freqs_per_spec[0])
-                spec_metadata.append(one.metadata)
+
+                if not spec_metadata:
+                    spec_metadata = {k: [v] for k, v in one_metadata.items()} # initialise the dictionary
+                else:
+                    for k, v in one_metadata.items():
+                        spec_metadata[k].append(v) # add values to the dictionary
+                
         except json.decoder.JSONDecodeError:
             invalid_files.append([one.metadata.file_name, "metadata is missing", one.metadata.date])
             continue
+    
+    spec_metadata = {k: np.array(v, dtype=object) for k, v in spec_metadata.items()} # convert to arrays
+    spec_metadata["invalid_files"] = np.array(invalid_files, dtype=object)
 
-    for m in spec_metadata:
-        m.invalid_files = np.array(invalid_files)
 
     # Build one common grid for all files.
     #

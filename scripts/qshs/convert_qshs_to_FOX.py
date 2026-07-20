@@ -12,7 +12,7 @@ from tabulate import tabulate
 from tqdm import tqdm
 from pysmithchart import SmithAxes
 
-from axion_haloscope.io import write_hdf5, read_qshs_hdf5_dir2
+from axion_haloscope.io import write_hdf5, read_qshs_hdf5_dir3
 
 
 
@@ -94,7 +94,7 @@ def main():
     # Create complete SpectrumSet
     # =============================
 
-    sset = read_qshs_hdf5_dir2(
+    sset = read_qshs_hdf5_dir3(
         input_dir,
         pattern=pattern,
         use_shifted_frequency=True,
@@ -102,7 +102,7 @@ def main():
         run_dir=run_dir,
     )
 
-    print(f"[QSHS] Successfully loaded {sset.n_spectra()}/ {len(sset.metadata[0].invalid_files) + sset.n_spectra()} spectra, {len(sset.metadata[0].invalid_files)} files are invalid.")
+    print(f"[QSHS] Successfully loaded {sset.n_spectra()}/ {len(sset.metadata['invalid_files']) + sset.n_spectra()} spectra, {len(sset.metadata['invalid_files'])} files are invalid.")
     print(
         f"[QSHS] Shifted frequency span: "
         f"{sset.rf_grid[0]/1e6:.6f} to {sset.rf_grid[-1]/1e6:.6f} MHz"
@@ -122,7 +122,7 @@ def main():
     plot_slow_controls = False
     save_slow_controls = False
 
-    valid_files = [m.file_name for m in sset.metadata]
+    valid_files = list(sset.metadata["file_name"])
     res_freqs_list = []
     cw_freqs_list = []
     bandwidths_list = []

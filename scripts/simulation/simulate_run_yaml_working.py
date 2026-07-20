@@ -30,7 +30,7 @@ from axion_haloscope.lineshape  import shm_maxwell_template
 from axion_haloscope.detection  import threshold_for_detection, find_candidates
 from axion_haloscope.limit      import compute_local_snr_template, coupling_limit, plot_exclusion
 from axion_haloscope.data_quality import filter_spectrum_set, too_noisy, power_too_high, metadata_is_zeros, time_filter
-from axion_haloscope.io import SpectrumSet, SpectrumMetadata, read_hdf5, write_hdf5, read_qshs_hdf5_dir2
+from axion_haloscope.io import SpectrumSet, SpectrumMetadata, read_hdf5, write_hdf5
 from axion_haloscope.width_fq   import width_from_fq
 
 
@@ -363,69 +363,43 @@ def main():
     specs, fper, rf, rf_map, metadata = sset.spectra, sset.freqs_per_spec, sset.rf_grid, sset.rf_index_map, sset.metadata
 
     # Histogram of data againist time
-    invalid_files_df = pd.DataFrame(invalid_files)
-    invalid_files_df[2] = pd.to_datetime(invalid_files_df[2], format="%Y-%m-%d %H:%M:%S")
-    invalid_metadata = invalid_files_df[invalid_files_df[1] == "metadata is missing"]
-    invalid_high_power = invalid_files_df[invalid_files_df[1] == "power is too high"]
-    invalid_high_noise = invalid_files_df[invalid_files_df[1] == "too noisy"]
-    invalid_power_zeros = invalid_files_df[invalid_files_df[1] == "power spectra is zeros"]
-    invalid_bandwidth_zeros = invalid_files_df[invalid_files_df[1] == "bandwidth data is zeros"]
-    invalid_res_freq_zeros = invalid_files_df[invalid_files_df[1] == "res_freq data is zeros"]
+    if len(invalid_files) != 0:
+        invalid_files_df = pd.DataFrame(invalid_files)
+        invalid_files_df[2] = pd.to_datetime(invalid_files_df[2], format="%Y-%m-%d %H:%M:%S")
+        invalid_metadata = invalid_files_df[invalid_files_df[1] == "metadata is missing"]
+        invalid_high_power = invalid_files_df[invalid_files_df[1] == "power is too high"]
+        invalid_high_noise = invalid_files_df[invalid_files_df[1] == "too noisy"]
+        invalid_power_zeros = invalid_files_df[invalid_files_df[1] == "power spectra is zeros"]
+        invalid_bandwidth_zeros = invalid_files_df[invalid_files_df[1] == "bandwidth data is zeros"]
+        invalid_res_freq_zeros = invalid_files_df[invalid_files_df[1] == "res_freq data is zeros"]
     
-    valid_files_df = pd.DataFrame(zip(metadata["file_name"] , metadata["date"]))
-    valid_files_df[1] = pd.to_datetime(valid_files_df[1], format="%Y-%m-%d %H:%M:%S")
+        valid_files_df = pd.DataFrame(zip(metadata["file_name"] , metadata["date"]))
+        valid_files_df[1] = pd.to_datetime(valid_files_df[1], format="%Y-%m-%d %H:%M:%S")
 
-    start_date = min( valid_files_df[1].min(), invalid_files_df[2].min())
-    end_date = max( valid_files_df[1].max(), invalid_files_df[2].max())
-    time_interval = pd.Timedelta(hours=24)
-    bin_num = int( (end_date - start_date) / time_interval)
+        start_date = min( valid_files_df[1].min(), invalid_files_df[2].min())
+        end_date = max( valid_files_df[1].max(), invalid_files_df[2].max())
+        time_interval = pd.Timedelta(hours=24)
+        bin_num = int( (end_date - start_date) / time_interval)
 
-    plt.figure()
-    plt.hist((valid_files_df[1], invalid_metadata[2], invalid_high_power[2], invalid_high_noise[2], invalid_power_zeros[2], invalid_bandwidth_zeros[2], invalid_res_freq_zeros[2])
-             , bin_num, range=(start_date, end_date), stacked=True)
-    plt.gca().xaxis.set_major_formatter(mdates.DateFormatter("%Y-%m-%d %H:%M:%S"))
-    plt.legend(["valid files", "missing metadata", "power too high", "too noisy", "power is zeros", "bandwidth is zeros", "res freq is zeros"])
-    plt.xlabel("Date")
-    plt.ylabel("Number of files")
-    plt.title("Files againist time histogram")
-    plt.xticks(rotation=45, ha="right")
-    plt.grid(alpha=0.3)
-    plt.tight_layout()
-    plt.savefig(run_dir/"spectra_hist.png", dpi=150)
-    plt.close()
+        plt.figure()
+        plt.hist((valid_files_df[1], invalid_metadata[2], invalid_high_power[2], invalid_high_noise[2], invalid_power_zeros[2], invalid_bandwidth_zeros[2], invalid_res_freq_zeros[2])
+                , bin_num, range=(start_date, end_date), stacked=True)
+        plt.gca().xaxis.set_major_formatter(mdates.DateFormatter("%Y-%m-%d %H:%M:%S"))
+        plt.legend(["valid files", "missing metadata", "power too high", "too noisy", "power is zeros", "bandwidth is zeros", "res freq is zeros"])
+        plt.xlabel("Date")
+        plt.ylabel("Number of files")
+        plt.title("Files againist time histogram")
+        plt.xticks(rotation=45, ha="right")
+        plt.grid(alpha=0.3)
+        plt.tight_layout()
+        plt.savefig(run_dir/"spectra_hist.png", dpi=150)
+        plt.close()
 
-    '''# Create new SSet with new invalid files list to export
-    valid_files = sset.metadata["file_name"]
-    input_dir = inp["full_data_directory"]
-
-    # Ordering invalid files list
-    invalid_files_df = pd.DataFrame(data=invalid_files, columns=["File_name", "Reason", "Date_Time"])
-    invalid_files_df["Date_Time"] = pd.to_datetime(invalid_files_df["Date_Time"], format="%Y-%m-%d %H:%M:%S")
-    invalid_files_df = invalid_files_df.sort_values(by="Date_Time")
-    invalid_files = invalid_files_df.values.tolist()
-    
-    print(type(metadata))
-
-
-    sset_export = read_qshs_hdf5_dir2(
-        input_dir,
-        valid_files,
-        invalid_files,
-        pattern="*.hdf5",
-        use_shifted_frequency=True,
-        sort_frequency=True,
-        run_dir=run_dir,
-    )
-
-    print(type(sset_export.metadata))
-
+    # Export the file spectrum set used for anaylsis to h5 file
     out_h5 = f"{run_dir}/final_converted_spectra.h5"
-    write_hdf5(sset_export, out_h5)
+    write_hdf5(sset, out_h5)
     print(f"[QSHS] Final SpectrumSet saved to: {out_h5}")
 
-    out_h5 = f"{run_dir}/final_converted_spectra_without_extra_code.h5"
-    write_hdf5(sset, out_h5)
-    print(f"[QSHS] Final SpectrumSet saved to: {out_h5}")'''
     # =======================================================================
     # TIME CUTTING
     # =======================================================================
