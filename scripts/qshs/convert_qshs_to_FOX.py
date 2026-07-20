@@ -12,7 +12,7 @@ from tabulate import tabulate
 from tqdm import tqdm
 from pysmithchart import SmithAxes
 
-from axion_haloscope.io import write_hdf5, read_qshs_hdf5_dir3
+from axion_haloscope.io_working import write_hdf5, read_qshs_hdf5_dir3
 
 
 
@@ -78,7 +78,7 @@ def main():
     # Initialising
     # ===================
 
-    input_dir = "input/Feb/All"
+    input_dir = "input/Jan"
 
     pattern = "*.hdf5"
     save_fox_h5 = True

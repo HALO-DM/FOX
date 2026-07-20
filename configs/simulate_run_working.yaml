@@ -9,9 +9,8 @@ simulation:
 
 input:
   read_input: true
-  directory: "output/qshs_to_FOX/run_15.07.2026_15.14.47"
+  directory: "output/qshs_to_FOX/run_20.07.2026_12.00.40"
   input_file_name: "converted_spectra.h5"
-  full_data_directory: "input/Feb/All"
 
 injection:
   enabled: true

@@ -7,7 +7,7 @@ import datetime
 from collections import defaultdict
 
 from axion_haloscope.noise import external_noise
-from axion_haloscope.io import SpectrumMetadata
+from axion_haloscope.io_working import SpectrumMetadata
 
 @dataclass
 class AxionParams:
