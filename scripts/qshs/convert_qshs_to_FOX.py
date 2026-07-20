@@ -10,7 +10,6 @@ import matplotlib.pyplot as plt
 
 from tabulate import tabulate
 from tqdm import tqdm
-from pysmithchart import SmithAxes
 
 from axion_haloscope.io_working import write_hdf5, read_qshs_hdf5_dir3
 
