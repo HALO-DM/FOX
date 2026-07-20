@@ -30,7 +30,7 @@ from axion_haloscope.lineshape  import shm_maxwell_template
 from axion_haloscope.detection  import threshold_for_detection, find_candidates
 from axion_haloscope.limit      import compute_local_snr_template, coupling_limit, plot_exclusion
 from axion_haloscope.data_quality_working import filter_spectrum_set, too_noisy, power_too_high, metadata_is_zeros, time_filter
-from axion_haloscope.io_working import SpectrumSet, SpectrumMetadata, read_hdf5, write_hdf5, read_qshs_hdf5_dir2
+from axion_haloscope.io_working import SpectrumSet, SpectrumMetadata, read_hdf5, write_hdf5
 from axion_haloscope.width_fq   import width_from_fq
 
 

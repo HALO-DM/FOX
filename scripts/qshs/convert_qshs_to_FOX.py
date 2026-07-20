@@ -11,7 +11,7 @@ import matplotlib.pyplot as plt
 from tabulate import tabulate
 from tqdm import tqdm
 
-from axion_haloscope.io_working import write_hdf5, read_qshs_hdf5_dir3
+from axion_haloscope.io_working import write_hdf5, read_qshs_hdf5_dir
 
 
 
@@ -77,7 +77,7 @@ def main():
     # Initialising
     # ===================
 
-    input_dir = "input/Jan"
+    input_dir = "input/Feb/All"
 
     pattern = "*.hdf5"
     save_fox_h5 = True
@@ -93,7 +93,7 @@ def main():
     # Create complete SpectrumSet
     # =============================
 
-    sset = read_qshs_hdf5_dir3(
+    sset = read_qshs_hdf5_dir(
         input_dir,
         pattern=pattern,
         use_shifted_frequency=True,
