@@ -187,15 +187,6 @@ def main():
         print(f"[WARN] Could not copy input config file: {e}")
 
     t_sim0 = time.time()
-    # Axion injection (center mid-span if not provided)
-    ax = None
-    if inj["enabled"]:
-        total_bins = sim["n_bins"] + (sim["n_spectra"] - 1) * sim["tune_step_bins"]
-        f_ax = inj["f_axion_hz"]
-        if f_ax is None:
-            f_ax = sim["f_start_hz"] + 0.5 * total_bins * sim["bin_width_hz"]
-        s_ax = width_from_fq(f_ax)
-        ax = AxionParams(f_axion_hz=float(f_ax), sigma_hz=s_ax, total_power=inj["total_power"])
     
     # =======================================================================
     # Data input
@@ -208,6 +199,16 @@ def main():
         sset = read_hdf5(f"{directory}/{input_file_name}")
         specs, fper, rf, rf_map, metadata = sset.spectra, sset.freqs_per_spec, sset.rf_grid, sset.rf_index_map, sset.metadata
     else:
+        # Axion injection (center mid-span if not provided)
+        ax = None
+        if inj["enabled"]:
+            total_bins = sim["n_bins"] + (sim["n_spectra"] - 1) * sim["tune_step_bins"]
+            f_ax = inj["f_axion_hz"]
+            if f_ax is None:
+                f_ax = sim["f_start_hz"] + 0.5 * total_bins * sim["bin_width_hz"]
+            s_ax = width_from_fq(f_ax)
+            ax = AxionParams(f_axion_hz=float(f_ax), sigma_hz=s_ax, total_power=inj["total_power"])
+
         # 1) Simulate
         specs, fper, rf, rf_map, metadata = simulate_spectra(
         n_spectra=sim["n_spectra"], n_bins=sim["n_bins"],
@@ -728,6 +729,10 @@ def main():
     # Warm Baseline Removal
     # =======================================================================
 
+    # -----------------------------------------------------------------------
+    # Initialisation
+    # -----------------------------------------------------------------------
+
     warm_run_dir = out_root / f'{out["subdir_prefix"]}_{timestamp}' /'warm_baseline'
     warm_run_dir.mkdir(parents=True, exist_ok=True)
 
@@ -741,6 +746,10 @@ def main():
         except ValueError as e:
             print(f"{date_time} -> {e}")
 
+    # -----------------------------------------------------------------------
+    # Grouping
+    # -----------------------------------------------------------------------
+
     groups = []
     n = len(dts)
     threshold = spacing_minutes * 60  # seconds
@@ -752,7 +761,42 @@ def main():
         groups.append([[specs[k], fper[k], metadata["res_freq"][k]] for k in range(i, j)])
         i = j
 
+
+    # -----------------------------------------------------------------------
+    # Group Averaging
+    # -----------------------------------------------------------------------
+
+    group_avg_spectra = []
+    for g, group in enumerate(groups):
+        if group is None:
+            group_avg_spectra.append(None)
+            continue
+        
+        group_avg_spectra.append((np.mean([x[1] for x in group], axis=0), np.mean([x[0] for x in group], axis=0)))
+
     
+
+    # -----------------------------------------------------------------------
+    # Group Average Baseline Fitting
+    # -----------------------------------------------------------------------
+
+    group_sg_fits = []
+    for _, spec_avg in group_avg_spectra:
+        if not spec_avg.any():
+            group_sg_fits.append(None)
+            continue
+
+        _, baseline = remove_baseline(
+                spectrum=spec_avg,
+                window_length=base["sg_window_warm"],
+                polyorder=base["sg_poly_warm"],
+                )
+        group_sg_fits.append(baseline)
+
+
+    # -----------------------------------------------------------------------
+    # Helper Functions
+    # -----------------------------------------------------------------------
 
     def interpolate_nans(y):
         y = np.asarray(y, dtype=float)
@@ -765,6 +809,21 @@ def main():
             y[nans] = np.interp(x[nans], x[~nans], y[~nans])
         return y
     
+    def _gcol_1(g):
+        v = _group_mean_res[g]
+        if not np.isfinite(v):
+            return "grey"
+        return _cmap_g_1(_norm_res(v))
+    
+    def _gcol_2(g):
+        v = _group_mean_res[g]
+        if not np.isfinite(v):
+            return "grey"
+        return _cmap_g_2(_norm_res(v))
+
+    # -----------------------------------------------------------------------
+    # Graphing
+    # -----------------------------------------------------------------------
 
     _cmap_g_1 = plt.cm.viridis
     _cmap_g_2 = plt.cm.inferno
@@ -782,22 +841,11 @@ def main():
         vmin=np.nanmin(_finite_res) if len(_finite_res) else 0,
         vmax=np.nanmax(_finite_res) if len(_finite_res) else 1,
     )
-    def _gcol_1(g):
-        v = _group_mean_res[g]
-        if not np.isfinite(v):
-            return "grey"
-        return _cmap_g_1(_norm_res(v))
-    
-    def _gcol_2(g):
-        v = _group_mean_res[g]
-        if not np.isfinite(v):
-            return "grey"
-        return _cmap_g_2(_norm_res(v))
 
 
     fig, ax = plt.subplots(figsize=(13, 5))
-    for g, group in enumerate(groups):
-        ax.plot(np.mean([x[1] for x in group], axis=0)/1e6, np.mean([x[0] for x in group], axis=0), alpha=0.8, color=_gcol_1(g), label =f"Grp {g}")
+    for g, (freqs, specs) in enumerate(group_avg_spectra):
+        ax.plot(freqs/1e6, specs, alpha=0.8, color=_gcol_1(g), label =f"Grp {g}")
     sm_res = ScalarMappable(cmap=_cmap_g_1, norm=_norm_res)
     sm_res.set_array([])
     fig.colorbar(sm_res, ax=ax, label="Mean cavity resonance  [GHz]")
@@ -809,13 +857,13 @@ def main():
     plt.close()
 
     
-    for g, group in enumerate(groups):
+    for g, (freqs, specs) in enumerate(group_avg_spectra):
         # Plot set averaged + the set
         fig, ax = plt.subplots(figsize=(13, 5))
         greys = cm.Greys(np.linspace(0.3, 0.9, len(group)))
         for i, x in enumerate(group):
             ax.plot(x[1]/1e6, x[0], color=greys[i])
-        ax.plot(np.mean([x[1] for x in group], axis=0)/1e6, np.mean([x[0] for x in group], axis=0), alpha=0.8, color="red", label="set averaged")
+        ax.plot(freqs/1e6, specs, alpha=0.8, color="red", label="set averaged")
         norm = mcolors.Normalize(vmin=0, vmax=len(group))
         sm = ScalarMappable(cmap=cm.Greys, norm=norm)
         sm.set_array([])
@@ -831,12 +879,13 @@ def main():
         fig, ax = plt.subplots(figsize=(13, 5))
         greys = cm.Greys(np.linspace(0.3, 0.9, len(group)))
         for i, x in enumerate(group):
-            ax.plot(x[1]/1e6, np.log(x[0]), color=greys[i])
-        ax.plot(np.mean([x[1] for x in group], axis=0)/1e6, np.log(np.mean([x[0] for x in group], axis=0)), alpha=0.8, color="red", label="set averaged")
+            ax.plot(x[1]/1e6, (x[0]), color=greys[i])
+        ax.plot(freqs/1e6, (specs), alpha=0.8, color="red", label="set averaged")
         norm = mcolors.Normalize(vmin=0, vmax=len(group))
         sm = ScalarMappable(cmap=cm.Greys, norm=norm)
         sm.set_array([])
         fig.colorbar(sm, ax=ax, label="Spectrum index in set")
+        ax.set_yscale("log")
         ax.set_xlabel("IF frequency  [MHz]")
         ax.set_ylabel("PSD  [V²/Hz]")
         ax.set_title(f"log set-averaged spectra and log set spectra — group {g}")
@@ -846,8 +895,8 @@ def main():
 
         # Plot set averaged spectra with errors
         fig, ax = plt.subplots(figsize=(26, 10))
-        ax.errorbar(np.mean([x[1] for x in group], axis=0)/1e6, np.mean([x[0] for x in group], axis=0), np.std([x[0] for x in group], axis=0), alpha=0.25, ecolor="blue", color="red")
-        ax.plot(np.mean([x[1] for x in group], axis=0)/1e6, np.mean([x[0] for x in group], axis=0), alpha=0.8, color='red')
+        ax.errorbar(freqs/1e6, specs, alpha=0.25, ecolor="blue", color="red")
+        ax.plot(freqs/1e6, specs, alpha=0.8, color='red')
         ax.set_xlabel("IF frequency  [MHz]")
         ax.set_ylabel("PSD  [V²/Hz]")
         ax.set_title(f"Set-averaged spectra with errors — group {g}")
@@ -856,20 +905,20 @@ def main():
         plt.close()
 
         # Plot zoomed set averaged spectra with errors zoomed in
-        fig, ax = plt.subplots(figsize=(39, 15))
-        ax.errorbar(np.mean([x[1] for x in group], axis=0)/1e6, np.mean([x[0] for x in group], axis=0), np.std([x[0] for x in group], axis=0), alpha=0.5, ecolor="blue", color="red")
+        fig, ax = plt.subplots(figsize=(39, 30))
+        ax.errorbar(freqs/1e6, specs, np.std([x[0] for x in group], axis=0), alpha=0.5, ecolor="blue", color="red")
         ax.set_xlabel("IF frequency  [MHz]")
         ax.set_ylabel("PSD  [V²/Hz]")
         ax.set_title(f"Set-averaged spectra with errors — group {g} (zoomed)")
         plt.tight_layout()
         plt.xlim(1.5, 2)
-        plt.ylim(1.78e-10, 1.84e-10)
+        plt.ylim(1.55e-10, 1.65e-10)
         plt.savefig(f"{warm_run_dir}/set_averaged_spectra_errors_{g}_zoom.png", dpi = 150, bbox_inches='tight')
         plt.close()
     
         # Plot histogram of each group
         fig,ax = plt.subplots(figsize=(13,5))
-        ax.hist(np.mean([x[0] for x in group], axis=0), bins=100)
+        ax.hist(specs, bins=100)
         ax.set_xlabel("PSD  [V²/Hz]")
         ax.set_ylabel("Counts")
         ax.set_title(f"Histogram of group {g}")
@@ -882,25 +931,10 @@ def main():
 
 
 
-
-    group_sg_fits = []
-    for g, group in enumerate(groups):
-        if group is None:
-            group_sg_fits.append(None)
-            continue
-
-        _, baseline = remove_baseline(
-                spectrum=np.mean([x[0] for x in group], axis=0),
-                window_length=base["sg_window_warm"],
-                polyorder=base["sg_poly_warm"],
-                )
-        group_sg_fits.append(baseline)
-
-
     fig, ax = plt.subplots(figsize=(13, 5))
-    for g, (group, fit) in enumerate(zip(groups, group_sg_fits)):
-        ax.plot(np.mean([x[1] for x in group], axis=0)/1e6, np.mean([x[0] for x in group], axis=0),   lw=1.0, alpha=0.55, color=_gcol_1(g), label=f"Grp {g}")
-        ax.plot(np.mean([x[1] for x in group], axis=0)/1e6, fit, lw=1.8, alpha=0.95, color=_gcol_1(g), linestyle="--")
+    for g, ((freqs, specs), fit) in enumerate(zip(group_avg_spectra, group_sg_fits)):
+        ax.plot(freqs/1e6, specs,lw=1.0, alpha=0.55, color=_gcol_1(g), label=f"Grp {g}")
+        ax.plot(freqs/1e6, fit, lw=1.8, alpha=0.95, color=_gcol_1(g), linestyle="--")
     sm_res2 = ScalarMappable(cmap=_cmap_g_1, norm=_norm_res)
     sm_res2.set_array([])
     fig.colorbar(sm_res2, ax=ax, label="Mean cavity resonance  [GHz]")
@@ -911,6 +945,9 @@ def main():
     plt.savefig(f"{warm_run_dir}/group_averaged_spectra_with_sg_fits.png", dpi = 150, bbox_inches='tight')
     plt.close()
 
+    # -----------------------------------------------------------------------
+    # Iterative Sigma Clipping
+    # -----------------------------------------------------------------------
 
 
     sigma_cut = 3.5
@@ -975,6 +1012,7 @@ def main():
             masked_by_group.append(masked_new)
             new_groups.append(new_group)
             new_persistent_masks.append(new_group_masks)
+
         for g in range(len(groups)):
             masked_total[g].extend(masked_by_group[g])
             groups = new_groups
@@ -982,9 +1020,9 @@ def main():
             persistent_masks = new_persistent_masks
 
         fig, ax = plt.subplots(figsize=(13, 5))
-        for g, (group, fit) in enumerate(zip(groups, new_group_sg_fits)):
-            ax.plot(np.mean([x[1] for x in group], axis=0)/1e6, np.mean([x[0] for x in group], axis=0), lw=1.0, alpha=0.55, color=_gcol_1(g), label=f"Grp {g}")
-            ax.plot(np.mean([x[1] for x in group], axis=0)/1e6, fit, lw=1.8, alpha=0.95, color=_gcol_1(g), linestyle="--")
+        for g, ((freqs, specs), fit) in enumerate(zip(group_avg_spectra, group_sg_fits)):
+            ax.plot(freqs/1e6, specs,lw=1.0, alpha=0.55, color=_gcol_1(g), label=f"Grp {g}")
+            ax.plot(freqs/1e6, fit, lw=1.8, alpha=0.95, color=_gcol_1(g), linestyle="--")
             pts = np.array(masked_by_group[g])
             if pts.size:
                 ax.scatter(pts[:, 0]/1e6, pts[:, 1], marker = ".", color=_gcol_2(g), zorder=5)
@@ -1018,12 +1056,7 @@ def main():
         specs.extend(group_spectra / baseline)
         fper.extend(group_freqs)
 
-    colour_vals = (cw_freqs - res_freqs*1e9) / 1e9  # Hz -> GHz
-
-
-    # DEBUGGING - show the total number of injections
-    # print(np.unique(np.round(colour_vals, 10), return_counts=True))
-
+    colour_vals = np.abs(cw_freqs - res_freqs*1e9) / 1e9  # Hz -> GHz
 
     cbar_label  = r"$|f_{\rm CW} - f_{\rm res}|$  [GHz]"
     cmap        = plt.cm.inferno
@@ -1058,14 +1091,7 @@ def main():
     plt.savefig(f"{warm_run_dir}/evolution_of_frequency.png", dpi=150, bbox_inches='tight')
     plt.close()
 
-    sys.exit()
-
-
-
-
-
-
-
+  
     # =======================================================================
     # Cold Baseline Removal
     # =======================================================================
