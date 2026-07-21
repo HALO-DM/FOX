@@ -77,7 +77,7 @@ def main():
     # Initialising
     # ===================
 
-    input_dir = "input/Feb/All"
+    input_dir = "input/Jan_QSHS"
 
     pattern = "*.hdf5"
     save_fox_h5 = True
@@ -117,7 +117,7 @@ def main():
     # Optional Plotting / Saving
     # ============================
 
-    plot_qshs_data = False
+    plot_qshs_data = True
     plot_slow_controls = False
     save_slow_controls = False
 
@@ -247,50 +247,24 @@ def main():
                     axes[1, 0].grid(True)
                     axes[1, 0].legend()
 
+                    y = np.sqrt(narrow_vna_scan[1]**2 + narrow_vna_scan[2]**2)
                     
-                    a = axes[0, 1].scatter(narrow_vna_scan[1],narrow_vna_scan[2], c=narrow_vna_scan[0], cmap='viridis', s=100)
+                    a = axes[0, 1].plot(narrow_vna_scan[0], y)
                     axes[0, 1].set_title("Narrow VNA Scan")
                     axes[0, 1].set_xlabel("Unknown")
                     axes[0, 1].set_ylabel("Unknown")
-                    axes[0, 1].set_xlim(-0.5, 0.5)
-                    axes[0, 1].set_ylim(-0.5, 0.5)
                     axes[0, 1].grid(True)
-                    fig.colorbar(a, ax=axes[0, 1])
 
-                    b = axes[1, 1].scatter(wide_vna_scan[1],wide_vna_scan[2], c=wide_vna_scan[0], cmap='viridis', s=100)
+                    y = np.sqrt(wide_vna_scan[1]**2 + wide_vna_scan[2]**2)
+
+                    b = axes[1, 1].plot(wide_vna_scan[0],y)
                     axes[1, 1].set_title("Wide VNA Scan")
                     axes[1, 1].set_xlabel("Unknown")
                     axes[1, 1].set_ylabel("Unknown")
-                    axes[0, 1].set_xlim(-0.5, 0.5)
-                    axes[0, 1].set_ylim(-0.5, 0.5)
                     axes[1, 1].grid(True)
-                    fig.colorbar(b, ax=axes[1, 1])
                     
                     plt.tight_layout()
                     plt.savefig(f"{run_dir}/qshs_data_{valid_files.index(s)}.png", dpi=150)
-                    plt.close(fig)
-
-
-                    freq = narrow_vna_scan[0]
-                    s11_narrow = narrow_vna_scan[1] + 1j * narrow_vna_scan[2]
-                    s11_narrow *= 50
-
-                    s11_wide = wide_vna_scan[1] + 1j * wide_vna_scan[2]
-                    s11_wide *= 50
-
-                    fig = plt.figure(figsize=(12, 6))
-                    ax1 = fig.add_subplot(1, 2, 1, projection='smith')
-                    ax2 = fig.add_subplot(1, 2, 2, projection='smith')
-
-                    sc1 = ax1.scatter(s11_narrow.real, s11_narrow.imag, marker=".", c=freq, cmap='viridis', s=10)
-                    fig.colorbar(sc1, ax=ax1, label="Frequency (Hz)")
-                    ax1.set_title("Narrow VNA Scan")
-
-                    sc2 = ax2.scatter(s11_wide.real, s11_wide.imag, marker=".", c=freq, cmap='viridis', s=10)
-                    fig.colorbar(sc2, ax=ax2, label="Frequency (Hz)")
-                    ax2.set_title("Wide VNA Scan")
-
-                    plt.savefig(f"{run_dir}/smith_chart_{valid_files.index(s)}.png", dpi=150)
                     plt.close(fig)
 
 
