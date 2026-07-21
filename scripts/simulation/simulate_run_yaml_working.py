@@ -596,7 +596,7 @@ def main():
 
     # Optional: plot all valid raw spectra in one figure with offset
 
-    colour_vals = np.abs(cw_freqs - res_freqs) / 1e9  # GHz → Hz
+    colour_vals = (cw_freqs - res_freqs*1e9) / 1e9  # GHz → Hz
 
 
     # DEBUGGING - show the total number of injections
@@ -922,6 +922,11 @@ def main():
             masked_by_group.append(masked_new)
             new_groups.append(new_group)
             new_persistent_masks.append(new_group_masks)
+        for g in range(len(groups)):
+            masked_total[g].extend(masked_by_group[g])
+            groups = new_groups
+            group_sg_fits = new_group_sg_fits
+            persistent_masks = new_persistent_masks
 
         fig, ax = plt.subplots(figsize=(13, 5))
         for g, (group, fit) in enumerate(zip(groups, new_group_sg_fits)):
@@ -949,11 +954,7 @@ def main():
         plt.savefig(f"{warm_run_dir}/masked_bin_iteration_{run}.png", dpi=150, bbox_inches='tight')
         plt.close()
 
-        for g in range(len(groups)):
-            masked_total[g].extend(masked_by_group[g])
-        groups = new_groups
-        group_sg_fits = new_group_sg_fits
-        persistent_masks = new_persistent_masks
+        
 
     specs = []
     fper = []
@@ -964,14 +965,14 @@ def main():
         specs.extend(group_spectra / baseline)
         fper.extend(group_freqs)
 
-    colour_vals = np.abs(cw_freqs - res_freqs) / 1e9  # GHz → Hz
+    colour_vals = (cw_freqs - res_freqs*1e9) / 1e9  # Hz -> GHz
 
 
     # DEBUGGING - show the total number of injections
     # print(np.unique(np.round(colour_vals, 10), return_counts=True))
 
 
-    cbar_label  = r"$|f_{\rm CW} - f_{\rm res}|$  [Hz]"
+    cbar_label  = r"$|f_{\rm CW} - f_{\rm res}|$  [GHz]"
     cmap        = plt.cm.inferno
     _finite     = colour_vals[np.isfinite(colour_vals)]
     norm = Normalize(
@@ -979,7 +980,7 @@ def main():
         vmax=np.percentile(_finite, 100),
     )
 
-    fig, ax = plt.subplots(figsize = (13,5))
+    fig, ax = plt.subplots(figsize = (12,6))
     for spec, freq, cv in zip(specs, fper, colour_vals):
         #ax.scatter(freqs, specs, color=_gcol_2(group_idx))
         ax.plot(freq, spec, linestyle="", marker="o", markersize=3, color=cmap(norm(cv)), alpha=0.7)
