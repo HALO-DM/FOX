@@ -153,7 +153,7 @@ def filter_by_datetime(data, start, end, key="date"):
         rf_grid=rf,
         rf_index_map=rf_index_map,
         metadata=spec_metadata
-    )
+    ), 
 
 def main():
     ap = argparse.ArgumentParser(description="Simulate haloscope run from YAML config")
@@ -363,6 +363,11 @@ def main():
     specs, fper, rf, rf_map, metadata = sset.spectra, sset.freqs_per_spec, sset.rf_grid, sset.rf_index_map, sset.metadata
 
     # Histogram of data againist time
+    valid_files_df = pd.DataFrame(zip(metadata["file_name"] , metadata["date"]))
+    valid_files_df[1] = pd.to_datetime(valid_files_df[1], format="%Y-%m-%d %H:%M:%S")
+    valid_files_df.to_csv(f"{run_dir}/valid.csv")
+
+
     if len(invalid_files) != 0:
         invalid_files_df = pd.DataFrame(invalid_files)
         invalid_files_df[2] = pd.to_datetime(invalid_files_df[2], format="%Y-%m-%d %H:%M:%S")
@@ -372,28 +377,78 @@ def main():
         invalid_power_zeros = invalid_files_df[invalid_files_df[1] == "power spectra is zeros"]
         invalid_bandwidth_zeros = invalid_files_df[invalid_files_df[1] == "bandwidth data is zeros"]
         invalid_res_freq_zeros = invalid_files_df[invalid_files_df[1] == "res_freq data is zeros"]
-    
-        valid_files_df = pd.DataFrame(zip(metadata["file_name"] , metadata["date"]))
-        valid_files_df[1] = pd.to_datetime(valid_files_df[1], format="%Y-%m-%d %H:%M:%S")
 
         start_date = min( valid_files_df[1].min(), invalid_files_df[2].min())
         end_date = max( valid_files_df[1].max(), invalid_files_df[2].max())
         time_interval = pd.Timedelta(hours=24)
         bin_num = int( (end_date - start_date) / time_interval)
 
-        plt.figure()
+        plt.figure(figsize=(18,6))
         plt.hist((valid_files_df[1], invalid_metadata[2], invalid_high_power[2], invalid_high_noise[2], invalid_power_zeros[2], invalid_bandwidth_zeros[2], invalid_res_freq_zeros[2])
                 , bin_num, range=(start_date, end_date), stacked=True)
-        plt.gca().xaxis.set_major_formatter(mdates.DateFormatter("%Y-%m-%d %H:%M:%S"))
+        plt.gca().xaxis.set_major_formatter(mdates.DateFormatter("%Y-%m-%d"))
+        plt.gca().xaxis.set_major_locator(mdates.DayLocator(interval=1))
         plt.legend(["valid files", "missing metadata", "power too high", "too noisy", "power is zeros", "bandwidth is zeros", "res freq is zeros"])
         plt.xlabel("Date")
         plt.ylabel("Number of files")
-        plt.title("Files againist time histogram")
+        plt.title("Spectra files per day (before timestamp filter)")
         plt.xticks(rotation=45, ha="right")
         plt.grid(alpha=0.3)
         plt.tight_layout()
         plt.savefig(run_dir/"spectra_hist.png", dpi=150)
         plt.close()
+
+    else:
+        start_date = valid_files_df[1].min()
+        end_date = valid_files_df[1].max()
+        time_interval = pd.Timedelta(hours=0.1)
+        bin_num = int( (end_date - start_date) / time_interval)
+
+        plt.figure(figsize=(18,6))
+        plt.hist(valid_files_df[1], bin_num, range=(start_date, end_date), stacked=True)
+        plt.gca().xaxis.set_major_formatter(mdates.DateFormatter("%Y-%m-%d"))
+        plt.gca().xaxis.set_major_locator(mdates.DayLocator(interval=1))
+        plt.legend("valid files")
+        plt.xlabel("Date")
+        plt.ylabel("Number of files")
+        plt.title("Spectra files per day (before timestamp filter)")
+        plt.xticks(rotation=45, ha="right")
+        plt.grid(alpha=0.3)
+        plt.tight_layout()
+        plt.savefig(run_dir/"spectra_hist.png", dpi=150)
+        plt.close()
+
+    # Plot of total number of events againist time
+    fig, ax = plt.subplots(figsize = (13,5))
+    if len(invalid_files) != 0:
+        invalid_files_df = invalid_files_df.sort_values(by=[2])
+        count_invalid = range(1, len(invalid_files_df[2]) + 1)
+        all_files_df = pd.concat([valid_files_df[1], invalid_files_df[2]])
+        all_files_df = all_files_df.sort_values()
+        ax.plot(invalid_files_df[2], count_invalid, label='invalid files')
+
+    else:
+        all_files_df = valid_files_df[1]
+        all_files_df = all_files_df.sort_values()
+    
+    valid_files_df = valid_files_df.sort_values(by=[1])
+    count_valid = range(1, len(valid_files_df[1]) + 1)
+    count_all = range(1,len(all_files_df) + 1)
+
+    ax.plot(valid_files_df[1], count_valid, label="valid files")
+    ax.plot(all_files_df, count_all, label='all files', linestyle='dashed')
+    ax.xaxis.set_major_formatter(mdates.DateFormatter("%Y-%m-%d"))
+    ax.xaxis.set_major_locator(mdates.DayLocator(interval=1))
+    ax.set_xlabel("Date-Time")
+    ax.set_ylabel("Events")
+    ax.set_title(f"Evolution of number of events w.r.t. Time")
+    ax.legend()
+    plt.xticks(rotation=45, ha="right")
+    plt.grid(alpha=0.3)
+    plt.tight_layout()
+    plt.savefig(f"{run_dir}/events_agaisnt_time.png", dpi=150, bbox_inches='tight')
+    plt.close()
+    sys.exit()
 
     # Export the file spectrum set used for anaylsis to h5 file
     out_h5 = f"{run_dir}/final_converted_spectra.h5"
@@ -424,7 +479,7 @@ def main():
 
     print("[TF]:", TIME_ARR[TIME_IND][0], "-->", TIME_ARR[TIME_IND][1])
     print(f"[TF]: {len(sset.metadata['file_name'])} files kept after time filter "
-      f"(removed {n_before - len(sset.metadata['file_name'])})")
+       f"(removed {n_before - len(sset.metadata['file_name'])})")
     
     # replace arrays with filtered ones for the rest of the chain
     specs, fper, rf, rf_map, metadata = sset.spectra, sset.freqs_per_spec, sset.rf_grid, sset.rf_index_map, sset.metadata
@@ -432,7 +487,11 @@ def main():
     cw_freqs = np.array(metadata["cw_freq"])
     res_freqs = np.array(metadata["res_freq"])
 
-    # =======================================================================
+    out_h5 = f"{run_dir}/final_converted_spectra2.h5"
+    write_hdf5(sset, out_h5)
+    print(f"[QSHS] Final SpectrumSet saved to: {out_h5}")
+
+    # ===================
     # Spectra Plotting
     # ===================
 
@@ -887,15 +946,6 @@ def main():
     ax.set_title(f"Evolution of {cbar_label} w.r.t. Time")
     plt.tight_layout()
     plt.savefig(f"{run_dir}/evolution_of_frequency.png", dpi=150, bbox_inches='tight')
-    plt.close()
-
-    fig, ax = plt.subplots(figsize = (13,5))
-    ax.plot(metadata["date"], metadata["file_name"])
-    ax.set_xlabel("Date-Time")
-    ax.set_ylabel("Event")
-    ax.set_title(f"Evolution of {cbar_label} w.r.t. Time")
-    plt.tight_layout()
-    plt.savefig(f"{run_dir}/events_agaisnt_time.png", dpi=150, bbox_inches='tight')
     plt.close()
 
     sys.exit()
