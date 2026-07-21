@@ -22,6 +22,7 @@ import shutil
 import h5py
 import matplotlib.dates as mdates
 import matplotlib.cm as cm
+import matplotlib.colors as mcolors
 
 
 from axion_haloscope.simulation import simulate_spectra, AxionParams
@@ -267,6 +268,23 @@ def main():
             step = max(1, int(out["plots_step"]))
             max_plots = None if out["max_plots"] is None else int(out["max_plots"])
 
+    rms_vals = []
+    dates = sset.metadata["date"]
+    dates = pd.to_datetime(dates)
+
+    for s in sset.spectra:
+        med = np.nanmedian(s)
+        rms = np.sqrt(np.nanmean((s - med) ** 2))
+        rms_vals.append(rms)
+
+    fig, ax = plt.subplots(figsize=(9,6))
+    ax.scatter(dates, rms_vals, marker=".")
+    ax.set_xlabel("Date"); ax.set_ylabel("rms values [arb]")
+    ax.xaxis.set_major_locator(mdates.AutoDateLocator())
+    ax.xaxis.set_major_formatter(mdates.DateFormatter("%Y-%m-%d"))
+    plt.xticks(rotation=45, ha="right")
+    ax.set_title("rms over time"); plt.grid(alpha=0.3); plt.tight_layout()
+    plt.savefig(QC_run_dir/"rms_againist_time.png", dpi=150); plt.close()
 
     if qc["noise_filter"]:
         sset, sset_noise, kept, bad_noise = filter_spectrum_set(
@@ -276,8 +294,8 @@ def main():
                 f,
                 md,
                 i,
-                rms_max=qc["rms_max"],
-            ),
+                rms_max=qc["rms_max"], 
+            )
         )
         for s in bad_noise:
             invalid_files.append([sset_noise.metadata["file_name"][s], "too noisy", sset_noise.metadata["date"][s]])
@@ -790,14 +808,18 @@ def main():
     plt.savefig(f"{warm_run_dir}/set_averaged_spectra.png", dpi = 150, bbox_inches='tight')
     plt.close()
 
-
+    
     for g, group in enumerate(groups):
         # Plot set averaged + the set
         fig, ax = plt.subplots(figsize=(13, 5))
         greys = cm.Greys(np.linspace(0.3, 0.9, len(group)))
         for i, x in enumerate(group):
             ax.plot(x[1]/1e6, x[0], color=greys[i])
-        ax.plot(np.mean([x[1] for x in group], axis=0)/1e6, np.mean([x[0] for x in group], axis=0), alpha=0.8, color="red")
+        ax.plot(np.mean([x[1] for x in group], axis=0)/1e6, np.mean([x[0] for x in group], axis=0), alpha=0.8, color="red", label="set averaged")
+        norm = mcolors.Normalize(vmin=0, vmax=len(group))
+        sm = ScalarMappable(cmap=cm.Greys, norm=norm)
+        sm.set_array([])
+        fig.colorbar(sm, ax=ax, label="Spectrum index in set")
         ax.set_xlabel("IF frequency  [MHz]")
         ax.set_ylabel("PSD  [V²/Hz]")
         ax.set_title(f"Set-averaged spectra and set spectra — group {g}")
@@ -805,9 +827,27 @@ def main():
         plt.savefig(f"{warm_run_dir}/set_and_average_spectra_{g}.png", dpi = 150, bbox_inches='tight')
         plt.close()
 
+        # Plot set averaged + the set - log
+        fig, ax = plt.subplots(figsize=(13, 5))
+        greys = cm.Greys(np.linspace(0.3, 0.9, len(group)))
+        for i, x in enumerate(group):
+            ax.plot(x[1]/1e6, np.log(x[0]), color=greys[i])
+        ax.plot(np.mean([x[1] for x in group], axis=0)/1e6, np.log(np.mean([x[0] for x in group], axis=0)), alpha=0.8, color="red", label="set averaged")
+        norm = mcolors.Normalize(vmin=0, vmax=len(group))
+        sm = ScalarMappable(cmap=cm.Greys, norm=norm)
+        sm.set_array([])
+        fig.colorbar(sm, ax=ax, label="Spectrum index in set")
+        ax.set_xlabel("IF frequency  [MHz]")
+        ax.set_ylabel("PSD  [V²/Hz]")
+        ax.set_title(f"log set-averaged spectra and log set spectra — group {g}")
+        plt.tight_layout()
+        plt.savefig(f"{warm_run_dir}/log_set_and_average_spectra_{g}.png", dpi = 150, bbox_inches='tight')
+        plt.close()
+
         # Plot set averaged spectra with errors
         fig, ax = plt.subplots(figsize=(26, 10))
-        ax.errorbar(np.mean([x[1] for x in group], axis=0)/1e6, np.mean([x[0] for x in group], axis=0), np.std([x[0] for x in group], axis=0), alpha=0.8, ecolor="blue", color="red")
+        ax.errorbar(np.mean([x[1] for x in group], axis=0)/1e6, np.mean([x[0] for x in group], axis=0), np.std([x[0] for x in group], axis=0), alpha=0.25, ecolor="blue", color="red")
+        ax.plot(np.mean([x[1] for x in group], axis=0)/1e6, np.mean([x[0] for x in group], axis=0), alpha=0.8, color='red')
         ax.set_xlabel("IF frequency  [MHz]")
         ax.set_ylabel("PSD  [V²/Hz]")
         ax.set_title(f"Set-averaged spectra with errors — group {g}")
@@ -817,7 +857,7 @@ def main():
 
         # Plot zoomed set averaged spectra with errors zoomed in
         fig, ax = plt.subplots(figsize=(39, 15))
-        ax.errorbar(np.mean([x[1] for x in group], axis=0)/1e6, np.mean([x[0] for x in group], axis=0), np.std([x[0] for x in group], axis=0), alpha=0.8, ecolor="blue", color="red")
+        ax.errorbar(np.mean([x[1] for x in group], axis=0)/1e6, np.mean([x[0] for x in group], axis=0), np.std([x[0] for x in group], axis=0), alpha=0.5, ecolor="blue", color="red")
         ax.set_xlabel("IF frequency  [MHz]")
         ax.set_ylabel("PSD  [V²/Hz]")
         ax.set_title(f"Set-averaged spectra with errors — group {g} (zoomed)")
@@ -826,8 +866,21 @@ def main():
         plt.ylim(1.78e-10, 1.84e-10)
         plt.savefig(f"{warm_run_dir}/set_averaged_spectra_errors_{g}_zoom.png", dpi = 150, bbox_inches='tight')
         plt.close()
+    
+        # Plot histogram of each group
+        fig,ax = plt.subplots(figsize=(13,5))
+        ax.hist(np.mean([x[0] for x in group], axis=0), bins=100)
+        ax.set_xlabel("PSD  [V²/Hz]")
+        ax.set_ylabel("Counts")
+        ax.set_title(f"Histogram of group {g}")
+        plt.axvline(x = np.mean([x[0] for x in group]), color = 'r', alpha=0.8, ls="--", label = f'mean value ({np.mean([x[0] for x in group])})')
+        plt.axvline(x = np.median([x[0] for x in group]), color = 'g', alpha=0.8, ls="--", label = f'median value ({np.median([x[0] for x in group])})')
+        plt.tight_layout()
+        plt.legend()
+        plt.savefig(f"{warm_run_dir}/histogram_of_group_{g}", dpi = 150, bbox_inches='tight')
+        plt.close()
 
-        sys.exit()
+
 
 
     group_sg_fits = []
