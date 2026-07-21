@@ -9,7 +9,7 @@ simulation:
 
 input:
   read_input: true
-  directory: "output/qshs_to_FOX/run_20.07.2026_12.00.40"
+  directory: "output/qshs_to_FOX/run_21.07.2026_08.46.02"
   input_file_name: "converted_spectra.h5"
 
 injection:
@@ -22,12 +22,14 @@ quality:
   max_power_filter: true            # filter the spectra for max mean power 
   p_max: 1e-8                       # max power allowed
   noise_filter: true                # filter the spectra for noise
-  rms_max: 2.0                      # max RMS allowed
+  rms_max: 3.0                  # max RMS allowed
+  nan_fail: true                    # drop spectra with NaNs/inf
+  robust: false                     # use median+MAD instead of mean+std
   bandwidth_zeros_filter: true      # filter the spectra for bandwdith data being arrays of zeros
   res_freq_zeros_filter: true       # filter the spectra for res_freq data being arrays of zeros
-  bad_time_filter: false             # filter spectra within a known bad time frame
-  start_time: ["2026-01-28 00:00:00", "2026-01-28 12:00:00"] # List of start times of the known bad data in format YYYY-MM-DD HH:MM:SS
-  end_time: ["2026-01-28 01:00:00", "2026-01-28 16:00:00"]  # List of end times of the known bad data in format YYYY-MM-DD HH:MM:SS
+  bad_time_filter: true            # filter spectra within a known bad time frame
+  start_time: ["2026-01-31 09:55:41" ] # List of start times of the known bad data in format YYYY-MM-DD HH:MM:SS
+  end_time: ["2026-02-01 00:10:58"] # List of end times of the known bad data in format YYYY-MM-DD HH:MM:SS
 
 
 baseline:

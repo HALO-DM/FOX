@@ -20,6 +20,7 @@ import time
 import pandas as pd
 import h5py
 import matplotlib.dates as mdates
+import matplotlib.cm as cm
 
 
 from axion_haloscope.simulation import simulate_spectra, AxionParams
@@ -153,7 +154,7 @@ def filter_by_datetime(data, start, end, key="date"):
         rf_grid=rf,
         rf_index_map=rf_index_map,
         metadata=spec_metadata
-    ), 
+    ) 
 
 def main():
     ap = argparse.ArgumentParser(description="Simulate haloscope run from YAML config")
@@ -207,6 +208,9 @@ def main():
     # Quality Control
     # =======================================================================
 
+    QC_run_dir = out_root / f'{out["subdir_prefix"]}_{timestamp}' / 'QC'
+    QC_run_dir.mkdir(parents=True, exist_ok=True)
+
     invalid_files = sset.metadata["invalid_files"]
     bad_zero_power = []
     bad_no_metadata = []
@@ -241,13 +245,13 @@ def main():
             plt.plot(fper_invalid_power[0]/1e9, specs_invalid_power[0], lw=0.6)
             plt.xlabel("Frequency [GHz]"); plt.ylabel("Raw Power [arb]")
             plt.title("Example invalid raw spectrum (high power)"); plt.grid(alpha=0.3); plt.tight_layout()
-            plt.savefig(run_dir/"invalid_power_raw_spectrum.png", dpi=150); plt.close()
+            plt.savefig(QC_run_dir/"invalid_power_raw_spectrum.png", dpi=150); plt.close()
 
             plt.figure(figsize=(9,3))
             plt.plot(fper_invalid_power[-1]/1e9, specs_invalid_power[-1], lw=0.6)
             plt.xlabel("Frequency [GHz]"); plt.ylabel("Raw Power [arb]")
             plt.title("Example invalid raw spectrum (high power)"); plt.grid(alpha=0.3); plt.tight_layout()
-            plt.savefig(run_dir/"invalid_power_raw_spectrum_last.png", dpi=150); plt.close()
+            plt.savefig(QC_run_dir/"invalid_power_raw_spectrum_last.png", dpi=150); plt.close()
 
             step = max(1, int(out["plots_step"]))
             max_plots = None if out["max_plots"] is None else int(out["max_plots"])
@@ -274,13 +278,13 @@ def main():
             plt.plot(fper_invalid_noise[0]/1e9, specs_invalid_noise[0], lw=0.6)
             plt.xlabel("Frequency [GHz]"); plt.ylabel("Raw Power [arb]")
             plt.title("Example invalid raw spectrum (too noisey)"); plt.grid(alpha=0.3); plt.tight_layout()
-            plt.savefig(run_dir/"invalid_noise_raw_spectrum.png", dpi=150); plt.close()
+            plt.savefig(QC_run_dir/"invalid_noise_raw_spectrum.png", dpi=150); plt.close()
 
             plt.figure(figsize=(9,3))
             plt.plot(fper_invalid_noise[-1]/1e9, specs_invalid_noise[-1], lw=0.6)
             plt.xlabel("Frequency [GHz]"); plt.ylabel("Raw Power [arb]")
             plt.title("Example invalid raw spectrum (too noisey)"); plt.grid(alpha=0.3); plt.tight_layout()
-            plt.savefig(run_dir/"invalid_noise_raw_spectrum_last.png", dpi=150); plt.close()
+            plt.savefig(QC_run_dir/"invalid_noise_raw_spectrum_last.png", dpi=150); plt.close()
 
             step = max(1, int(out["plots_step"]))
             max_plots = None if out["max_plots"] is None else int(out["max_plots"])
@@ -314,13 +318,13 @@ def main():
                     plt.plot(fper_invalid_time[0]/1e9, specs_invalid_time[0], lw=0.6)
                     plt.xlabel("Frequency [GHz]"); plt.ylabel("Raw Power [arb]")
                     plt.title(f"Example invalid raw spectrum (invalid time {qc['start_time'][t]}-{qc['end_time'][t]})"); plt.grid(alpha=0.3); plt.tight_layout()
-                    plt.savefig(run_dir/f"invalid_time_raw_spectrum_{qc['start_time'][t]}-{qc['end_time'][t]}.png", dpi=150); plt.close()
+                    plt.savefig(QC_run_dir/f"invalid_time_raw_spectrum_{qc['start_time'][t]}-{qc['end_time'][t]}.png", dpi=150); plt.close()
 
                     plt.figure(figsize=(9,3))
                     plt.plot(fper_invalid_time[-1]/1e9, specs_invalid_time[-1], lw=0.6)
                     plt.xlabel("Frequency [GHz]"); plt.ylabel("Raw Power [arb]")
                     plt.title(f"Example invalid raw spectrum (invalid time {qc['start_time'][t]}-{qc['end_time'][t]})"); plt.grid(alpha=0.3); plt.tight_layout()
-                    plt.savefig(run_dir/f"invalid_time_raw_spectrum_last_{qc['start_time'][t]}-{qc['end_time'][t]}.png", dpi=150); plt.close()
+                    plt.savefig(QC_run_dir/f"invalid_time_raw_spectrum_last_{qc['start_time'][t]}-{qc['end_time'][t]}.png", dpi=150); plt.close()
 
                     step = max(1, int(out["plots_step"]))
                     max_plots = None if out["max_plots"] is None else int(out["max_plots"])
@@ -425,7 +429,7 @@ def main():
         count_invalid = range(1, len(invalid_files_df[2]) + 1)
         all_files_df = pd.concat([valid_files_df[1], invalid_files_df[2]])
         all_files_df = all_files_df.sort_values()
-        ax.plot(invalid_files_df[2], count_invalid, label='invalid files')
+        ax.plot(invalid_files_df[2], count_invalid, label='invalid files', color="red")
 
     else:
         all_files_df = valid_files_df[1]
@@ -435,8 +439,8 @@ def main():
     count_valid = range(1, len(valid_files_df[1]) + 1)
     count_all = range(1,len(all_files_df) + 1)
 
-    ax.plot(valid_files_df[1], count_valid, label="valid files")
-    ax.plot(all_files_df, count_all, label='all files', linestyle='dashed')
+    ax.plot(valid_files_df[1], count_valid, label="valid files", color="green")
+    ax.plot(all_files_df, count_all, label='all files', linestyle='dashed', color="orange")
     ax.xaxis.set_major_formatter(mdates.DateFormatter("%Y-%m-%d"))
     ax.xaxis.set_major_locator(mdates.DayLocator(interval=1))
     ax.set_xlabel("Date-Time")
@@ -448,7 +452,6 @@ def main():
     plt.tight_layout()
     plt.savefig(f"{run_dir}/events_agaisnt_time.png", dpi=150, bbox_inches='tight')
     plt.close()
-    sys.exit()
 
     # Export the file spectrum set used for anaylsis to h5 file
     out_h5 = f"{run_dir}/final_converted_spectra.h5"
@@ -487,13 +490,13 @@ def main():
     cw_freqs = np.array(metadata["cw_freq"])
     res_freqs = np.array(metadata["res_freq"])
 
-    out_h5 = f"{run_dir}/final_converted_spectra2.h5"
-    write_hdf5(sset, out_h5)
-    print(f"[QSHS] Final SpectrumSet saved to: {out_h5}")
 
     # ===================
     # Spectra Plotting
     # ===================
+
+    raw_run_dir = out_root / f'{out["subdir_prefix"]}_{timestamp}'/ 'raw_spectra'
+    raw_run_dir.mkdir(parents=True, exist_ok=True)
 
     # Calculate difference in resonant frequency of the cavity between the spectra
     res_freq_diff = []
@@ -506,13 +509,13 @@ def main():
     plt.plot(fper[0]/1e9, specs[0], lw=0.6)
     plt.xlabel("Frequency [GHz]"); plt.ylabel("Raw Power [arb]")
     plt.title("Example valid raw spectrum"); plt.grid(alpha=0.3); plt.tight_layout()
-    plt.savefig(run_dir/"valid_raw_spectrum.png", dpi=150); plt.close()
+    plt.savefig(raw_run_dir/"valid_raw_spectrum.png", dpi=150); plt.close()
 
     plt.figure(figsize=(9,3))
     plt.plot(fper[-1]/1e9, specs[-1], lw=0.6)
     plt.xlabel("Frequency [GHz]"); plt.ylabel("Raw Power [arb]")
     plt.title("Example valid raw spectrum"); plt.grid(alpha=0.3); plt.tight_layout()
-    plt.savefig(run_dir/"valid_raw_spectrum_last.png", dpi=150); plt.close()
+    plt.savefig(raw_run_dir/"valid_raw_spectrum_last.png", dpi=150); plt.close()
 
     step = max(1, int(out["plots_step"]))
     max_plots = None if out["max_plots"] is None else int(out["max_plots"])
@@ -529,7 +532,7 @@ def main():
             axp.plot(freqs/1e6, spec, lw=0.6)
             axp.set(xlabel="Frequency [MHz]", ylabel="Raw Power [arb]", title=f"Spectrum {i:03d}")
             axp.grid(alpha=0.3); fig.tight_layout()
-            fig.savefig(run_dir / f"spectrum_{i:03d}.png", dpi=120)
+            fig.savefig(raw_run_dir / f"spectrum_{i:03d}.png", dpi=120)
             plt.close(fig)
             count += 1
         np.savez(run_dir/"spectra.npz", spectra=np.array(specs), freqs=fper, rf_grid=rf)
@@ -545,7 +548,7 @@ def main():
             plt.plot(freqs/1e9, spec, lw=0.6)
         plt.xlabel("Frequency [GHz]"); plt.ylabel("Raw Power [arb]")
         plt.title("All valid raw spectra"); plt.grid(alpha=0.3); plt.tight_layout()
-        plt.savefig(run_dir/"raw_valid_spectrum_all.png", dpi=150); plt.close()
+        plt.savefig(raw_run_dir/"raw_valid_spectrum_all.png", dpi=150); plt.close()
 
         if len(specs_invalid_power) != 0:
             plt.figure(figsize=(9,3))
@@ -557,7 +560,7 @@ def main():
                 plt.plot(freqs/1e9, spec, lw=0.6)
             plt.xlabel("Frequency [GHz]"); plt.ylabel("Raw Power [arb]")
             plt.title("All invalid raw spectra"); plt.grid(alpha=0.3); plt.tight_layout()
-            plt.savefig(run_dir/"raw_invalid_spectrum_all.png", dpi=150); plt.close()
+            plt.savefig(raw_run_dir/"raw_invalid_spectrum_all.png", dpi=150); plt.close()
 
     # Optional: plot all valid raw spectra in one figure with offset
     if out["offset_combined_plot"]:
@@ -566,7 +569,7 @@ def main():
         plt.scatter( range(len(res_freq_diff)),res_freq_diff)
         plt.xlabel("Spectrum Index"); plt.ylabel("Resonance Frequency Offset [Hz]")
         plt.title("Resonance Frequency Offset vs Spectrum Index"); plt.grid(alpha=0.3); plt.tight_layout()
-        plt.savefig(run_dir/"res_freq_offset_vs_index.png", dpi=150); plt.close()
+        plt.savefig(raw_run_dir/"res_freq_offset_vs_index.png", dpi=150); plt.close()
 
         # Combine the offset spectra into one figure
         plt.figure(figsize=(9,3))
@@ -578,7 +581,7 @@ def main():
             plt.plot((freqs/1e9 + res_freq_diff[i]), spec, lw=0.6)
         plt.xlabel("Frequency [GHz]"); plt.ylabel("Raw Power [arb]")
         plt.title("All valid spectra offset"); plt.grid(alpha=0.3); plt.tight_layout()
-        plt.savefig(run_dir/"raw_spectrum_all_valid_offset.png", dpi=150); plt.close()  
+        plt.savefig(raw_run_dir/"raw_spectrum_all_valid_offset.png", dpi=150); plt.close()  
 
     # Optional: plot all valid raw spectra in one figure with offset
 
@@ -593,7 +596,7 @@ def main():
     plt.hist(colour_vals, bins = len(np.unique(np.round(colour_vals, 10))))
     plt.xlabel("Shifted Injected Frequency"); plt.ylabel("Count")
     plt.title("Injected Frequency Histogram"); plt.grid(alpha=0.3); plt.tight_layout()
-    plt.savefig(run_dir/"shift.png", dpi=150); plt.close()
+    plt.savefig(raw_run_dir/"shift.png", dpi=150); plt.close()
 
     # Combine the offset spectra into one figure
     plt.figure(figsize=(9,3))
@@ -605,7 +608,7 @@ def main():
         plt.plot((freqs/1e9 + res_freq_diff[i]), spec, lw=0.6)
     plt.xlabel("Frequency [GHz]"); plt.ylabel("Raw Power [arb]")
     plt.title("All valid spectra offset"); plt.grid(alpha=0.3); plt.tight_layout()
-    plt.savefig(run_dir/"raw_spectrum_all_valid_offset.png", dpi=150); plt.close() 
+    plt.savefig(raw_run_dir/"raw_spectrum_all_valid_offset.png", dpi=150); plt.close() 
 
  
     t0 = time.time()
@@ -614,6 +617,8 @@ def main():
     # SPECTRUM CUTS
     # =======================================================================
 
+    cut_run_dir = out_root / f'{out["subdir_prefix"]}_{timestamp}' / 'trimming'
+    cut_run_dir.mkdir(parents=True, exist_ok=True)
 
     cut_min_val = -0.3e6
     cut_max_val = 2.3e6
@@ -649,13 +654,13 @@ def main():
     plt.plot(fper[0]/1e9, specs[0], lw=0.6)
     plt.xlabel("Frequency [GHz]"); plt.ylabel("Raw Power [arb]")
     plt.title("Example valid raw spectrum"); plt.grid(alpha=0.3); plt.tight_layout()
-    plt.savefig(run_dir/"trimmed_spectrum_first.png", dpi=150); plt.close()
+    plt.savefig(cut_run_dir/"trimmed_spectrum_first.png", dpi=150); plt.close()
 
     plt.figure(figsize=(9,3))
     plt.plot(fper[0]/1e9, specs[0], lw=0.6)
     plt.xlabel("Frequency [GHz]"); plt.ylabel("Raw Power [arb]")
     plt.title("Example valid raw spectrum"); plt.grid(alpha=0.3); plt.tight_layout()
-    plt.savefig(run_dir/"trimmed_spectrum_last.png", dpi=150); plt.close()
+    plt.savefig(cut_run_dir/"trimmed_spectrum_last.png", dpi=150); plt.close()
 
 
     # =======================================================================
@@ -694,6 +699,8 @@ def main():
     # Warm Baseline Removal
     # =======================================================================
 
+    warm_run_dir = out_root / f'{out["subdir_prefix"]}_{timestamp}' /'warm_baseline'
+    warm_run_dir.mkdir(parents=True, exist_ok=True)
 
     spacing_minutes = 30
     date_times = metadata["date"]
@@ -767,11 +774,49 @@ def main():
     fig.colorbar(sm_res, ax=ax, label="Mean cavity resonance  [GHz]")
     ax.set_xlabel("IF frequency  [MHz]")
     ax.set_ylabel("PSD  [V²/Hz]")
-    ax.set_title("Group-averaged spectra — all groups")
+    ax.set_title("Set-averaged spectra — all groups")
     plt.tight_layout()
-    plt.savefig(f"{run_dir}/group_averaged_spectra.png", dpi = 150, bbox_inches='tight')
+    plt.savefig(f"{warm_run_dir}/set_averaged_spectra.png", dpi = 150, bbox_inches='tight')
     plt.close()
 
+
+    for g, group in enumerate(groups):
+        # Plot set averaged + the set
+        fig, ax = plt.subplots(figsize=(13, 5))
+        greys = cm.Greys(np.linspace(0.3, 0.9, len(group)))
+        for i, x in enumerate(group):
+            ax.plot(x[1]/1e6, x[0], color=greys[i])
+        ax.plot(np.mean([x[1] for x in group], axis=0)/1e6, np.mean([x[0] for x in group], axis=0), alpha=0.8, color="red")
+        ax.set_xlabel("IF frequency  [MHz]")
+        ax.set_ylabel("PSD  [V²/Hz]")
+        ax.set_title(f"Set-averaged spectra and set spectra — group {g}")
+        plt.tight_layout()
+        plt.savefig(f"{warm_run_dir}/set_and_average_spectra_{g}.png", dpi = 150, bbox_inches='tight')
+        plt.close()
+
+        # Plot set averaged spectra with errors
+        fig, ax = plt.subplots(figsize=(26, 10))
+        ax.errorbar(np.mean([x[1] for x in group], axis=0)/1e6, np.mean([x[0] for x in group], axis=0), np.std([x[0] for x in group], axis=0), alpha=0.8, ecolor="blue", color="red")
+        ax.set_xlabel("IF frequency  [MHz]")
+        ax.set_ylabel("PSD  [V²/Hz]")
+        ax.set_title(f"Set-averaged spectra with errors — group {g}")
+        plt.tight_layout()
+        plt.savefig(f"{warm_run_dir}/set_averaged_spectra_errors_{g}.png", dpi = 150, bbox_inches='tight')
+        plt.close()
+
+        # Plot zoomed set averaged spectra with errors zoomed in
+        fig, ax = plt.subplots(figsize=(39, 15))
+        ax.errorbar(np.mean([x[1] for x in group], axis=0)/1e6, np.mean([x[0] for x in group], axis=0), np.std([x[0] for x in group], axis=0), alpha=0.8, ecolor="blue", color="red")
+        ax.set_xlabel("IF frequency  [MHz]")
+        ax.set_ylabel("PSD  [V²/Hz]")
+        ax.set_title(f"Set-averaged spectra with errors — group {g} (zoomed)")
+        plt.tight_layout()
+        plt.xlim(1.5, 2)
+        plt.ylim(1.78e-10, 1.84e-10)
+        plt.savefig(f"{warm_run_dir}/set_averaged_spectra_errors_{g}_zoom.png", dpi = 150, bbox_inches='tight')
+        plt.close()
+
+        sys.exit()
 
 
     group_sg_fits = []
@@ -799,7 +844,7 @@ def main():
     ax.set_ylabel("PSD  [V²/Hz]")
     ax.set_title("Group-averaged spectra with initial SG fits  (dashed = fit)")
     plt.tight_layout()
-    plt.savefig(f"{run_dir}/group_averaged_spectra_with_sg_fits.png", dpi = 150, bbox_inches='tight')
+    plt.savefig(f"{warm_run_dir}/group_averaged_spectra_with_sg_fits.png", dpi = 150, bbox_inches='tight')
     plt.close()
 
 
@@ -890,7 +935,7 @@ def main():
         ax.set_ylabel("PSD  [V²/Hz]")
         ax.set_title("Group-averaged spectra with initial SG fits  (dashed = fit)")
         plt.tight_layout()
-        plt.savefig(f"{run_dir}/masked_bin_iteration_{run}.png", dpi=150, bbox_inches='tight')
+        plt.savefig(f"{warm_run_dir}/masked_bin_iteration_{run}.png", dpi=150, bbox_inches='tight')
         plt.close()
 
         for g in range(len(groups)):
@@ -936,7 +981,7 @@ def main():
     ax.set_ylabel("PSD  [V²/Hz]")
     ax.set_title("Group-averaged spectra with initial SG fits  (dashed = fit)")
     plt.tight_layout()
-    plt.savefig(f"{run_dir}/spectra-baseline_removed.png", dpi=150, bbox_inches='tight')
+    plt.savefig(f"{warm_run_dir}/spectra-baseline_removed.png", dpi=150, bbox_inches='tight')
     plt.close()
 
     fig, ax = plt.subplots(figsize = (13,5))
@@ -945,7 +990,7 @@ def main():
     ax.set_ylabel(cbar_label)
     ax.set_title(f"Evolution of {cbar_label} w.r.t. Time")
     plt.tight_layout()
-    plt.savefig(f"{run_dir}/evolution_of_frequency.png", dpi=150, bbox_inches='tight')
+    plt.savefig(f"{warm_run_dir}/evolution_of_frequency.png", dpi=150, bbox_inches='tight')
     plt.close()
 
     sys.exit()
