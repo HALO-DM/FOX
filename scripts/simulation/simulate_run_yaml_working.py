@@ -18,6 +18,7 @@ from matplotlib.colors import Normalize
 import matplotlib.pyplot as plt
 import time
 import pandas as pd
+import shutil
 import h5py
 import matplotlib.dates as mdates
 import matplotlib.cm as cm
@@ -170,9 +171,19 @@ def main():
 
     # Output folder
     out_root = pathlib.Path(out["root"])/ "sim_spectra"
-    timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+    timestamp = datetime.datetime.now().strftime("%d.%m.%Y_%H.%M.%S")
     run_dir = out_root / f'{out["subdir_prefix"]}_{timestamp}'
     run_dir.mkdir(parents=True, exist_ok=True)
+
+    # Timestamped copies of the config
+    cfg_stamp = datetime.datetime.now().strftime("%d.%m.%Y_%H.%M.%S")
+
+    # Save exact input YAML as provided
+    try:
+        stamped_name = f"{cfg_path.stem}_{cfg_stamp}{cfg_path.suffix}"
+        shutil.copy(cfg_path, run_dir / stamped_name)
+    except Exception as e:
+        print(f"[WARN] Could not copy input config file: {e}")
 
     t_sim0 = time.time()
     # Axion injection (center mid-span if not provided)
