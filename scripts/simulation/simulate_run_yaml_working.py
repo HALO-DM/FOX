@@ -23,6 +23,7 @@ import h5py
 import matplotlib.dates as mdates
 import matplotlib.cm as cm
 import matplotlib.colors as mcolors
+from tqdm import tqdm
 
 
 from axion_haloscope.simulation import simulate_spectra, AxionParams
@@ -32,7 +33,7 @@ from axion_haloscope.rebin      import rebin_ml, grand_spectrum_ml
 from axion_haloscope.lineshape  import shm_maxwell_template
 from axion_haloscope.detection  import threshold_for_detection, find_candidates
 from axion_haloscope.limit      import compute_local_snr_template, coupling_limit, plot_exclusion
-from axion_haloscope.data_quality_working import filter_spectrum_set, too_noisy, power_too_high, metadata_is_zeros, time_filter
+from axion_haloscope.data_quality_working import filter_spectrum_set, too_noisy, power_too_high, metadata_is_zeros, time_filter, small_bandwidth
 from axion_haloscope.io_working import SpectrumSet, SpectrumMetadata, read_hdf5, write_hdf5
 from axion_haloscope.width_fq   import width_from_fq
 
@@ -86,7 +87,9 @@ def load_yaml_config(path: pathlib.Path) -> dict:
             "noise_filter":             bool(_get(qc, "noise_filter", True)),
             "rms_max":                  float(_get(qc, "rms_max", 1e-10)),
             "nan_fail":                 bool(_get(qc, "nan_fail", True)),
-            "robust":                   bool(_get(qc, "robust", True)),    
+            "robust":                   bool(_get(qc, "robust", True)), 
+            "small_bandwidth_filter":   bool(_get(qc, "small_bandwidth_filter", True)),
+            "bw_min":                   float(_get(qc, "bw_min", 0.00027)),
             "bandwidth_zeros_filter":   bool(_get(qc, "bandwidth_zeros_filter", True)),
             "res_freq_zeros_filter":    bool(_get(qc, "res_freq_zeros_filter", True)),
             "bad_time_filter":          bool(_get(qc, "bad_time_filter", True)),
@@ -359,6 +362,39 @@ def main():
                     step = max(1, int(out["plots_step"]))
                     max_plots = None if out["max_plots"] is None else int(out["max_plots"])
             print(f"[QC]: {total_bad_time_filter} spectra were removed as within known bad data times.")
+
+
+    if qc["small_bandwidth_filter"]:
+        sset, sset_bandwidth, kept, bad_bandwidth = filter_spectrum_set(
+            sset,
+            predicate=lambda s, f, md, i: small_bandwidth(
+                s,
+                f,
+                md,
+                i,
+                bw_min=qc["bw_min"],
+            ),
+        )
+        for s in bad_bandwidth:
+            invalid_files.append([sset_bandwidth.metadata["file_name"][s], "bandwidth is too small", sset_bandwidth.metadata["date"][s]])
+        print(f"[QC]: {len(bad_bandwidth)} spectra were removed as bandwidth is too small.")
+        # Seperate invalid bandwidth spectra to plot
+        specs_invalid_bandwidth, fper_invalid_bandwidth, _, _, _ = sset_bandwidth.spectra, sset_bandwidth.freqs_per_spec, sset_bandwidth.rf_grid, sset_bandwidth.rf_index_map, sset_bandwidth.metadata
+        if len(specs_invalid_bandwidth) != 0:
+            plt.figure(figsize=(9,3))
+            plt.plot(fper_invalid_bandwidth[0]/1e9, specs_invalid_bandwidth[0], lw=0.6)
+            plt.xlabel("Frequency [GHz]"); plt.ylabel("Raw Power [arb]")
+            plt.title("Example invalid raw spectrum (small bandwidth)"); plt.grid(alpha=0.3); plt.tight_layout()
+            plt.savefig(QC_run_dir/"invalid_bandwidth_raw_spectrum.png", dpi=150); plt.close()
+
+            plt.figure(figsize=(9,3))
+            plt.plot(fper_invalid_bandwidth[-1]/1e9, specs_invalid_bandwidth[-1], lw=0.6)
+            plt.xlabel("Frequency [GHz]"); plt.ylabel("Raw Power [arb]")
+            plt.title("Example invalid raw spectrum (small bandwidth)"); plt.grid(alpha=0.3); plt.tight_layout()
+            plt.savefig(QC_run_dir/"invalid_bandwidth_raw_spectrum_last.png", dpi=150); plt.close()
+
+            step = max(1, int(out["plots_step"]))
+            max_plots = None if out["max_plots"] is None else int(out["max_plots"])
 
 
     if qc["bandwidth_zeros_filter"]:
@@ -856,6 +892,32 @@ def main():
     plt.savefig(f"{warm_run_dir}/set_averaged_spectra.png", dpi = 150, bbox_inches='tight')
     plt.close()
 
+    fig, ax = plt.subplots(figsize=(13, 5))
+    for g, group in enumerate(groups):
+        ax.plot(np.mean([x[1] for x in group], axis=0)/1e6, np.std([x[0] for x in group], axis=0), alpha=0.8, color=_gcol_1(g), label =f"Grp {g}")
+    sm_res = ScalarMappable(cmap=_cmap_g_1, norm=_norm_res)
+    sm_res.set_array([])
+    fig.colorbar(sm_res, ax=ax, label="Mean cavity resonance  [GHz]")
+    ax.set_xlabel("IF frequency  [MHz]")
+    ax.set_ylabel("Standard deviation  [V²/Hz]")
+    ax.set_title("Standard deviation of averaged spectra - all groups")
+    plt.tight_layout()
+    plt.savefig(f"{warm_run_dir}/std_per_group.png", dpi = 150, bbox_inches='tight')
+    plt.close()
+
+    av_stds = []
+    for g, group in enumerate(groups):
+        std = np.std([x[0] for x in group], axis=0)
+        av_stds.append(np.mean(std))
+    fig, ax = plt.subplots(figsize=(13, 5))
+    ax.scatter(range(0, len(groups)), av_stds)
+    ax.set_xlabel("Group number")
+    ax.set_ylabel("Standard deviation  [V²/Hz]")
+    ax.set_title("Average standard deviation per group")
+    plt.tight_layout()
+    plt.savefig(f"{warm_run_dir}/std_againist_group_num.png", dpi = 150, bbox_inches='tight')
+    plt.close()
+
     
     for g, (freqs, specs) in enumerate(group_avg_spectra):
         # Plot set averaged + the set
@@ -893,7 +955,7 @@ def main():
         plt.savefig(f"{warm_run_dir}/log_set_and_average_spectra_{g}.png", dpi = 150, bbox_inches='tight')
         plt.close()
 
-        # Plot set averaged spectra with errors
+        # Plot set averaged spectra group with errors
         fig, ax = plt.subplots(figsize=(26, 10))
         ax.errorbar(freqs/1e6, specs, alpha=0.25, ecolor="blue", color="red")
         ax.plot(freqs/1e6, specs, alpha=0.8, color='red')
@@ -904,6 +966,9 @@ def main():
         plt.savefig(f"{warm_run_dir}/set_averaged_spectra_errors_{g}.png", dpi = 150, bbox_inches='tight')
         plt.close()
 
+        # Plot zoomed set averaged spectra group with errors zoomed in
+        fig, ax = plt.subplots(figsize=(39, 15))
+        ax.errorbar(np.mean([x[1] for x in group], axis=0)/1e6, np.mean([x[0] for x in group], axis=0), np.std([x[0] for x in group], axis=0), alpha=0.5, ecolor="blue", color="red")
         # Plot zoomed set averaged spectra with errors zoomed in
         fig, ax = plt.subplots(figsize=(39, 30))
         ax.errorbar(freqs/1e6, specs, np.std([x[0] for x in group], axis=0), alpha=0.5, ecolor="blue", color="red")
@@ -916,7 +981,7 @@ def main():
         plt.savefig(f"{warm_run_dir}/set_averaged_spectra_errors_{g}_zoom.png", dpi = 150, bbox_inches='tight')
         plt.close()
     
-        # Plot histogram of each group
+        # Plot histogram of each group (set averaged spectra)
         fig,ax = plt.subplots(figsize=(13,5))
         ax.hist(specs, bins=100)
         ax.set_xlabel("PSD  [V²/Hz]")
@@ -929,6 +994,17 @@ def main():
         plt.savefig(f"{warm_run_dir}/histogram_of_group_{g}", dpi = 150, bbox_inches='tight')
         plt.close()
 
+        # Plot the sets standard deviation againist set number
+        set_std = np.std([x[0] for x in group], axis=0)
+        set_num = range(0, len(set_std))
+        fig,ax = plt.subplots(figsize=(13,7))
+        ax.scatter(set_num, set_std, alpha=0.8)
+        ax.set_xlabel("Set number")
+        ax.set_ylabel("Standard deviation [V²/Hz]")
+        ax.set_title(f"Standard deviation againist set number — group {g}")
+        plt.tight_layout()
+        plt.savefig(f"{warm_run_dir}/std_againist_set_{g}.png", dpi = 150, bbox_inches='tight')
+        plt.close()
 
 
     fig, ax = plt.subplots(figsize=(13, 5))

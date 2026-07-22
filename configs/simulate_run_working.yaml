@@ -25,6 +25,8 @@ quality:
   rms_max: 3.0                  # max RMS allowed
   nan_fail: true                    # drop spectra with NaNs/inf
   robust: false                     # use median+MAD instead of mean+std
+  small_bandwidth_filter: true      #filter the spectra for small bandwidths
+  bw_min: 0.00027                   # min bandwidth allowed (same as QSHS)
   bandwidth_zeros_filter: true      # filter the spectra for bandwdith data being arrays of zeros
   res_freq_zeros_filter: true       # filter the spectra for res_freq data being arrays of zeros
   bad_time_filter: true            # filter spectra within a known bad time frame

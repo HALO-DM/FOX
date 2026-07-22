@@ -5,6 +5,8 @@ import numpy as np
 from datetime import datetime
 from .io_working import SpectrumSet, SpectrumMetadata
 
+import sys
+
 BadPredicate = Callable[[np.ndarray, np.ndarray, SpectrumMetadata, int], bool]
 
 def placeholder_bad_predicate(s: np.ndarray, f: np.ndarray, md: SpectrumMetadata, i: int) -> bool:
@@ -26,6 +28,23 @@ def power_too_high(
     max_power = np.nanmean(s)
 
     return max_power > p_max
+
+
+def small_bandwidth(
+    s: np.ndarray,
+    f: np.ndarray,
+    md: SpectrumMetadata,
+    i: int,
+    *,
+    bw_min: float = 0.00027,
+) -> bool:
+    """
+    Flag a spectrum as BAD if its bandwidth is less than the minimium bandwidth.
+    - units are in the spectrum’s native (arb) units.
+    """
+    bw = md["bandwidth"][i]
+
+    return bw < bw_min
 
 
 def metadata_is_zeros(
