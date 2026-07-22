@@ -625,7 +625,6 @@ def main():
     write_hdf5(sset, out_h5)
     print(f"[QSHS] Final SpectrumSet saved to: {out_h5}")
     
-    sys.exit()
     # =============================================================
     # Spectra Plotting
     # =============================================================
@@ -1116,12 +1115,10 @@ def main():
     # -----------------------------------------------------------------------
 
     group_masks = [
-    np.zeros(len(avg[0]), dtype=bool) if avg is not None else None
+    np.zeros(len(avg[0]), dtype=int) if avg is not None else None
     for avg in group_avg_spectra
     ]
 
-    specs = []
-    fper = []
     masked_total = [[] for _ in groups]
 
     persistent_masks = [
@@ -1130,80 +1127,51 @@ def main():
     ]
 
     sigma_cut = base["sigma_cut"]
-    for iteration in range(1, base["n_iterations"] + 1):
-        print(f"\n  --- Iteration {iteration} / {base["n_iterations"]} ---")
+    n_iterations = base["n_iterations"]
+    for iteration in range(1, n_iterations + 1):
+        print(f"\n  --- Iteration {iteration} / {n_iterations} ---")
         
         if base["clipping_mode"] == "Claude":
             group_masks, group_sg_fits = claude_clipping(group_avg_spectra, group_masks,
                                                         group_sg_fits, sigma_cut,
-                                                        base["sg_window_warm"], base["sg_poly_warm"])
-            
-            fig, ax = plt.subplots(figsize=(14, 5))
-            for g, avg in enumerate(group_avg_spectra):
-                if avg is None:
-                    continue
-                f, p  = avg
-                mask  = group_masks[g]
-                fit   = group_sg_fits[g]
-                col   = _gcol_1(g)
-        
-                ax.scatter(f[~mask] * 1e-6, p[~mask],
-                            s=4,  color=col,          alpha=0.6)
-                ax.scatter(f[ mask] * 1e-6, p[ mask],
-                            s=12, color="red", alpha=0.85, zorder=5)
-                if fit is not None:
-                    ax.plot(f * 1e-6, fit, lw=1.6, color=col, linestyle="--", alpha=0.9)
-        
-            legend_handles = [
-                plt.Line2D([0], [0], marker="o", color="w",
-                        markerfacecolor="grey",       markersize=7,  label="Unmasked bins"),
-                plt.Line2D([0], [0], marker="o", color="w",
-                        markerfacecolor="red", markersize=9, label="Masked bins"),
-                plt.Line2D([0], [0], color="grey", ls="--", lw=1.5,    label="SG fit"),
-            ]
-            ax.legend(handles=legend_handles, fontsize=10, loc="upper right")
-            sm_iter = ScalarMappable(cmap=_cmap_g_1, norm=_norm_res)
-            sm_iter.set_array([])
-            fig.colorbar(sm_iter, ax=ax, label="Mean cavity resonance  [GHz]")
-            ax.set_xlabel("IF frequency  [MHz]")
-            ax.set_ylabel("PSD  [V²/Hz]")
-            ax.set_title(f"Iteration {iteration}  —  masked bins in \"red\""
-                        f"(sigma_cut={base["sg_poly_warm"]}, window={base["sg_window_warm"]})")
-            plt.tight_layout()
-            plt.savefig(f"{warm_run_dir}/masked_bin_iteration_{iteration}.png", dpi=150, bbox_inches='tight')
-
+                                                        base["sg_window_warm"], base["sg_poly_warm"], iteration)
         elif base["clipping_mode"] == "Blue":
-
             persistent_masks, group_sg_fits, groups, masked_total, masked_by_group = blue_clipping(groups, masked_total, sigma_cut, persistent_masks, base["sg_window_warm"], base["sg_poly_warm"])
-            fig, ax = plt.subplots(figsize=(13, 5))
-            for g, ((freqs, specs), fit) in enumerate(zip(group_avg_spectra, group_sg_fits)):
-                ax.plot(freqs/1e6, specs,lw=1.0, alpha=0.55, color=_gcol_1(g), label=f"Grp {g}")
-                ax.plot(freqs/1e6, fit, lw=1.8, alpha=0.95, color=_gcol_1(g), linestyle="--")
-                pts = np.array(masked_by_group[g])
-                if pts.size:
-                    ax.scatter(pts[:, 0]/1e6, pts[:, 1], marker = ".", color=_gcol_2(g), zorder=5)
-                old_pts = np.array(masked_total[g])
-                if old_pts.size:
-                    ax.scatter(old_pts[:, 0]/1e6, old_pts[:, 1], c="grey", zorder=4)
-    
-            sm_res1 = ScalarMappable(cmap=_cmap_g_1, norm=_norm_res)
-            sm_res1.set_array([])
-            fig.colorbar(sm_res1, ax=ax, label="Mean cavity resonance  [GHz]", pad=0.02)
-    
-            sm_res2 = ScalarMappable(cmap=_cmap_g_2, norm=_norm_res)
-            sm_res2.set_array([])
-            fig.colorbar(sm_res2, ax=ax, label="Mean cavity resonance  [GHz]", pad=0.10)
-    
-            ax.set_xlabel("IF frequency  [MHz]")
-            ax.set_ylabel("PSD  [V²/Hz]")
-            ax.set_title("Group-averaged spectra with initial SG fits  (dashed = fit)")
-            plt.tight_layout()
-            plt.savefig(f"{warm_run_dir}/masked_bin_iteration_{iteration}.png", dpi=150, bbox_inches='tight')
-            plt.close()
 
+        fig, ax = plt.subplots(figsize=(14, 5))
+        for g, avg in enumerate(group_avg_spectra):
+            if avg is None:
+                continue
+            freqs, specs  = avg
+            mask  = group_masks[g]
+            fit   = group_sg_fits[g]
+            unmasked = mask == 0
+            masked_this_iteration = mask == iteration
+            masked_previously = (mask > 0) & (mask != iteration)
 
+            ax.plot(freqs[unmasked]/1e6, specs[unmasked],lw=1.0, alpha=0.55, color=_gcol_1(g), label=f"Grp {g}")
+            ax.plot(freqs/1e6, fit, lw=1.8, alpha=0.95, color=_gcol_1(g), linestyle="--")
 
+            if masked_this_iteration.any():
+                ax.scatter(freqs[masked_this_iteration]/1e6, specs[masked_this_iteration], marker = ".", color=_gcol_2(g), zorder=5)
 
+            if masked_previously.any():
+                ax.scatter(freqs[masked_previously]/1e6, specs[masked_previously], c="grey", zorder=4)
+
+        sm_res1 = ScalarMappable(cmap=_cmap_g_1, norm=_norm_res)
+        sm_res1.set_array([])
+        fig.colorbar(sm_res1, ax=ax, label="Mean cavity resonance  [GHz]", pad=0.02)
+
+        sm_res2 = ScalarMappable(cmap=_cmap_g_2, norm=_norm_res)
+        sm_res2.set_array([])
+        fig.colorbar(sm_res2, ax=ax, label="Mean cavity resonance  [GHz]", pad=0.10)
+
+        ax.set_xlabel("IF frequency  [MHz]")
+        ax.set_ylabel("PSD  [V²/Hz]")
+        ax.set_title("Group-averaged spectra with initial SG fits  (dashed = fit)")
+        plt.tight_layout()
+        plt.savefig(f"{warm_run_dir}/masked_bin_iteration_{iteration}.png", dpi=150, bbox_inches='tight')
+        plt.close()
 
     # ---------
     # Old Code
