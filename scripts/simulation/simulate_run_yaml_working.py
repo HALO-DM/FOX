@@ -201,6 +201,7 @@ def main():
         input_file_name = inp["input_file_name"]
         sset = read_hdf5(f"{directory}/{input_file_name}")
         specs, fper, rf, rf_map, metadata = sset.spectra, sset.freqs_per_spec, sset.rf_grid, sset.rf_index_map, sset.metadata
+        initial_specs = specs
     else:
         # Axion injection (center mid-span if not provided)
         ax = None
@@ -1255,9 +1256,12 @@ def main():
     t1     = time.time()
     total0 = round(t1-t0, 2)
     totals = round(t0-t_sim0, 2)
-    nbins    = sim["n_bins"]
-    nspectra = sim["n_spectra"]
-    print (f"Simulation Time : {totals} s for {nspectra} spectra of {nbins} bins")
+    if inp["read_input"]:
+        print (f"Data Loading Time : {totals} s for {len(initial_specs)} spectra of {len(initial_specs[0])} bins")
+    else:
+        nbins    = sim["n_bins"]
+        nspectra = sim["n_spectra"]
+        print (f"Simulation Time : {totals} s for {nspectra} spectra of {nbins} bins")
     print (f"Time from QC to Candidates: {total0} s")
 
     # 6) exclusion
