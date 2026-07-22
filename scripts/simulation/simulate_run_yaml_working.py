@@ -35,6 +35,7 @@ from axion_haloscope.detection  import threshold_for_detection, find_candidates
 from axion_haloscope.limit      import compute_local_snr_template, coupling_limit, plot_exclusion
 from axion_haloscope.data_quality_working import filter_spectrum_set, too_noisy, power_too_high, metadata_is_zeros, time_filter, small_bandwidth
 from axion_haloscope.io_working import SpectrumSet, SpectrumMetadata, read_hdf5, write_hdf5
+from axion_haloscope.sigma_clipping import claude_clipping, blue_clipping
 from axion_haloscope.width_fq   import width_from_fq
 
 
@@ -101,6 +102,9 @@ def load_yaml_config(path: pathlib.Path) -> dict:
             "sg_poly_warm":   int(_get(base, "sg_poly_warm", 2)),
             "sg_window_cold": int(_get(base, "sg_window_cold", 401)),
             "sg_poly_cold":   int(_get(base, "sg_poly_cold", 4)),
+            "sigma_cut":      float(_get(base, "sigma_cut", 3.5)),
+            "clipping_mode":  _get(base, "clipping_mode", "Claude"),
+            "n_iterations":   int(_get(base, "n_iterations", 3)),
         },
         "rebin": {
             "C": int(_get(rb, "C", 10)),
@@ -835,16 +839,7 @@ def main():
     # Helper Functions
     # -----------------------------------------------------------------------
 
-    def interpolate_nans(y):
-        y = np.asarray(y, dtype=float)
-        nans = np.isnan(y)
-        if nans.any():
-            if nans.all():
-                return np.nan_to_num(y)  
-            x = np.arange(len(y))
-            y = y.copy()
-            y[nans] = np.interp(x[nans], x[~nans], y[~nans])
-        return y
+
     
     def _gcol_1(g):
         v = _group_mean_res[g]
@@ -1026,8 +1021,11 @@ def main():
     # Iterative Sigma Clipping
     # -----------------------------------------------------------------------
 
+    group_masks = [
+    np.zeros(len(avg[0]), dtype=bool) if avg is not None else None
+    for avg in group_avg_spectra
+    ]
 
-    sigma_cut = 3.5
     specs = []
     fper = []
     masked_total = [[] for _ in groups]
@@ -1037,92 +1035,89 @@ def main():
         for group in groups
     ]
 
-    for run in range(1, 4):
-        masked_by_group = []
-        new_groups = []
-        new_group_sg_fits = []
-        new_persistent_masks = []
-
-        for group_idx, group in enumerate(groups):
-            group_masks = persistent_masks[group_idx]   
-
-            spectra_stack = np.array([x[0] for x in group])
-            mask_stack    = np.array(group_masks)
-
-            masked_stack = np.ma.masked_array(spectra_stack, mask=mask_stack)
-            average_spectra = masked_stack.mean(axis=0).filled(np.nan)
-            sd_spectra      = masked_stack.std(axis=0).filled(np.nan)
-
-            average_for_fit = interpolate_nans(average_spectra)
-            _, baseline = remove_baseline(
-                spectrum=average_for_fit,
-                window_length=base["sg_window_warm"],
-                polyorder=base["sg_poly_warm"],
-            )
-            new_group_sg_fits.append(baseline)
-
-            masked_new = []
-            new_group = []
-            new_group_masks = []
-
-            for spec_idx, (spectra, frequencies, res_freq) in enumerate(group):
-                prev_mask = group_masks[spec_idx]
-
-                deviation = np.abs(spectra - baseline)
-                new_flags = (deviation > sigma_cut * sd_spectra) & ~prev_mask
-
-                cum_mask = prev_mask | new_flags
-
-                spec_m = np.ma.masked_array(spectra, cum_mask)
-                freq_m = np.ma.masked_array(frequencies, cum_mask)
-
-                cleaned_spec = interpolate_nans(spec_m.filled(np.nan))
-                cleaned_freq = interpolate_nans(freq_m.filled(np.nan))
-
-                newly_masked_idx = np.where(new_flags)[0]
-                for idx in newly_masked_idx:
-                    masked_new.append([frequencies[idx], spectra[idx]])
-
-                new_group.append([cleaned_spec, cleaned_freq, res_freq])
-                new_group_masks.append(cum_mask)
-
-            masked_by_group.append(masked_new)
-            new_groups.append(new_group)
-            new_persistent_masks.append(new_group_masks)
-
-        for g in range(len(groups)):
-            masked_total[g].extend(masked_by_group[g])
-            groups = new_groups
-            group_sg_fits = new_group_sg_fits
-            persistent_masks = new_persistent_masks
-
-        fig, ax = plt.subplots(figsize=(13, 5))
-        for g, ((freqs, specs), fit) in enumerate(zip(group_avg_spectra, group_sg_fits)):
-            ax.plot(freqs/1e6, specs,lw=1.0, alpha=0.55, color=_gcol_1(g), label=f"Grp {g}")
-            ax.plot(freqs/1e6, fit, lw=1.8, alpha=0.95, color=_gcol_1(g), linestyle="--")
-            pts = np.array(masked_by_group[g])
-            if pts.size:
-                ax.scatter(pts[:, 0]/1e6, pts[:, 1], marker = ".", color=_gcol_2(g), zorder=5)
-            old_pts = np.array(masked_total[g])
-            if old_pts.size:
-                ax.scatter(old_pts[:, 0]/1e6, old_pts[:, 1], c="grey", zorder=4)
-
-        sm_res1 = ScalarMappable(cmap=_cmap_g_1, norm=_norm_res)
-        sm_res1.set_array([])
-        fig.colorbar(sm_res1, ax=ax, label="Mean cavity resonance  [GHz]", pad=0.02)
-
-        sm_res2 = ScalarMappable(cmap=_cmap_g_2, norm=_norm_res)
-        sm_res2.set_array([])
-        fig.colorbar(sm_res2, ax=ax, label="Mean cavity resonance  [GHz]", pad=0.10)
-
-        ax.set_xlabel("IF frequency  [MHz]")
-        ax.set_ylabel("PSD  [V²/Hz]")
-        ax.set_title("Group-averaged spectra with initial SG fits  (dashed = fit)")
-        plt.tight_layout()
-        plt.savefig(f"{warm_run_dir}/masked_bin_iteration_{run}.png", dpi=150, bbox_inches='tight')
-        plt.close()
-
+    sigma_cut = base["sigma_cut"]
+    for iteration in range(1, base["n_iterations"] + 1):
+        print(f"\n  --- Iteration {iteration} / {base["n_iterations"]} ---")
         
+        if base["clipping_mode"] == "Claude":
+            group_masks, group_sg_fits = claude_clipping(group_avg_spectra, group_masks,
+                                                        group_sg_fits, sigma_cut,
+                                                        base["sg_window_warm"], base["sg_poly_warm"])
+            
+            fig, ax = plt.subplots(figsize=(14, 5))
+            for g, avg in enumerate(group_avg_spectra):
+                if avg is None:
+                    continue
+                f, p  = avg
+                mask  = group_masks[g]
+                fit   = group_sg_fits[g]
+                col   = _gcol_1(g)
+        
+                ax.scatter(f[~mask] * 1e-6, p[~mask],
+                            s=4,  color=col,          alpha=0.6)
+                ax.scatter(f[ mask] * 1e-6, p[ mask],
+                            s=12, color="red", alpha=0.85, zorder=5)
+                if fit is not None:
+                    ax.plot(f * 1e-6, fit, lw=1.6, color=col, linestyle="--", alpha=0.9)
+        
+            legend_handles = [
+                plt.Line2D([0], [0], marker="o", color="w",
+                        markerfacecolor="grey",       markersize=7,  label="Unmasked bins"),
+                plt.Line2D([0], [0], marker="o", color="w",
+                        markerfacecolor="red", markersize=9, label="Masked bins"),
+                plt.Line2D([0], [0], color="grey", ls="--", lw=1.5,    label="SG fit"),
+            ]
+            ax.legend(handles=legend_handles, fontsize=10, loc="upper right")
+            sm_iter = ScalarMappable(cmap=_cmap_g_1, norm=_norm_res)
+            sm_iter.set_array([])
+            fig.colorbar(sm_iter, ax=ax, label="Mean cavity resonance  [GHz]")
+            ax.set_xlabel("IF frequency  [MHz]")
+            ax.set_ylabel("PSD  [V²/Hz]")
+            ax.set_title(f"Iteration {iteration}  —  masked bins in \"red\""
+                        f"(sigma_cut={base["sg_poly_warm"]}, window={base["sg_window_warm"]})")
+            plt.tight_layout()
+            plt.savefig(f"{warm_run_dir}/masked_bin_iteration_{iteration}.png", dpi=150, bbox_inches='tight')
+
+        elif base["clipping_mode"] == "Blue":
+
+            persistent_masks, group_sg_fits, groups, masked_total, masked_by_group = blue_clipping(groups, masked_total, sigma_cut, persistent_masks, base["sg_window_warm"], base["sg_poly_warm"])
+            fig, ax = plt.subplots(figsize=(13, 5))
+            for g, ((freqs, specs), fit) in enumerate(zip(group_avg_spectra, group_sg_fits)):
+                ax.plot(freqs/1e6, specs,lw=1.0, alpha=0.55, color=_gcol_1(g), label=f"Grp {g}")
+                ax.plot(freqs/1e6, fit, lw=1.8, alpha=0.95, color=_gcol_1(g), linestyle="--")
+                pts = np.array(masked_by_group[g])
+                if pts.size:
+                    ax.scatter(pts[:, 0]/1e6, pts[:, 1], marker = ".", color=_gcol_2(g), zorder=5)
+                old_pts = np.array(masked_total[g])
+                if old_pts.size:
+                    ax.scatter(old_pts[:, 0]/1e6, old_pts[:, 1], c="grey", zorder=4)
+    
+            sm_res1 = ScalarMappable(cmap=_cmap_g_1, norm=_norm_res)
+            sm_res1.set_array([])
+            fig.colorbar(sm_res1, ax=ax, label="Mean cavity resonance  [GHz]", pad=0.02)
+    
+            sm_res2 = ScalarMappable(cmap=_cmap_g_2, norm=_norm_res)
+            sm_res2.set_array([])
+            fig.colorbar(sm_res2, ax=ax, label="Mean cavity resonance  [GHz]", pad=0.10)
+    
+            ax.set_xlabel("IF frequency  [MHz]")
+            ax.set_ylabel("PSD  [V²/Hz]")
+            ax.set_title("Group-averaged spectra with initial SG fits  (dashed = fit)")
+            plt.tight_layout()
+            plt.savefig(f"{warm_run_dir}/masked_bin_iteration_{iteration}.png", dpi=150, bbox_inches='tight')
+            plt.close()
+
+
+
+
+
+    # ---------
+    # Old Code
+    # ---------
+
+
+
+
 
     specs = []
     fper = []
