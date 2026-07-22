@@ -77,10 +77,14 @@ def main():
     # Initialising
     # ===================
 
-    input_dir = "input/Jan_QSHS"
+    input_dir = "input/Jan"
 
     pattern = "*.hdf5"
     save_fox_h5 = True
+
+    plot_qshs_data = False
+    plot_slow_controls = False
+    save_slow_controls = True
 
     out_root = "output/qshs_to_FOX"
     os.makedirs(out_root, exist_ok=True)
@@ -116,10 +120,6 @@ def main():
     # ============================
     # Optional Plotting / Saving
     # ============================
-
-    plot_qshs_data = True
-    plot_slow_controls = False
-    save_slow_controls = False
 
     valid_files = list(sset.metadata["file_name"])
     res_freqs_list = []
@@ -206,7 +206,8 @@ def main():
                 flat_rows = (
                     flatten_to_kv(hardware_rows, "Hardware") +
                     modefit_rows +
-                    flatten_to_kv(status_rows, "Status")
+                    flatten_to_kv(status_rows, "Status") +
+                    [{"SOURCE": "Metadata", "FIELD": "File Name", "VALUE": s}]
                 )
                 df = pd.DataFrame(flat_rows)
 
