@@ -120,6 +120,7 @@ def load_yaml_config(path: pathlib.Path) -> dict:
             "save_data":     bool(_get(out, "save_data", False)),
             "combined_plot": bool(_get(out, "combined_plot", False)),
             "offset_combined_plot": bool(_get(out, "offset_combined_plot", False)),
+            "set_average_diagnostics": bool(_get(out, "set_average_diagnostics", False)),
             "plots_step":    int(_get(out, "plots_step", 1)),   # plot every Nth spectrum
             "max_plots":     out.get("max_plots", None),        # optional int
             "root":          _get(out, "root", "output"),
@@ -202,9 +203,11 @@ def main():
 
     t_sim0 = time.time()
     
+    
     # =======================================================================
     # Data input
     # =======================================================================
+
 
     if inp["read_input"]:
         # 1) Read in Data
@@ -232,9 +235,15 @@ def main():
         noise_sigma=sim["noise_sigma"], axion=ax
     )
 
+
     # =======================================================================
     # Quality Control
     # =======================================================================
+
+
+    print("=" * 60)
+    print(f"Quality Control")
+    print("=" * 60)
 
     QC_run_dir = out_root / f'{out["subdir_prefix"]}_{timestamp}' / 'Quality_control'
     QC_run_dir.mkdir(parents=True, exist_ok=True)
@@ -443,7 +452,6 @@ def main():
     valid_files_df[1] = pd.to_datetime(valid_files_df[1], format="%Y-%m-%d %H:%M:%S")
     valid_files_df.to_csv(f"{raw_run_dir}/valid.csv")
 
-
     if len(invalid_files) != 0:
         invalid_files_df = pd.DataFrame(invalid_files)
         invalid_files_df[2] = pd.to_datetime(invalid_files_df[2], format="%Y-%m-%d %H:%M:%S")
@@ -547,8 +555,9 @@ def main():
     plt.savefig(QC_run_dir/"rms_againist_time_data.png", dpi=150); plt.close()
 
 
-    # Plot rms evolution with time - simulation
-    """ ax = None
+    # Plot rms evolution with spectra num - simulation and data
+    # Simulate the data
+    ax = None
     if inj["enabled"]:
         total_bins = sim["n_bins"] + (sim["n_spectra"] - 1) * sim["tune_step_bins"]
         f_ax = inj["f_axion_hz"]
@@ -557,32 +566,31 @@ def main():
         s_ax = width_from_fq(f_ax)
         ax = AxionParams(f_axion_hz=float(f_ax), sigma_hz=s_ax, total_power=inj["total_power"])
 
-    specs_sim, fper_sim, rf_sim, rf_map_sim, metadata_sim = simulate_spectra(
-        n_spectra=sim["n_spectra"], n_bins=sim["n_bins"],
+    spec_num = len(rms_vals)
+
+    specs_sim, _, _, _, _ = simulate_spectra(
+        n_spectra=spec_num, n_bins=sim["n_bins"],
         bin_width_hz=sim["bin_width_hz"], f_start_hz=sim["f_start_hz"],
         tune_step_bins=sim["tune_step_bins"], rng_seed=sim["rng_seed"],
         noise_sigma=sim["noise_sigma"], axion=ax
     )
     rms_vals_sim = []
-    dates_sim = metadata_sim["date"]
-    dates_sim = pd.to_datetime(dates_sim)
-
+    
     for s in specs_sim:
         med = np.nanmedian(s)
         rms = np.sqrt(np.nanmean((s - med) ** 2))
         rms_vals_sim.append(rms)
-
-    fig, ax = plt.subplots(figsize=(9,6))
-    ax.scatter(dates_sim, rms_vals_sim, marker=".")
-    ax.set_xlabel("Date"); ax.set_ylabel("rms values [arb]")
-    ax.xaxis.set_major_locator(mdates.AutoDateLocator())
-    ax.xaxis.set_major_formatter(mdates.DateFormatter("%Y-%m-%d"))
-    plt.xticks(rotation=45, ha="right")
-    ax.set_title("rms over time (simulation)"); plt.grid(alpha=0.3); plt.tight_layout()
-    plt.savefig(QC_run_dir/"rms_againist_time_sim.png", dpi=150); plt.close()
- """
     
+    fig, ax = plt.subplots(figsize=(9,6))
+    ax.scatter(range(0,spec_num), rms_vals_sim, marker=".", label="simulation")
+    ax.scatter(range(0, spec_num), rms_vals, marker=".", label="data")
+    ax.set_xlabel("Spectra number"); ax.set_ylabel("rms values [arb]")
+    plt.xticks(rotation=45, ha="right")
+    plt.legend()
+    ax.set_title("rms againist spectra number"); plt.grid(alpha=0.3); plt.tight_layout()
+    plt.savefig(QC_run_dir/"rms_againist_spec_num.png", dpi=150); plt.close()
 
+    
     # Export the spectrum set of all valid files
     out_h5 = f"{run_dir}/valid_converted_spectra.h5"
     write_hdf5(sset, out_h5)
@@ -840,6 +848,8 @@ def main():
  
     t0 = time.time()
 
+
+
     # =======================================================================
     # SPECTRUM CUTS
     # =======================================================================
@@ -888,6 +898,7 @@ def main():
     plt.xlabel("Frequency [GHz]"); plt.ylabel("Raw Power [arb]")
     plt.title("Example valid raw spectrum"); plt.grid(alpha=0.3); plt.tight_layout()
     plt.savefig(cut_run_dir/"trimmed_spectrum_last.png", dpi=150); plt.close()
+
 
 
     # =======================================================================
@@ -972,7 +983,6 @@ def main():
         group_avg_spectra.append((np.mean([x[1] for x in group], axis=0), np.mean([x[0] for x in group], axis=0)))
 
     
-
     # -----------------------------------------------------------------------
     # Group Average Baseline Fitting
     # -----------------------------------------------------------------------
@@ -995,8 +1005,6 @@ def main():
     # Helper Functions
     # -----------------------------------------------------------------------
 
-
-    
     def _gcol_1(g):
         v = _group_mean_res[g]
         if not np.isfinite(v):
@@ -1009,13 +1017,13 @@ def main():
             return "grey"
         return _cmap_g_2(_norm_res(v))
 
+
     # -----------------------------------------------------------------------
     # Graphing
     # -----------------------------------------------------------------------
 
     _cmap_g_1 = plt.cm.viridis
     _cmap_g_2 = plt.cm.inferno
-
 
 
     _group_mean_res = np.array([
@@ -1030,167 +1038,166 @@ def main():
         vmax=np.nanmax(_finite_res) if len(_finite_res) else 1,
     )
 
+    if out["set_average_diagnostics"]:
 
-    # Plot set averaged spectra for all groups
-    fig, ax = plt.subplots(figsize=(13, 5))
-    # for g, (freqs, specs) in enumerate(group_avg_spectra):
-        # ax.plot(freqs/1e6, specs, alpha=0.8, color=_gcol_1(g), label =f"Grp {g}")
-    for g, group in enumerate(groups):
-        ax.plot(np.mean([x[1] for x in group], axis=0)/1e6, np.mean([x[0] for x in group], axis=0), alpha=0.8, color=_gcol_1(g), label =f"Grp {g}")
-    sm_res = ScalarMappable(cmap=_cmap_g_1, norm=_norm_res)
-    sm_res.set_array([])
-    fig.colorbar(sm_res, ax=ax, label="Mean cavity resonance  [GHz]")
-    ax.set_xlabel("IF frequency  [MHz]")
-    ax.set_ylabel("PSD  [V²/Hz]")
-    ax.set_title("Set-averaged spectra — all groups")
-    plt.tight_layout()
-    plt.savefig(f"{warm_run_dir}/set_averaged_spectra_all.png", dpi = 150, bbox_inches='tight')
-    plt.close()
-
-
-    # Plot standard deviation of averaged sets againist frequency for all groups 
-    fig, ax = plt.subplots(figsize=(13, 7))
-    for g, group in enumerate(groups):
-        ax.plot(np.mean([x[1] for x in group], axis=0)/1e6, np.std([x[0] for x in group], axis=0), alpha=0.8, color=_gcol_1(g), label =f"Grp {g}")
-    sm_res = ScalarMappable(cmap=_cmap_g_1, norm=_norm_res)
-    sm_res.set_array([])
-    fig.colorbar(sm_res, ax=ax, label="Mean cavity resonance  [GHz]")
-    ax.set_xlabel("IF frequency  [MHz]")
-    ax.set_ylabel("Standard deviation  [V²/Hz]")
-    ax.set_title("Standard deviation of averaged spectra againist frequency - all groups")
-    plt.tight_layout()
-    plt.savefig(f"{warm_run_dir}/std_vs_freq_all.png", dpi = 150, bbox_inches='tight')
-    plt.close()
-
-
-    # Plot average std for each group againist group number
-    av_stds = []
-    for g, group in enumerate(groups):
-        std = np.std([x[0] for x in group], axis=0)
-        av_stds.append(np.mean(std))
-    fig, ax = plt.subplots(figsize=(13, 5))
-    ax.scatter(range(0, len(groups)), av_stds)
-    ax.set_xlabel("Group number")
-    ax.set_ylabel("Standard deviation  [V²/Hz]")
-    ax.set_title("Average standard deviation per group againist group number")
-    plt.tight_layout()
-    plt.savefig(f"{warm_run_dir}/std_vs_group_num.png", dpi = 150, bbox_inches='tight')
-    plt.close()
-
-
-    for g, group in enumerate(tqdm(groups, desc="Set averaging diagnostic plots")):
-    # for g, (freqs, specs) in enumerate(group_avg_spectra):
-
-        # Plot set averaged spectra + the sets spectra per group
+        # Plot set averaged spectra for all groups
         fig, ax = plt.subplots(figsize=(13, 5))
-        greys = cm.Greys(np.linspace(0.3, 0.9, len(group)))
-        for i, x in enumerate(group):
-            ax.plot(x[1]/1e6, x[0], color=greys[i])
-        ax.plot(np.mean([x[1] for x in group], axis=0)/1e6, np.mean([x[0] for x in group], axis=0), alpha=0.8, color="red", label="set averaged")
-        # ax.plot(freqs/1e6, specs, alpha=0.8, color="red", label="set averaged")
-        norm = mcolors.Normalize(vmin=0, vmax=len(group))
-        sm = ScalarMappable(cmap=cm.Greys, norm=norm)
-        sm.set_array([])
-        fig.colorbar(sm, ax=ax, label="Spectrum index in set")
+        # for g, (freqs, specs) in enumerate(group_avg_spectra):
+            # ax.plot(freqs/1e6, specs, alpha=0.8, color=_gcol_1(g), label =f"Grp {g}")
+        for g, group in enumerate(groups):
+            ax.plot(np.mean([x[1] for x in group], axis=0)/1e6, np.mean([x[0] for x in group], axis=0), alpha=0.8, color=_gcol_1(g), label =f"Grp {g}")
+        sm_res = ScalarMappable(cmap=_cmap_g_1, norm=_norm_res)
+        sm_res.set_array([])
+        fig.colorbar(sm_res, ax=ax, label="Mean cavity resonance  [GHz]")
         ax.set_xlabel("IF frequency  [MHz]")
         ax.set_ylabel("PSD  [V²/Hz]")
-        ax.set_title(f"Set-averaged spectra and the individual spectra — group {g}")
+        ax.set_title("Set-averaged spectra — all groups")
         plt.tight_layout()
-        plt.savefig(f"{warm_run_dir}/set_and_average_spectra_{g}.png", dpi = 150, bbox_inches='tight')
+        plt.savefig(f"{warm_run_dir}/set_averaged_spectra_all.png", dpi = 150, bbox_inches='tight')
         plt.close()
 
 
-        # Plot set averaged spectra + the sets spectra per group - log plot
-        fig, ax = plt.subplots(figsize=(13, 5))
-        greys = cm.Greys(np.linspace(0.3, 0.9, len(group)))
-        for i, x in enumerate(group):
-            ax.plot(x[1]/1e6, np.log(x[0]), color=greys[i])
-        ax.plot(np.mean([x[1] for x in group], axis=0)/1e6, np.log(np.mean([x[0] for x in group], axis=0)), alpha=0.8, color="red", label="set averaged")
-            # ax.plot(x[1]/1e6, (x[0]), color=greys[i])
-        # ax.plot(freqs/1e6, (specs), alpha=0.8, color="red", label="set averaged")
-        norm = mcolors.Normalize(vmin=0, vmax=len(group))
-        sm = ScalarMappable(cmap=cm.Greys, norm=norm)
-        sm.set_array([])
-        fig.colorbar(sm, ax=ax, label="Spectrum index in set")
-        # ax.set_yscale("log")
-        ax.set_xlabel("IF frequency  [MHz]")
-        ax.set_ylabel("PSD  [V²/Hz]")
-        ax.set_title(f"log set-averaged spectra and the log individual spectra — group {g}")
-        plt.tight_layout()
-        plt.savefig(f"{warm_run_dir}/log_set_and_average_spectra_{g}.png", dpi = 150, bbox_inches='tight')
-        plt.close()
-
-
-        # Plot set averaged spectra with errors per group
-        fig, ax = plt.subplots(figsize=(26, 10))
-        # ax.errorbar(freqs/1e6, specs, alpha=0.25, ecolor="blue", color="red")
-        # ax.plot(freqs/1e6, specs, alpha=0.8, color='red')
-        ax.errorbar(np.mean([x[1] for x in group], axis=0)/1e6, np.mean([x[0] for x in group], axis=0), np.std([x[0] for x in group], axis=0), alpha=0.25, ecolor="blue", color="red")
-        ax.plot(np.mean([x[1] for x in group], axis=0)/1e6, np.mean([x[0] for x in group], axis=0), alpha=0.8, color='red')
-        ax.set_xlabel("IF frequency  [MHz]")
-        ax.set_ylabel("PSD  [V²/Hz]")
-        ax.set_title(f"Set-averaged spectra with errors — group {g}")
-        ax.set_yscale("log")
-        plt.tight_layout()
-        plt.savefig(f"{warm_run_dir}/set_averaged_spectra_errors_{g}.png", dpi = 150, bbox_inches='tight')
-        plt.close()
-
-
-        # Plot zoomed set averaged spectra with errors zoomed in per group
-        fig, ax = plt.subplots(figsize=(26, 10))
-        ax.errorbar(np.mean([x[1] for x in group], axis=0)/1e6, np.mean([x[0] for x in group], axis=0), np.std([x[0] for x in group], axis=0), alpha=0.5, ecolor="blue", color="red")
-        ax.set_xlabel("IF frequency  [MHz]")
-        ax.set_ylabel("PSD  [V²/Hz]")
-        ax.set_title(f"Set-averaged spectra with errors — group {g} (zoomed)")
-        plt.tight_layout()
-        plt.xlim(1.5, 2)
-        plt.ylim(1.78e-10, 1.84e-10)
-        plt.savefig(f"{warm_run_dir}/set_averaged_spectra_errors_zoom{g}.png", dpi = 150, bbox_inches='tight')
-        plt.close()
-    
-
-        # Plot histogram of each set averaged spectra per group
-        fig,ax = plt.subplots(figsize=(13,5))
-        # ax.hist(specs, bins=100)
-        ax.hist(np.mean([x[0] for x in group], axis=0), bins=100)
-        ax.set_xlabel("PSD  [V²/Hz]")
-        ax.set_ylabel("Counts")
-        ax.set_title(f"Histogram of set averaged group {g}")
-        plt.axvline(x = np.mean([x[0] for x in group]), color = 'r', alpha=0.8, ls="--", label = f'mean value ({np.mean([x[0] for x in group])})')
-        plt.axvline(x = np.median([x[0] for x in group]), color = 'g', alpha=0.8, ls="--", label = f'median value ({np.median([x[0] for x in group])})')
-        plt.tight_layout()
-        plt.legend()
-        plt.savefig(f"{warm_run_dir}/histogram_of_group_{g}", dpi = 150, bbox_inches='tight')
-        plt.close()
-
-
-        # Plot the standard deviation of each set againist set number per group
-        set_std = np.std([x[0] for x in group], axis=0)
-        set_num = range(0, len(set_std))
-        fig,ax = plt.subplots(figsize=(13,7))
-        ax.scatter(set_num, set_std, alpha=0.8)
-        ax.set_xlabel("Set number")
-        ax.set_ylabel("Standard deviation [V²/Hz]")
-        ax.set_title(f"Standard deviation againist set number — group {g}")
-        plt.tight_layout()
-        plt.savefig(f"{warm_run_dir}/std_againist_set_{g}.png", dpi = 150, bbox_inches='tight')
-        plt.close()
-
-
-        # Plot standard deviation of each set average againist frequency per group
+        # Plot standard deviation of averaged sets againist frequency for all groups 
         fig, ax = plt.subplots(figsize=(13, 7))
-        ax.plot(np.mean([x[1] for x in group], axis=0)/1e6, np.std([x[0] for x in group], axis=0), alpha=0.8, color=_gcol_1(g), label =f"Grp {g}")
+        for g, group in enumerate(groups):
+            ax.plot(np.mean([x[1] for x in group], axis=0)/1e6, np.std([x[0] for x in group], axis=0), alpha=0.8, color=_gcol_1(g), label =f"Grp {g}")
         sm_res = ScalarMappable(cmap=_cmap_g_1, norm=_norm_res)
         sm_res.set_array([])
         fig.colorbar(sm_res, ax=ax, label="Mean cavity resonance  [GHz]")
         ax.set_xlabel("IF frequency  [MHz]")
         ax.set_ylabel("Standard deviation  [V²/Hz]")
-        ax.set_title(f"Standard deviation of set average againist frequency - group {g}")
+        ax.set_title("Standard deviation of averaged spectra againist frequency - all groups")
         plt.tight_layout()
-        plt.savefig(f"{warm_run_dir}/std_vs_freq_{g}.png", dpi = 150, bbox_inches='tight')
+        plt.savefig(f"{warm_run_dir}/std_vs_freq_all.png", dpi = 150, bbox_inches='tight')
         plt.close()
 
-        sys.exit()
+
+        # Plot average std for each group againist group number
+        av_stds = []
+        for g, group in enumerate(groups):
+            std = np.std([x[0] for x in group], axis=0)
+            av_stds.append(np.mean(std))
+        fig, ax = plt.subplots(figsize=(13, 5))
+        ax.scatter(range(0, len(groups)), av_stds)
+        ax.set_xlabel("Group number")
+        ax.set_ylabel("Standard deviation  [V²/Hz]")
+        ax.set_title("Average standard deviation per group againist group number")
+        plt.tight_layout()
+        plt.savefig(f"{warm_run_dir}/std_vs_group_num.png", dpi = 150, bbox_inches='tight')
+        plt.close()
+
+
+        for g, group in enumerate(tqdm(groups, desc="Set averaging diagnostic plots")):
+        # for g, (freqs, specs) in enumerate(group_avg_spectra):
+
+            # Plot set averaged spectra + the sets spectra per group
+            fig, ax = plt.subplots(figsize=(13, 5))
+            greys = cm.Greys(np.linspace(0.3, 0.9, len(group)))
+            for i, x in enumerate(group):
+                ax.plot(x[1]/1e6, x[0], color=greys[i])
+            ax.plot(np.mean([x[1] for x in group], axis=0)/1e6, np.mean([x[0] for x in group], axis=0), alpha=0.8, color="red", label="set averaged")
+            # ax.plot(freqs/1e6, specs, alpha=0.8, color="red", label="set averaged")
+            norm = mcolors.Normalize(vmin=0, vmax=len(group))
+            sm = ScalarMappable(cmap=cm.Greys, norm=norm)
+            sm.set_array([])
+            fig.colorbar(sm, ax=ax, label="Spectrum index in set")
+            ax.set_xlabel("IF frequency  [MHz]")
+            ax.set_ylabel("PSD  [V²/Hz]")
+            ax.set_title(f"Set-averaged spectra and the individual spectra — group {g}")
+            plt.tight_layout()
+            plt.savefig(f"{warm_run_dir}/set_and_average_spectra_{g}.png", dpi = 150, bbox_inches='tight')
+            plt.close()
+
+
+            # Plot set averaged spectra + the sets spectra per group - log plot
+            fig, ax = plt.subplots(figsize=(13, 5))
+            greys = cm.Greys(np.linspace(0.3, 0.9, len(group)))
+            for i, x in enumerate(group):
+                ax.plot(x[1]/1e6, np.log(x[0]), color=greys[i])
+            ax.plot(np.mean([x[1] for x in group], axis=0)/1e6, np.log(np.mean([x[0] for x in group], axis=0)), alpha=0.8, color="red", label="set averaged")
+                # ax.plot(x[1]/1e6, (x[0]), color=greys[i])
+            # ax.plot(freqs/1e6, (specs), alpha=0.8, color="red", label="set averaged")
+            norm = mcolors.Normalize(vmin=0, vmax=len(group))
+            sm = ScalarMappable(cmap=cm.Greys, norm=norm)
+            sm.set_array([])
+            fig.colorbar(sm, ax=ax, label="Spectrum index in set")
+            # ax.set_yscale("log")
+            ax.set_xlabel("IF frequency  [MHz]")
+            ax.set_ylabel("PSD  [V²/Hz]")
+            ax.set_title(f"log set-averaged spectra and the log individual spectra — group {g}")
+            plt.tight_layout()
+            plt.savefig(f"{warm_run_dir}/log_set_and_average_spectra_{g}.png", dpi = 150, bbox_inches='tight')
+            plt.close()
+
+
+            # Plot set averaged spectra with errors per group
+            fig, ax = plt.subplots(figsize=(26, 10))
+            # ax.errorbar(freqs/1e6, specs, alpha=0.25, ecolor="blue", color="red")
+            # ax.plot(freqs/1e6, specs, alpha=0.8, color='red')
+            ax.errorbar(np.mean([x[1] for x in group], axis=0)/1e6, np.mean([x[0] for x in group], axis=0), np.std([x[0] for x in group], axis=0), alpha=0.25, ecolor="blue", color="red")
+            ax.plot(np.mean([x[1] for x in group], axis=0)/1e6, np.mean([x[0] for x in group], axis=0), alpha=0.8, color='red')
+            ax.set_xlabel("IF frequency  [MHz]")
+            ax.set_ylabel("PSD  [V²/Hz]")
+            ax.set_title(f"Set-averaged spectra with errors — group {g}")
+            ax.set_yscale("log")
+            plt.tight_layout()
+            plt.savefig(f"{warm_run_dir}/set_averaged_spectra_errors_{g}.png", dpi = 150, bbox_inches='tight')
+            plt.close()
+
+
+            # Plot zoomed set averaged spectra with errors zoomed in per group
+            fig, ax = plt.subplots(figsize=(26, 10))
+            ax.errorbar(np.mean([x[1] for x in group], axis=0)/1e6, np.mean([x[0] for x in group], axis=0), np.std([x[0] for x in group], axis=0), alpha=0.5, ecolor="blue", color="red")
+            ax.set_xlabel("IF frequency  [MHz]")
+            ax.set_ylabel("PSD  [V²/Hz]")
+            ax.set_title(f"Set-averaged spectra with errors — group {g} (zoomed)")
+            plt.tight_layout()
+            plt.xlim(1.5, 2)
+            plt.ylim(1.78e-10, 1.84e-10)
+            plt.savefig(f"{warm_run_dir}/set_averaged_spectra_errors_zoom{g}.png", dpi = 150, bbox_inches='tight')
+            plt.close()
+        
+
+            # Plot histogram of each set averaged spectra per group
+            fig,ax = plt.subplots(figsize=(13,5))
+            # ax.hist(specs, bins=100)
+            ax.hist(np.mean([x[0] for x in group], axis=0), bins=100)
+            ax.set_xlabel("PSD  [V²/Hz]")
+            ax.set_ylabel("Counts")
+            ax.set_title(f"Histogram of set averaged group {g}")
+            plt.axvline(x = np.mean([x[0] for x in group]), color = 'r', alpha=0.8, ls="--", label = f'mean value ({np.mean([x[0] for x in group])})')
+            plt.axvline(x = np.median([x[0] for x in group]), color = 'g', alpha=0.8, ls="--", label = f'median value ({np.median([x[0] for x in group])})')
+            plt.tight_layout()
+            plt.legend()
+            plt.savefig(f"{warm_run_dir}/histogram_of_group_{g}", dpi = 150, bbox_inches='tight')
+            plt.close()
+
+
+            # Plot the standard deviation of each set againist set number per group
+            set_std = np.std([x[0] for x in group], axis=0)
+            set_num = range(0, len(set_std))
+            fig,ax = plt.subplots(figsize=(13,7))
+            ax.scatter(set_num, set_std, alpha=0.8)
+            ax.set_xlabel("Set number")
+            ax.set_ylabel("Standard deviation [V²/Hz]")
+            ax.set_title(f"Standard deviation againist set number — group {g}")
+            plt.tight_layout()
+            plt.savefig(f"{warm_run_dir}/std_againist_set_{g}.png", dpi = 150, bbox_inches='tight')
+            plt.close()
+
+
+            # Plot standard deviation of each set average againist frequency per group
+            fig, ax = plt.subplots(figsize=(13, 7))
+            ax.plot(np.mean([x[1] for x in group], axis=0)/1e6, np.std([x[0] for x in group], axis=0), alpha=0.8, color=_gcol_1(g), label =f"Grp {g}")
+            sm_res = ScalarMappable(cmap=_cmap_g_1, norm=_norm_res)
+            sm_res.set_array([])
+            fig.colorbar(sm_res, ax=ax, label="Mean cavity resonance  [GHz]")
+            ax.set_xlabel("IF frequency  [MHz]")
+            ax.set_ylabel("Standard deviation  [V²/Hz]")
+            ax.set_title(f"Standard deviation of set average againist frequency - group {g}")
+            plt.tight_layout()
+            plt.savefig(f"{warm_run_dir}/std_vs_freq_{g}.png", dpi = 150, bbox_inches='tight')
+            plt.close()
         
 
     # Plot group averaged spectra with sg fits
