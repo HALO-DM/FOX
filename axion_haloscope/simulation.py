@@ -131,12 +131,15 @@ def _simulate_one_spectrum(
 
     metadata = {
         "date": datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+        "file_name": None,
+        "invalid_files": None,
         "b_vals": None,
         "q_factor": None,
         "temps": None,
         "tuning_angle": None,
         "volume": None,
         "res_freq": axion.f_axion_hz if axion is not None else None,
+        "cw_freq": None,
         "bandwidth": axion.sigma_hz if axion is not None else None,
     }
     return raw.astype(np.float64), metadata
