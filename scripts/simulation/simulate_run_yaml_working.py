@@ -624,6 +624,102 @@ def main():
     out_h5 = f"{run_dir}/final_converted_spectra.h5"
     write_hdf5(sset, out_h5)
     print(f"[QSHS] Final SpectrumSet saved to: {out_h5}")
+
+    # ----------------------------
+    # Plotting of time cut data
+    # ----------------------------
+
+    # Plot histogram of data againist time (post time filter)
+    invalid_files = metadata["invalid_files"]
+    invalid_files_df = pd.DataFrame(invalid_files)
+    valid_files_df = pd.DataFrame(zip(metadata["file_name"] , metadata["date"]))
+    valid_files_df[1] = pd.to_datetime(valid_files_df[1], format="%Y-%m-%d %H:%M:%S")
+
+
+    if len(invalid_files) != 0:
+        invalid_files_df = pd.DataFrame(invalid_files)
+        invalid_files_df[2] = pd.to_datetime(invalid_files_df[2], format="%Y-%m-%d %H:%M:%S")
+        invalid_metadata = invalid_files_df[invalid_files_df[1] == "metadata is missing"]
+        invalid_high_power = invalid_files_df[invalid_files_df[1] == "power is too high"]
+        invalid_high_noise = invalid_files_df[invalid_files_df[1] == "too noisy"]
+        invalid_power_zeros = invalid_files_df[invalid_files_df[1] == "power spectra is zeros"]
+        invalid_bandwidth_zeros = invalid_files_df[invalid_files_df[1] == "bandwidth data is zeros"]
+        invalid_res_freq_zeros = invalid_files_df[invalid_files_df[1] == "res_freq data is zeros"]
+        invalid_time = invalid_files_df[invalid_files_df[1] == "not in good time range"]
+
+        start_date = min( valid_files_df[1].min(), invalid_files_df[2].min())
+        end_date = max( valid_files_df[1].max(), invalid_files_df[2].max())
+        time_interval = pd.Timedelta(hours=24)
+        bin_num = int( (end_date - start_date) / time_interval)
+
+        plt.figure(figsize=(18,6))
+        plt.hist((valid_files_df[1], invalid_metadata[2], invalid_high_power[2], invalid_high_noise[2], invalid_power_zeros[2], invalid_bandwidth_zeros[2], invalid_res_freq_zeros[2], invalid_time[2])
+                , bin_num, range=(start_date, end_date), stacked=True)
+        plt.gca().xaxis.set_major_formatter(mdates.DateFormatter("%Y-%m-%d"))
+        plt.gca().xaxis.set_major_locator(mdates.DayLocator(interval=1))
+        plt.legend(["valid files", "missing metadata", "power too high", "too noisy", "power is zeros", "bandwidth is zeros", "res freq is zeros", "invalid time filter"])
+        plt.xlabel("Date")
+        plt.ylabel("Number of files")
+        plt.title("Spectra files per day (before timestamp filter)")
+        plt.xticks(rotation=45, ha="right")
+        plt.grid(alpha=0.3)
+        plt.tight_layout()
+        plt.savefig(raw_run_dir/"spectra_hist_time_cut.png", dpi=150)
+        plt.close()
+
+    else:
+        start_date = valid_files_df[1].min()
+        end_date = valid_files_df[1].max()
+        time_interval = pd.Timedelta(hours=0.1)
+        bin_num = int( (end_date - start_date) / time_interval)
+
+        plt.figure(figsize=(18,6))
+        plt.hist(valid_files_df[1], bin_num, range=(start_date, end_date), stacked=True)
+        plt.gca().xaxis.set_major_formatter(mdates.DateFormatter("%Y-%m-%d"))
+        plt.gca().xaxis.set_major_locator(mdates.DayLocator(interval=1))
+        plt.legend("valid files")
+        plt.xlabel("Date")
+        plt.ylabel("Number of files")
+        plt.title("Spectra files per day (post timestamp filter)")
+        plt.xticks(rotation=45, ha="right")
+        plt.grid(alpha=0.3)
+        plt.tight_layout()
+        plt.savefig(raw_run_dir/"spectra_hist_time_cut.png", dpi=150)
+        plt.close()
+
+
+
+    # Plot of total number of events againist time (post time filter)
+    fig, ax = plt.subplots(figsize = (13,5))
+    if len(invalid_files) != 0:
+        invalid_files_df = invalid_files_df.sort_values(by=[2])
+        count_invalid = range(1, len(invalid_files_df[2]) + 1)
+        all_files_df = pd.concat([valid_files_df[1], invalid_files_df[2]])
+        all_files_df = all_files_df.sort_values()
+        ax.plot(invalid_files_df[2], count_invalid, label='removed files', linestyle="dashed", color="red")
+
+    else:
+        all_files_df = valid_files_df[1]
+        all_files_df = all_files_df.sort_values()
+    
+    valid_files_df = valid_files_df.sort_values(by=[1])
+    count_valid = range(1, len(valid_files_df[1]) + 1)
+    count_all = range(1,len(all_files_df) + 1)
+
+    ax.plot(valid_files_df[1], count_valid, label="valid files", color="green")
+    ax.plot(all_files_df, count_all, label='all files', linestyle='dotted', color="orange")
+    ax.xaxis.set_major_formatter(mdates.DateFormatter("%Y-%m-%d"))
+    ax.xaxis.set_major_locator(mdates.DayLocator(interval=1))
+    ax.set_xlabel("Date-Time")
+    ax.set_ylabel("Events")
+    ax.set_title(f"Evolution of number of events w.r.t. Time (post time filter)")
+    ax.legend()
+    plt.xticks(rotation=45, ha="right")
+    plt.grid(alpha=0.3)
+    plt.tight_layout()
+    plt.savefig(f"{raw_run_dir}/events_agaisnt_time_time_cut.png", dpi=150, bbox_inches='tight')
+    plt.close()
+
     
     # =============================================================
     # Spectra Plotting
@@ -1093,6 +1189,8 @@ def main():
         plt.tight_layout()
         plt.savefig(f"{warm_run_dir}/std_vs_freq_{g}.png", dpi = 150, bbox_inches='tight')
         plt.close()
+
+        sys.exit()
         
 
     # Plot group averaged spectra with sg fits
@@ -1110,12 +1208,14 @@ def main():
     plt.savefig(f"{warm_run_dir}/group_averaged_spectra_with_sg_fits.png", dpi = 150, bbox_inches='tight')
     plt.close()
 
+    
+
     # -----------------------------------------------------------------------
     # Iterative Sigma Clipping
     # -----------------------------------------------------------------------
 
     group_masks = [
-    np.zeros(len(avg[0]), dtype=int) if avg is not None else None
+    np.zeros(len(avg[0]), dtype=bool) if avg is not None else None
     for avg in group_avg_spectra
     ]
 
@@ -1172,6 +1272,71 @@ def main():
         plt.tight_layout()
         plt.savefig(f"{warm_run_dir}/masked_bin_iteration_{iteration}.png", dpi=150, bbox_inches='tight')
         plt.close()
+        
+        
+        """      
+            fig, ax = plt.subplots(figsize=(14, 5))
+            for g, avg in enumerate(group_avg_spectra):
+                if avg is None:
+                    continue
+                f, p  = avg
+                mask  = group_masks[g]
+                fit   = group_sg_fits[g]
+                col   = _gcol_1(g)
+        
+                ax.scatter(f[~mask] * 1e-6, p[~mask],
+                            s=4,  color=col,          alpha=0.6)
+                ax.scatter(f[ mask] * 1e-6, p[ mask],
+                            s=12, color="red", alpha=0.85, zorder=5)
+                if fit is not None:
+                    ax.plot(f * 1e-6, fit, lw=1.6, color=col, linestyle="--", alpha=0.9)
+        
+            legend_handles = [
+                plt.Line2D([0], [0], marker="o", color="w",
+                        markerfacecolor="grey",       markersize=7,  label="Unmasked bins"),
+                plt.Line2D([0], [0], marker="o", color="w",
+                        markerfacecolor="red", markersize=9, label="Masked bins"),
+                plt.Line2D([0], [0], color="grey", ls="--", lw=1.5,    label="SG fit"),
+            ]
+            ax.legend(handles=legend_handles, fontsize=10, loc="upper right")
+            sm_iter = ScalarMappable(cmap=_cmap_g_1, norm=_norm_res)
+            sm_iter.set_array([])
+            fig.colorbar(sm_iter, ax=ax, label="Mean cavity resonance  [GHz]")
+            ax.set_xlabel("IF frequency  [MHz]")
+            ax.set_ylabel("PSD  [V²/Hz]")
+            ax.set_title(f"Iteration {iteration}  —  masked bins in \"red\""
+                        f"(sigma_cut={base["sg_poly_warm"]}, window={base["sg_window_warm"]})")
+            plt.tight_layout()
+            plt.savefig(f"{warm_run_dir}/masked_bin_iteration_{iteration}.png", dpi=150, bbox_inches='tight')
+
+        elif base["clipping_mode"] == "Blue":
+
+            persistent_masks, group_sg_fits, groups, masked_total, masked_by_group = blue_clipping(groups, masked_total, sigma_cut, persistent_masks, base["sg_window_warm"], base["sg_poly_warm"])
+            fig, ax = plt.subplots(figsize=(13, 5))
+            for g, ((freqs, specs), fit) in enumerate(zip(group_avg_spectra, group_sg_fits)):
+                ax.plot(freqs/1e6, specs,lw=1.0, alpha=0.55, color=_gcol_1(g), label=f"Grp {g}")
+                ax.plot(freqs/1e6, fit, lw=1.8, alpha=0.95, color=_gcol_1(g), linestyle="--")
+                pts = np.array(masked_by_group[g])
+                if pts.size:
+                    ax.scatter(pts[:, 0]/1e6, pts[:, 1], marker = ".", color=_gcol_2(g), zorder=5)
+                old_pts = np.array(masked_total[g])
+                if old_pts.size:
+                    ax.scatter(old_pts[:, 0]/1e6, old_pts[:, 1], c="grey", zorder=4)
+    
+            sm_res1 = ScalarMappable(cmap=_cmap_g_1, norm=_norm_res)
+            sm_res1.set_array([])
+            fig.colorbar(sm_res1, ax=ax, label="Mean cavity resonance  [GHz]", pad=0.02)
+    
+            sm_res2 = ScalarMappable(cmap=_cmap_g_2, norm=_norm_res)
+            sm_res2.set_array([])
+            fig.colorbar(sm_res2, ax=ax, label="Mean cavity resonance  [GHz]", pad=0.10)
+    
+            ax.set_xlabel("IF frequency  [MHz]")
+            ax.set_ylabel("PSD  [V²/Hz]")
+            ax.set_title("Group-averaged spectra with initial SG fits  (dashed = fit)")
+            plt.tight_layout()
+            plt.savefig(f"{warm_run_dir}/masked_bin_iteration_{iteration}.png", dpi=150, bbox_inches='tight')
+            plt.close() """
 
     # ---------
     # Old Code

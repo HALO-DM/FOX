@@ -13,6 +13,7 @@ def placeholder_bad_predicate(s: np.ndarray, f: np.ndarray, md: SpectrumMetadata
     return False
 
 
+
 def power_too_high(
     s: np.ndarray,
     f: np.ndarray,
@@ -28,6 +29,7 @@ def power_too_high(
     max_power = np.nanmean(s)
 
     return max_power > p_max
+
 
 
 def small_bandwidth(
@@ -47,6 +49,7 @@ def small_bandwidth(
     return bw < bw_min
 
 
+
 def metadata_is_zeros(
     s: np.ndarray,
     f: np.ndarray,
@@ -59,6 +62,8 @@ def metadata_is_zeros(
     Flag a spectrum as BAD if an aspect of metadata is an array of zeros.
     """
     return np.all(md[item] == 0)
+
+
 
 def time_filter(
     s: np.ndarray,
@@ -84,6 +89,8 @@ def time_filter(
         return True
     else:
         return False
+
+
 
 def too_noisy(
     s: np.ndarray,
@@ -114,7 +121,10 @@ def too_noisy(
         rms = np.sqrt(np.nanmean((x - mu) ** 2))
     if not np.isfinite(sigma):  # degenerate edge case
         return True
+    
     return rms > rms_max
+
+
 
 def identify_bad_spectra(sset: SpectrumSet, predicate: BadPredicate | None = None) -> List[int]:
     pred = predicate or placeholder_bad_predicate
@@ -126,6 +136,8 @@ def identify_bad_spectra(sset: SpectrumSet, predicate: BadPredicate | None = Non
         except Exception:
             bad.append(i)
     return bad
+
+
 
 def filter_spectrum_set(
     sset: SpectrumSet,
@@ -146,7 +158,6 @@ def filter_spectrum_set(
     else:
         bad = identify_bad_spectra(sset, predicate=predicate)  # defaults to keep-all
     keep = [i for i in range(n) if i not in set(bad)]
-
 
 
     filtered = SpectrumSet(
