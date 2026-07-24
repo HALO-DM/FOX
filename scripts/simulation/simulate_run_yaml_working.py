@@ -372,6 +372,23 @@ def main():
             print(f"[QC]: {total_bad_time_filter} spectra were removed as within known bad data times.")
 
 
+    # QC: Cut spectra that have arrays of zeros for bandwidth
+    if qc["bandwidth_zeros_filter"]:
+        sset, sset_zeros_bandwidth, kept, bad_zeros_bandwidth = filter_spectrum_set(
+            sset,
+            predicate=lambda s, f, md, i: metadata_is_zeros(
+                s,
+                f,
+                md,
+                i,
+                item = "bandwidth",
+            ),
+        )
+        for s in bad_zeros_bandwidth:
+            invalid_files.append([sset_zeros_bandwidth.metadata["file_name"][s], "bandwidth data is zeros", sset_zeros_bandwidth.metadata["date"][s]])
+        print(f"[QC]: {len(bad_zeros_bandwidth)} spectra were removed as bandwidth were arrays of zeros.")
+
+
     # QC: Cut spectra that has bandwidth values below threshold
     if qc["small_bandwidth_filter"]:
         sset, sset_bandwidth, kept, bad_bandwidth = filter_spectrum_set(
@@ -405,22 +422,31 @@ def main():
             step = max(1, int(out["plots_step"]))
             max_plots = None if out["max_plots"] is None else int(out["max_plots"])
 
+            # Plot bandwidth againist date to show those which have failed
+            good_bandwidths = np.array(sset.metadata["bandwidth"])
+            good_dates = pd.to_datetime(sset.metadata["date"])
+            good_order = np.argsort(good_dates)
+            bad_bandwidths = np.array(sset_bandwidth.metadata["bandwidth"])
+            bad_dates = pd.to_datetime(sset_bandwidth.metadata["date"])
 
-    # QC: Cut spectra that have arrays of zeros for bandwidth
-    if qc["bandwidth_zeros_filter"]:
-        sset, sset_zeros_bandwidth, kept, bad_zeros_bandwidth = filter_spectrum_set(
-            sset,
-            predicate=lambda s, f, md, i: metadata_is_zeros(
-                s,
-                f,
-                md,
-                i,
-                item = "bandwidth",
-            ),
-        )
-        for s in bad_zeros_bandwidth:
-            invalid_files.append([sset_zeros_bandwidth.metadata["file_name"][s], "bandwidth data is zeros", sset_zeros_bandwidth.metadata["date"][s]])
-        print(f"[QC]: {len(bad_zeros_bandwidth)} spectra were removed as bandwidth were arrays of zeros.")
+            order = np.argsort(bad_dates)
+            bad_dates_sorted = bad_dates[order]
+            bad_bandwidths_sorted = bad_bandwidths[order]
+
+            plt.figure(figsize=(13, 7))
+            plt.scatter(bad_dates_sorted, bad_bandwidths_sorted, marker=".", color="firebrick", label="removed (below min threshold)")
+            plt.scatter(good_dates[good_order], good_bandwidths[good_order], marker=".", color="steelblue", alpha=0.6, label="kept (above min threshold)")
+            plt.axhline(qc["bw_min"], color="black", linestyle="--", linewidth=1, label=f"bw_min = {qc['bw_min']:.4g}")
+            plt.xlabel("Date")
+            plt.ylabel("Bandwidth [Hz]")
+            plt.title("Removed spectra: bandwidth below threshold")
+            plt.xticks(rotation=45, ha="right")
+            plt.legend()
+            plt.ylim(0, 0.006)
+            plt.grid(alpha=0.3)
+            plt.tight_layout()
+            plt.savefig(QC_run_dir / "bad_bandwidth_vs_time.png", dpi=150)
+            plt.close()
 
 
     # QC: Cut spectra that have arrays of zeros for res_freq
@@ -451,7 +477,6 @@ def main():
     # Plot histogram of data againist time
     valid_files_df = pd.DataFrame(zip(metadata["file_name"] , metadata["date"]))
     valid_files_df[1] = pd.to_datetime(valid_files_df[1], format="%Y-%m-%d %H:%M:%S")
-    valid_files_df.to_csv(f"{raw_run_dir}/valid.csv")
 
     if len(invalid_files) != 0:
         invalid_files_df = pd.DataFrame(invalid_files)
@@ -1221,6 +1246,7 @@ def main():
     # Iterative Sigma Clipping
     # -----------------------------------------------------------------------
 
+
     group_masks = [
         np.zeros(len(avg[0]), dtype=int) if avg is not None else None
         for avg in group_avg_spectra
@@ -1284,7 +1310,11 @@ def main():
     # --------------------
 
     if out["clipping_residuals"]:
-        for g, fit in enumerate(group_sg_fits):
+
+        clip_run_dir = out_root / f'{out["subdir_prefix"]}_{timestamp}' /'Clipping_plots'
+        clip_run_dir.mkdir(parents=True, exist_ok=True)
+
+        for g, fit in enumerate(tqdm(group_sg_fits, desc="Clipping residuals plots")):
             if base["clipping_mode"] == "Claude":
                 avg = group_avg_spectra[g]
                 if avg is None or fit is None:
@@ -1298,7 +1328,17 @@ def main():
                 ax.set_ylabel("Residuals  [V²/Hz]")
                 ax.set_title(f"Residuals - group {g} (Claude clipping method)")
                 plt.tight_layout()
-                plt.savefig(f"{warm_run_dir}/claude_clipping_residuals_{g}.png", dpi=150, bbox_inches='tight')
+                plt.savefig(f"{clip_run_dir}/claude_clipping_residuals_{g}.png", dpi=150, bbox_inches='tight')
+                plt.close()
+
+                # histogram of residuals
+                fig, ax = plt.subplots(figsize=(9, 5))
+                ax.hist(residuals[np.isfinite(residuals)], bins=50, color="steelblue")
+                ax.set_xlabel("Residuals  [V²/Hz]")
+                ax.set_ylabel("Counts")
+                ax.set_title(f"Residuals histogram - group {g} (Claude clipping method)")
+                plt.tight_layout()
+                plt.savefig(f"{clip_run_dir}/claude_clipping_residuals_hist_{g}.png", dpi=150, bbox_inches='tight')
                 plt.close()
 
 
@@ -1307,12 +1347,16 @@ def main():
                 if fit is None or len(group) == 0:
                     continue
 
-                fig, ax = plt.subplots(figsize=(14, 5))
-                colours = cm.viridis(np.linspace(0, 1, len(group)))
+                n = len(group)
+                colors = cm.viridis(np.linspace(0, 1, n))
+                all_residuals = []
 
+                fig, ax = plt.subplots(figsize=(14, 5))
                 for spec_idx, (spectra, frequencies, res_freq) in enumerate(group):
                     residuals = spectra - fit
-                    ax.plot(frequencies / 1e6, residuals, lw=0.8, alpha=0.7, color=colours[spec_idx])
+                    all_residuals.append(residuals)
+                    ax.plot(frequencies / 1e6, residuals, lw=0.8, alpha=0.7, color=colors[spec_idx])
+
 
                 norm = mcolors.Normalize(vmin=0, vmax=n - 1)
                 sm = ScalarMappable(cmap=cm.viridis, norm=norm)
@@ -1323,10 +1367,25 @@ def main():
                 ax.set_ylabel("Residuals  [V²/Hz]")
                 ax.set_title(f"Residuals — group {g} (Blue clipping method)")
                 plt.tight_layout()
-                plt.savefig(f"{warm_run_dir}/blue_clipping_residuals_{g}.png", dpi=150, bbox_inches='tight')
+                plt.savefig(f"{clip_run_dir}/blue_clipping_residuals_{g}.png", dpi=150, bbox_inches='tight')
                 plt.close()
-    
 
+                # Stacked version
+                fig, ax = plt.subplots(figsize=(9, 5))
+                ax.hist([r[np.isfinite(r)] for r in all_residuals], bins=50, stacked=True, color=colors)
+                norm2 = mcolors.Normalize(vmin=0, vmax=n - 1)
+                sm2 = ScalarMappable(cmap=cm.viridis, norm=norm2)
+                sm2.set_array([])
+                fig.colorbar(sm2, ax=ax, label="Spectrum index in group")
+                ax.set_xlabel("Residuals  [V²/Hz]")
+                ax.set_ylabel("Counts")
+                ax.set_title(f"Residuals histogram (stacked) — group {g} (Blue clipping method)")
+                plt.tight_layout()
+                plt.savefig(f"{clip_run_dir}/blue_clipping_residuals_hist_stack_{g}.png", dpi=150, bbox_inches='tight')
+                plt.close()
+
+
+    
     # ---------
     # Old Code
     # ---------
