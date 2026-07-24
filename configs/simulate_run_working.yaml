@@ -9,7 +9,7 @@ simulation:
 
 input:
   read_input: true
-  directory: "output/qshs_to_FOX/run_20.07.2026_13.32.57"
+  directory: "output/qshs_to_FOX/run_22.07.2026_16.37.50"
   input_file_name: "converted_spectra.h5"
 
 injection:
@@ -40,7 +40,7 @@ baseline:
   sg_window_cold: 351
   sg_poly_cold: 4
   sigma_cut: 3.5
-  clipping_mode: "Blue"
+  clipping_mode: "Claude"    # "Claude" or "Blue"
   n_iterations: 3
 
 rebin:
@@ -57,6 +57,8 @@ output:
   save_data: false      # save per-spectrum PNGs + spectra.npz
   combined_plot: false  # save combined PNG of all spectra
   offset_combined_plot: false # save combined PNG of all spectra with offset
+  set_average_diagnostics: false # save all groups set averaging diagnostic plots
+  clipping_residuals: true   # save all groups post clipping residuals
   plots_step: 1         # plot every Nth spectrum
   # max_plots: 100      # optional cap
   root: "output"        # base output folder

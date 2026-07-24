@@ -121,6 +121,7 @@ def load_yaml_config(path: pathlib.Path) -> dict:
             "combined_plot": bool(_get(out, "combined_plot", False)),
             "offset_combined_plot": bool(_get(out, "offset_combined_plot", False)),
             "set_average_diagnostics": bool(_get(out, "set_average_diagnostics", False)),
+            "clipping_residuals": bool(_get(out, "clipping_residuals", False)),
             "plots_step":    int(_get(out, "plots_step", 1)),   # plot every Nth spectrum
             "max_plots":     out.get("max_plots", None),        # optional int
             "root":          _get(out, "root", "output"),
@@ -714,6 +715,7 @@ def main():
     count_valid = range(1, len(valid_files_df[1]) + 1)
     count_all = range(1,len(all_files_df) + 1)
 
+    
     ax.plot(valid_files_df[1], count_valid, label="valid files", color="green")
     ax.plot(all_files_df, count_all, label='all files', linestyle='dotted', color="orange")
     ax.xaxis.set_major_formatter(mdates.DateFormatter("%Y-%m-%d"))
@@ -1215,33 +1217,30 @@ def main():
     plt.savefig(f"{warm_run_dir}/group_averaged_spectra_with_sg_fits.png", dpi = 150, bbox_inches='tight')
     plt.close()
 
-    
-
     # -----------------------------------------------------------------------
     # Iterative Sigma Clipping
     # -----------------------------------------------------------------------
 
     group_masks = [
-    np.zeros(len(avg[0]), dtype=bool) if avg is not None else None
-    for avg in group_avg_spectra
+        np.zeros(len(avg[0]), dtype=int) if avg is not None else None
+        for avg in group_avg_spectra
     ]
 
     masked_total = [[] for _ in groups]
-
     persistent_masks = [
         [np.zeros(len(item[0]), dtype=bool) for item in group]
         for group in groups
     ]
-
     sigma_cut = base["sigma_cut"]
     n_iterations = base["n_iterations"]
     for iteration in range(1, n_iterations + 1):
         print(f"\n  --- Iteration {iteration} / {n_iterations} ---")
-        
+
         if base["clipping_mode"] == "Claude":
             group_masks, group_sg_fits = claude_clipping(group_avg_spectra, group_masks,
                                                         group_sg_fits, sigma_cut,
                                                         base["sg_window_warm"], base["sg_poly_warm"], iteration)
+            
         elif base["clipping_mode"] == "Blue":
             persistent_masks, group_sg_fits, groups, masked_total, masked_by_group = blue_clipping(groups, masked_total, sigma_cut, persistent_masks, base["sg_window_warm"], base["sg_poly_warm"])
 
@@ -1279,71 +1278,54 @@ def main():
         plt.tight_layout()
         plt.savefig(f"{warm_run_dir}/masked_bin_iteration_{iteration}.png", dpi=150, bbox_inches='tight')
         plt.close()
-        
-        
-        """      
-            fig, ax = plt.subplots(figsize=(14, 5))
-            for g, avg in enumerate(group_avg_spectra):
-                if avg is None:
+
+    # --------------------
+    # Residuals Plotting
+    # --------------------
+
+    if out["clipping_residuals"]:
+        for g, fit in enumerate(group_sg_fits):
+            if base["clipping_mode"] == "Claude":
+                avg = group_avg_spectra[g]
+                if avg is None or fit is None:
                     continue
-                f, p  = avg
-                mask  = group_masks[g]
-                fit   = group_sg_fits[g]
-                col   = _gcol_1(g)
-        
-                ax.scatter(f[~mask] * 1e-6, p[~mask],
-                            s=4,  color=col,          alpha=0.6)
-                ax.scatter(f[ mask] * 1e-6, p[ mask],
-                            s=12, color="red", alpha=0.85, zorder=5)
-                if fit is not None:
-                    ax.plot(f * 1e-6, fit, lw=1.6, color=col, linestyle="--", alpha=0.9)
-        
-            legend_handles = [
-                plt.Line2D([0], [0], marker="o", color="w",
-                        markerfacecolor="grey",       markersize=7,  label="Unmasked bins"),
-                plt.Line2D([0], [0], marker="o", color="w",
-                        markerfacecolor="red", markersize=9, label="Masked bins"),
-                plt.Line2D([0], [0], color="grey", ls="--", lw=1.5,    label="SG fit"),
-            ]
-            ax.legend(handles=legend_handles, fontsize=10, loc="upper right")
-            sm_iter = ScalarMappable(cmap=_cmap_g_1, norm=_norm_res)
-            sm_iter.set_array([])
-            fig.colorbar(sm_iter, ax=ax, label="Mean cavity resonance  [GHz]")
-            ax.set_xlabel("IF frequency  [MHz]")
-            ax.set_ylabel("PSD  [V²/Hz]")
-            ax.set_title(f"Iteration {iteration}  —  masked bins in \"red\""
-                        f"(sigma_cut={base["sg_poly_warm"]}, window={base["sg_window_warm"]})")
-            plt.tight_layout()
-            plt.savefig(f"{warm_run_dir}/masked_bin_iteration_{iteration}.png", dpi=150, bbox_inches='tight')
+                freqs, specs = avg
+                residuals = specs - fit
 
-        elif base["clipping_mode"] == "Blue":
+                fig, ax = plt.subplots(figsize=(14, 5))
+                ax.plot( freqs/1e6 ,residuals)
+                ax.set_xlabel("IF frequency  [MHz]")
+                ax.set_ylabel("Residuals  [V²/Hz]")
+                ax.set_title(f"Residuals - group {g} (Claude clipping method)")
+                plt.tight_layout()
+                plt.savefig(f"{warm_run_dir}/claude_clipping_residuals_{g}.png", dpi=150, bbox_inches='tight')
+                plt.close()
 
-            persistent_masks, group_sg_fits, groups, masked_total, masked_by_group = blue_clipping(groups, masked_total, sigma_cut, persistent_masks, base["sg_window_warm"], base["sg_poly_warm"])
-            fig, ax = plt.subplots(figsize=(13, 5))
-            for g, ((freqs, specs), fit) in enumerate(zip(group_avg_spectra, group_sg_fits)):
-                ax.plot(freqs/1e6, specs,lw=1.0, alpha=0.55, color=_gcol_1(g), label=f"Grp {g}")
-                ax.plot(freqs/1e6, fit, lw=1.8, alpha=0.95, color=_gcol_1(g), linestyle="--")
-                pts = np.array(masked_by_group[g])
-                if pts.size:
-                    ax.scatter(pts[:, 0]/1e6, pts[:, 1], marker = ".", color=_gcol_2(g), zorder=5)
-                old_pts = np.array(masked_total[g])
-                if old_pts.size:
-                    ax.scatter(old_pts[:, 0]/1e6, old_pts[:, 1], c="grey", zorder=4)
+
+            elif base["clipping_mode"] == "Blue":
+                group = groups[g]
+                if fit is None or len(group) == 0:
+                    continue
+
+                fig, ax = plt.subplots(figsize=(14, 5))
+                colours = cm.viridis(np.linspace(0, 1, len(group)))
+
+                for spec_idx, (spectra, frequencies, res_freq) in enumerate(group):
+                    residuals = spectra - fit
+                    ax.plot(frequencies / 1e6, residuals, lw=0.8, alpha=0.7, color=colours[spec_idx])
+
+                norm = mcolors.Normalize(vmin=0, vmax=n - 1)
+                sm = ScalarMappable(cmap=cm.viridis, norm=norm)
+                sm.set_array([])
+                fig.colorbar(sm, ax=ax, label="Spectrum index in group")
+
+                ax.set_xlabel("IF frequency  [MHz]")
+                ax.set_ylabel("Residuals  [V²/Hz]")
+                ax.set_title(f"Residuals — group {g} (Blue clipping method)")
+                plt.tight_layout()
+                plt.savefig(f"{warm_run_dir}/blue_clipping_residuals_{g}.png", dpi=150, bbox_inches='tight')
+                plt.close()
     
-            sm_res1 = ScalarMappable(cmap=_cmap_g_1, norm=_norm_res)
-            sm_res1.set_array([])
-            fig.colorbar(sm_res1, ax=ax, label="Mean cavity resonance  [GHz]", pad=0.02)
-    
-            sm_res2 = ScalarMappable(cmap=_cmap_g_2, norm=_norm_res)
-            sm_res2.set_array([])
-            fig.colorbar(sm_res2, ax=ax, label="Mean cavity resonance  [GHz]", pad=0.10)
-    
-            ax.set_xlabel("IF frequency  [MHz]")
-            ax.set_ylabel("PSD  [V²/Hz]")
-            ax.set_title("Group-averaged spectra with initial SG fits  (dashed = fit)")
-            plt.tight_layout()
-            plt.savefig(f"{warm_run_dir}/masked_bin_iteration_{iteration}.png", dpi=150, bbox_inches='tight')
-            plt.close() """
 
     # ---------
     # Old Code
@@ -1389,10 +1371,14 @@ def main():
     plt.close()
 
     fig, ax = plt.subplots(figsize = (13,5))
-    ax.plot(metadata["date"], colour_vals)
+    metadata_dates = pd.to_datetime(metadata["date"], format="%Y-%m-%d %H:%M:%S")
+    ax.xaxis.set_major_formatter(mdates.DateFormatter("%Y-%m-%d %H:%M"))
+    ax.xaxis.set_major_locator(mdates.HourLocator(interval=1))
+    ax.plot(metadata_dates, colour_vals)
     ax.set_xlabel("Date-Time")
     ax.set_ylabel(cbar_label)
     ax.set_title(f"Evolution of {cbar_label} w.r.t. Time")
+    plt.xticks(rotation=45, ha="right")
     plt.tight_layout()
     plt.savefig(f"{warm_run_dir}/evolution_of_frequency.png", dpi=150, bbox_inches='tight')
     plt.close()
