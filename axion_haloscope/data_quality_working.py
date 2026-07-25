@@ -176,7 +176,11 @@ def filter_spectrum_set(
         freqs_per_spec=[sset.freqs_per_spec[i] for i in bad],
         rf_grid=sset.rf_grid,
         rf_index_map=[sset.rf_index_map[i] for i in bad],
-        metadata=sset.metadata
+        metadata={key: (
+            value if key == "invalid_files"
+            else (value[bad] if isinstance(value, np.ndarray) else [value[i] for i in bad]))
+            for key, value in sset.metadata.items()
+        }
     )
     return filtered, removed, keep, bad
 

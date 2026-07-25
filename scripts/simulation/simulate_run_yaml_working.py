@@ -274,8 +274,8 @@ def main():
                 p_max=qc["p_max"],
             ),
         )
-        for s in bad_power:
-            invalid_files.append([sset_power.metadata["file_name"][s], "power is too high", sset_power.metadata["date"][s]])
+        for idx, s in enumerate(bad_power):
+            invalid_files.append([sset_power.metadata["file_name"][idx], "power is too high", sset_power.metadata["date"][idx]])
         print(f"[QC]: {len(bad_power)} spectra were removed as power is too high.")
         # Seperate invalid power spectra to plot
         specs_invalid_power, fper_invalid_power = sset_power.spectra, sset_power.freqs_per_spec
@@ -308,8 +308,8 @@ def main():
                 rms_max=qc["rms_max"], 
             )
         )
-        for s in bad_noise:
-            invalid_files.append([sset_noise.metadata["file_name"][s], "too noisy", sset_noise.metadata["date"][s]])
+        for idx, s in enumerate(bad_noise):
+            invalid_files.append([sset_noise.metadata["file_name"][idx], "too noisy", sset_noise.metadata["date"][idx]])
         print(f"[QC]: {len(bad_noise)} spectra were removed as too noisy.")
         # Seperate invalid power spectra to plot
         specs_invalid_noise, fper_invalid_noise = sset_noise.spectra, sset_noise.freqs_per_spec
@@ -350,8 +350,8 @@ def main():
                         ),
                 )
                 total_bad_time_filter += len(bad_time_filter)
-                for s in bad_time_filter:
-                    invalid_files.append([sset_time_filtered.metadata["file_name"][s], f"known bad data ({qc['start_time'][t]}-{qc['end_time'][t]})" , sset_time_filtered.metadata["date"][s]])
+                for idx, s in enumerate(bad_time_filter):
+                    invalid_files.append([sset_time_filtered.metadata["file_name"][idx], f"known bad data ({qc['start_time'][t]}-{qc['end_time'][t]})" , sset_time_filtered.metadata["date"][idx]])
                 
                 specs_invalid_time, fper_invalid_time = sset_time_filtered.spectra, sset_time_filtered.freqs_per_spec
                 if len(specs_invalid_time) != 0:
@@ -372,23 +372,6 @@ def main():
             print(f"[QC]: {total_bad_time_filter} spectra were removed as within known bad data times.")
 
 
-    # QC: Cut spectra that have arrays of zeros for bandwidth
-    if qc["bandwidth_zeros_filter"]:
-        sset, sset_zeros_bandwidth, kept, bad_zeros_bandwidth = filter_spectrum_set(
-            sset,
-            predicate=lambda s, f, md, i: metadata_is_zeros(
-                s,
-                f,
-                md,
-                i,
-                item = "bandwidth",
-            ),
-        )
-        for s in bad_zeros_bandwidth:
-            invalid_files.append([sset_zeros_bandwidth.metadata["file_name"][s], "bandwidth data is zeros", sset_zeros_bandwidth.metadata["date"][s]])
-        print(f"[QC]: {len(bad_zeros_bandwidth)} spectra were removed as bandwidth were arrays of zeros.")
-
-
     # QC: Cut spectra that has bandwidth values below threshold
     if qc["small_bandwidth_filter"]:
         sset, sset_bandwidth, kept, bad_bandwidth = filter_spectrum_set(
@@ -401,8 +384,8 @@ def main():
                 bw_min=qc["bw_min"],
             ),
         )
-        for s in bad_bandwidth:
-            invalid_files.append([sset_bandwidth.metadata["file_name"][s], "bandwidth is too small", sset_bandwidth.metadata["date"][s]])
+        for idx, s in enumerate(bad_bandwidth):
+            invalid_files.append([sset_bandwidth.metadata["file_name"][idx], "bandwidth is too small", sset_bandwidth.metadata["date"][idx]])
         print(f"[QC]: {len(bad_bandwidth)} spectra were removed as bandwidth is too small.")
         # Seperate invalid bandwidth spectra to plot
         specs_invalid_bandwidth, fper_invalid_bandwidth = sset_bandwidth.spectra, sset_bandwidth.freqs_per_spec
@@ -434,8 +417,8 @@ def main():
             bad_bandwidths_sorted = bad_bandwidths[order]
 
             plt.figure(figsize=(13, 7))
-            plt.scatter(bad_dates_sorted, bad_bandwidths_sorted, marker=".", color="firebrick", label="removed (below min threshold)")
-            plt.scatter(good_dates[good_order], good_bandwidths[good_order], marker=".", color="steelblue", alpha=0.6, label="kept (above min threshold)")
+            plt.scatter(bad_dates_sorted, bad_bandwidths_sorted, color="firebrick", label="removed (below min threshold)")
+            plt.scatter(good_dates[good_order], good_bandwidths[good_order], color="steelblue", alpha=0.6, label="kept (above min threshold)")
             plt.axhline(qc["bw_min"], color="black", linestyle="--", linewidth=1, label=f"bw_min = {qc['bw_min']:.4g}")
             plt.xlabel("Date")
             plt.ylabel("Bandwidth [Hz]")
@@ -461,8 +444,8 @@ def main():
                 item = "res_freq",
             ),
         )
-        for s in bad_zeros_res_freq:
-            invalid_files.append([sset_zeros_res_freq.metadata["file_name"][s], "res_freq data is zeros", sset_zeros_res_freq.metadata["date"][s]])
+        for idx, s in enumerate(bad_zeros_res_freq):
+            invalid_files.append([sset_zeros_res_freq.metadata["file_name"][idx], "res_freq data is zeros", sset_zeros_res_freq.metadata["date"][idx]])
         print(f"[QC]: {len(bad_zeros_res_freq)} spectra were removed as res_freq were arrays of zeros.")
 
 
@@ -485,7 +468,7 @@ def main():
         invalid_high_power = invalid_files_df[invalid_files_df[1] == "power is too high"]
         invalid_high_noise = invalid_files_df[invalid_files_df[1] == "too noisy"]
         invalid_power_zeros = invalid_files_df[invalid_files_df[1] == "power spectra is zeros"]
-        invalid_bandwidth_zeros = invalid_files_df[invalid_files_df[1] == "bandwidth data is zeros"]
+        invalid_bandwidth = invalid_files_df[invalid_files_df[1] == "bandwidth is too small"]
         invalid_res_freq_zeros = invalid_files_df[invalid_files_df[1] == "res_freq data is zeros"]
 
         start_date = min( valid_files_df[1].min(), invalid_files_df[2].min())
@@ -494,11 +477,11 @@ def main():
         bin_num = int( (end_date - start_date) / time_interval)
 
         plt.figure(figsize=(18,6))
-        plt.hist((valid_files_df[1], invalid_metadata[2], invalid_high_power[2], invalid_high_noise[2], invalid_power_zeros[2], invalid_bandwidth_zeros[2], invalid_res_freq_zeros[2])
+        plt.hist((valid_files_df[1], invalid_metadata[2], invalid_high_power[2], invalid_high_noise[2], invalid_power_zeros[2], invalid_bandwidth[2], invalid_res_freq_zeros[2])
                 , bin_num, range=(start_date, end_date), stacked=True)
         plt.gca().xaxis.set_major_formatter(mdates.DateFormatter("%Y-%m-%d"))
         plt.gca().xaxis.set_major_locator(mdates.DayLocator(interval=1))
-        plt.legend(["valid files", "missing metadata", "power too high", "too noisy", "power is zeros", "bandwidth is zeros", "res freq is zeros"])
+        plt.legend(["valid files", "missing metadata", "power too high", "too noisy", "power is zeros", "bandwidth is too small", "res freq is zeros"])
         plt.xlabel("Date")
         plt.ylabel("Number of files")
         plt.title("Spectra files per day (before timestamp filter)")
@@ -530,29 +513,49 @@ def main():
 
 
     # Plot of total number of events againist time
-    fig, ax = plt.subplots(figsize = (13,5))
+    fig, ax = plt.subplots(figsize=(13, 5))
     if len(invalid_files) != 0:
         invalid_files_df = invalid_files_df.sort_values(by=[2])
-        count_invalid = range(1, len(invalid_files_df[2]) + 1)
+        count_invalid = list(range(1, len(invalid_files_df[2]) + 1))
         all_files_df = pd.concat([valid_files_df[1], invalid_files_df[2]])
         all_files_df = all_files_df.sort_values()
-        ax.plot(invalid_files_df[2], count_invalid, label='invalid files', color="red")
+        overall_end = max(valid_files_df[1].max(), invalid_files_df[2].max())
+
+        invalid_dates = list(invalid_files_df[2])
+        if invalid_dates[-1] < overall_end:
+            invalid_dates.append(overall_end)
+            count_invalid.append(count_invalid[-1])
+
+        ax.plot(invalid_dates, count_invalid, label='invalid files', color="red")
 
     else:
         all_files_df = valid_files_df[1]
         all_files_df = all_files_df.sort_values()
-    
-    valid_files_df = valid_files_df.sort_values(by=[1])
-    count_valid = range(1, len(valid_files_df[1]) + 1)
-    count_all = range(1,len(all_files_df) + 1)
 
-    ax.plot(valid_files_df[1], count_valid, label="valid files", color="green")
-    ax.plot(all_files_df, count_all, label='all files', linestyle='dashed', color="orange")
+    valid_files_df = valid_files_df.sort_values(by=[1])
+    count_valid = list(range(1, len(valid_files_df[1]) + 1))
+    count_all = list(range(1, len(all_files_df) + 1))
+
+    overall_end = max(valid_files_df[1].max(), all_files_df.max())
+
+    valid_dates = list(valid_files_df[1])
+    if valid_dates[-1] < overall_end:
+        valid_dates.append(overall_end)
+        count_valid.append(count_valid[-1])
+
+    all_dates = list(all_files_df)
+    if all_dates[-1] < overall_end:
+        all_dates.append(overall_end)
+        count_all.append(count_all[-1])
+
+    ax.plot(valid_dates, count_valid, label="valid files", color="green")
+    ax.plot(all_dates, count_all, label='all files', linestyle='dashed', color="orange")
+
     ax.xaxis.set_major_formatter(mdates.DateFormatter("%Y-%m-%d"))
     ax.xaxis.set_major_locator(mdates.DayLocator(interval=1))
     ax.set_xlabel("Date-Time")
     ax.set_ylabel("Events")
-    ax.set_title(f"Evolution of number of events w.r.t. Time")
+    ax.set_title(f"Evolution of number of events w.r.t. time")
     ax.legend()
     plt.xticks(rotation=45, ha="right")
     plt.grid(alpha=0.3)
@@ -677,7 +680,7 @@ def main():
         invalid_high_power = invalid_files_df[invalid_files_df[1] == "power is too high"]
         invalid_high_noise = invalid_files_df[invalid_files_df[1] == "too noisy"]
         invalid_power_zeros = invalid_files_df[invalid_files_df[1] == "power spectra is zeros"]
-        invalid_bandwidth_zeros = invalid_files_df[invalid_files_df[1] == "bandwidth data is zeros"]
+        invalid_bandwidth = invalid_files_df[invalid_files_df[1] == "bandwidth is too small"]
         invalid_res_freq_zeros = invalid_files_df[invalid_files_df[1] == "res_freq data is zeros"]
         invalid_time = invalid_files_df[invalid_files_df[1] == "not in good time range"]
 
@@ -687,14 +690,14 @@ def main():
         bin_num = int( (end_date - start_date) / time_interval)
 
         plt.figure(figsize=(18,6))
-        plt.hist((valid_files_df[1], invalid_metadata[2], invalid_high_power[2], invalid_high_noise[2], invalid_power_zeros[2], invalid_bandwidth_zeros[2], invalid_res_freq_zeros[2], invalid_time[2])
+        plt.hist((valid_files_df[1], invalid_metadata[2], invalid_high_power[2], invalid_high_noise[2], invalid_power_zeros[2], invalid_bandwidth[2], invalid_res_freq_zeros[2], invalid_time[2])
                 , bin_num, range=(start_date, end_date), stacked=True)
         plt.gca().xaxis.set_major_formatter(mdates.DateFormatter("%Y-%m-%d"))
         plt.gca().xaxis.set_major_locator(mdates.DayLocator(interval=1))
-        plt.legend(["valid files", "missing metadata", "power too high", "too noisy", "power is zeros", "bandwidth is zeros", "res freq is zeros", "invalid time filter"])
+        plt.legend(["valid files", "missing metadata", "power too high", "too noisy", "power is zeros", "bandwidth is too small", "res freq is zeros", "invalid time filter"])
         plt.xlabel("Date")
         plt.ylabel("Number of files")
-        plt.title("Spectra files per day (before timestamp filter)")
+        plt.title("Spectra files per day (post timestamp filter)")
         plt.xticks(rotation=45, ha="right")
         plt.grid(alpha=0.3)
         plt.tight_layout()
@@ -722,7 +725,6 @@ def main():
         plt.close()
 
 
-
     # Plot of total number of events againist time (post time filter)
     fig, ax = plt.subplots(figsize = (13,5))
     if len(invalid_files) != 0:
@@ -730,24 +732,42 @@ def main():
         count_invalid = range(1, len(invalid_files_df[2]) + 1)
         all_files_df = pd.concat([valid_files_df[1], invalid_files_df[2]])
         all_files_df = all_files_df.sort_values()
-        ax.plot(invalid_files_df[2], count_invalid, label='removed files', linestyle="dashed", color="red")
+        overall_end = max(valid_files_df[1].max(), invalid_files_df[2].max())
+
+        invalid_dates = list(invalid_files_df[2])
+        if invalid_dates[-1] < overall_end:
+            invalid_dates.append(overall_end)
+            count_invalid.append(count_invalid[-1])
+        ax.plot(invalid_dates, count_invalid, label='invalid files', color="red")
 
     else:
         all_files_df = valid_files_df[1]
         all_files_df = all_files_df.sort_values()
-    
+
     valid_files_df = valid_files_df.sort_values(by=[1])
-    count_valid = range(1, len(valid_files_df[1]) + 1)
-    count_all = range(1,len(all_files_df) + 1)
+    count_valid = list(range(1, len(valid_files_df[1]) + 1))
+    count_all = list(range(1, len(all_files_df) + 1))
+
+    overall_end = max(valid_files_df[1].max(), all_files_df.max())
+
+    valid_dates = list(valid_files_df[1])
+    if valid_dates[-1] < overall_end:
+        valid_dates.append(overall_end)
+        count_valid.append(count_valid[-1])
+
+    all_dates = list(all_files_df)
+    if all_dates[-1] < overall_end:
+        all_dates.append(overall_end)
+        count_all.append(count_all[-1])
 
     
-    ax.plot(valid_files_df[1], count_valid, label="valid files", color="green")
-    ax.plot(all_files_df, count_all, label='all files', linestyle='dotted', color="orange")
+    ax.plot(valid_dates, count_valid, label="valid files", color="green")
+    ax.plot(all_dates, count_all, label='all files', linestyle='dotted', color="orange")
     ax.xaxis.set_major_formatter(mdates.DateFormatter("%Y-%m-%d"))
     ax.xaxis.set_major_locator(mdates.DayLocator(interval=1))
     ax.set_xlabel("Date-Time")
     ax.set_ylabel("Events")
-    ax.set_title(f"Evolution of number of events w.r.t. Time (post time filter)")
+    ax.set_title(f"Evolution of number of events w.r.t. time (post time filter)")
     ax.legend()
     plt.xticks(rotation=45, ha="right")
     plt.grid(alpha=0.3)
@@ -1158,7 +1178,7 @@ def main():
 
 
             # Plot set averaged spectra with errors per group
-            fig, ax = plt.subplots(figsize=(26, 10))
+            fig, ax = plt.subplots(figsize=(13, 5))
             # ax.errorbar(freqs/1e6, specs, alpha=0.25, ecolor="blue", color="red")
             # ax.plot(freqs/1e6, specs, alpha=0.8, color='red')
             ax.errorbar(np.mean([x[1] for x in group], axis=0)/1e6, np.mean([x[0] for x in group], axis=0), np.std([x[0] for x in group], axis=0), alpha=0.25, ecolor="blue", color="red")
