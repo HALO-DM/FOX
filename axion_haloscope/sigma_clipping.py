@@ -1,6 +1,7 @@
 import numpy as np
 import sys
 from axion_haloscope.baseline import remove_baseline
+from scipy.interpolate import interp1d
 
 def _sg_masked(freqs, psd, mask_bad, window, order):
     """
@@ -32,6 +33,40 @@ def _interpolate_nans(y):
         y = y.copy()
         y[nans] = np.interp(x[nans], x[~nans], y[~nans])
     return y
+
+def finalise_specs(mode, group_avg_spectra, groups, group_sg_fits):
+    specs, fper = [], []
+    if mode == "Claude":
+        for g, group in enumerate(groups):
+            avg = group_avg_spectra[g]
+            fit = group_sg_fits[g]
+            if avg is None or fit is None:
+                continue
+
+            f_grid = avg[0]
+            baseline_interp = interp1d(
+                f_grid, fit,
+                bounds_error=False,
+                fill_value=(fit[0], fit[-1]),
+            )
+
+            for item in group:
+                f_i   = np.asarray(item[1], dtype=float)
+                psd_i = np.asarray(item[0], dtype=float)
+
+                bl      = baseline_interp(f_i)
+                bl_safe = np.where(np.abs(bl) > 1e-40, bl, np.nanmean(psd_i))
+                specs.append(psd_i / bl_safe)
+                fper.append(f_i)
+
+    elif mode == "Blue":
+        for group, baseline in zip(groups, group_sg_fits):
+            if baseline is None:
+                continue
+            group_spectra, group_freqs, _ = map(np.array, zip(*group))
+            specs.extend(group_spectra / baseline)
+            fper.extend(group_freqs)
+    return specs, fper
 
 def claude_clipping(group_avg_spectra, group_masks, group_sg_fits, 
                     sigma_cut, sg_window, sg_order, iteration):
@@ -66,64 +101,44 @@ def claude_clipping(group_avg_spectra, group_masks, group_sg_fits,
     return group_masks, group_sg_fits
 
 
-def blue_clipping(groups, masked_total, sigma_cut, persistent_masks, sg_window, sg_order):
-    
-    masked_by_group = []
-    new_groups = []
-    new_group_sg_fits = []
-    new_persistent_masks = []
+def blue_clipping(groups, group_masks, group_sg_fits, sigma_cut,
+                   sg_window, sg_order, iteration):
+    total_new = 0
+    for g, group in enumerate(groups):
+        current_masks = group_masks[g]
+        spectra_stack = np.array([spec for spec, *_ in group])
+        mask_stack    = np.array([m != 0 for m in current_masks])
 
-    for group_idx, group in enumerate(groups):
-        group_masks = persistent_masks[group_idx]   
-
-        spectra_stack = np.array([x[0] for x in group])
-        mask_stack    = np.array(group_masks)
-
-        masked_stack = np.ma.masked_array(spectra_stack, mask=mask_stack)
+        masked_stack    = np.ma.masked_array(spectra_stack, mask=mask_stack)
         average_spectra = masked_stack.mean(axis=0).filled(np.nan)
-        sd_spectra      = masked_stack.std(axis=0).filled(np.nan)
+        
 
         average_for_fit = _interpolate_nans(average_spectra)
-        #baseline = _sg_masked(group[1][0], average_for_fit, masked_stack, sg_window, sg_order)
-        _, baseline = remove_baseline(
-                    average_for_fit,
-                    window_length=sg_window,
-                    polyorder=sg_order,
-                )
-        new_group_sg_fits.append(baseline)
+        _, baseline = remove_baseline(average_for_fit, window_length=sg_window, polyorder=sg_order)
+        group_sg_fits[g] = baseline
 
-        masked_new = []
-        new_group = []
-        new_group_masks = []
-
+        n_new = 0
         for spec_idx, (spectra, frequencies, res_freq) in enumerate(group):
-            prev_mask = group_masks[spec_idx]
-
+            current_mask = current_masks[spec_idx]
             deviation = np.abs(spectra - baseline)
-            new_flags = (deviation > sigma_cut * sd_spectra) & ~prev_mask
+            sd_spectra = np.std(spectra - baseline)
+            new_bad = (current_mask == 0) & (deviation > sigma_cut * sd_spectra)
 
-            cum_mask = prev_mask | new_flags
+            combined = current_mask.copy()
+            combined[new_bad] = iteration
+            current_masks[spec_idx] = combined
 
-            spec_m = np.ma.masked_array(spectra, cum_mask)
-            freq_m = np.ma.masked_array(frequencies, cum_mask)
+            n_new += int(np.sum(new_bad))
 
-            cleaned_spec = _interpolate_nans(spec_m.filled(np.nan))
-            cleaned_freq = _interpolate_nans(freq_m.filled(np.nan))
+            cleaned_spec = _interpolate_nans(np.where(combined == 0, spectra, np.nan))
+            cleaned_freq = _interpolate_nans(np.where(combined == 0, frequencies, np.nan))
+            groups[g][spec_idx] = [cleaned_spec, cleaned_freq, res_freq]
 
-            newly_masked_idx = np.where(new_flags)[0]
-            for idx in newly_masked_idx:
-                masked_new.append([frequencies[idx], spectra[idx]])
+        total_new += n_new
+        n_bins = sum(len(m) for m in current_masks)
+        n_masked = sum(int(np.count_nonzero(m)) for m in current_masks)
+        print(f"    Group {g+1:3d}: newly masked={n_new:4d}  "
+              f"total masked={n_masked:4d}/{n_bins}")
 
-            new_group.append([cleaned_spec, cleaned_freq, res_freq])
-            new_group_masks.append(cum_mask)
-
-        masked_by_group.append(masked_new)
-        new_groups.append(new_group)
-        new_persistent_masks.append(new_group_masks)
-
-    for g in range(len(groups)):
-        masked_total[g].extend(masked_by_group[g])
-        groups = new_groups
-        group_sg_fits = new_group_sg_fits
-        persistent_masks = new_persistent_masks
-    return persistent_masks, group_sg_fits, groups, masked_total, masked_by_group
+    print(f"  Total newly masked this iteration: {total_new}")
+    return group_masks, group_sg_fits
