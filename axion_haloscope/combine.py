@@ -88,6 +88,9 @@ def combine_ml(
                 f"spec_freqs length ({len(spec_freqs)}) must match "
                 f"processed_spectra length ({len(processed_spectra)})."
             )
+        
+    if per_spec_sigma is None: # If no sigma provided, use std
+        per_spec_sigma = [max(np.std(s), 1e-6) for s in processed_spectra]
 
     combined = np.zeros(total_rf_bins, float)   # Initialise arrays to hold the combined spectrum
     wsum     = np.zeros(total_rf_bins, float)   # the sum of weights
