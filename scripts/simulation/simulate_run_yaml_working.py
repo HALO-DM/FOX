@@ -122,6 +122,7 @@ def load_yaml_config(path: pathlib.Path) -> dict:
             "offset_combined_plot": bool(_get(out, "offset_combined_plot", False)),
             "set_average_diagnostics": bool(_get(out, "set_average_diagnostics", False)),
             "clipping_residuals": bool(_get(out, "clipping_residuals", False)),
+            "varying_group_size": bool(_get(out, "varying_group_size", False)),
             "plots_step":    int(_get(out, "plots_step", 1)),   # plot every Nth spectrum
             "max_plots":     out.get("max_plots", None),        # optional int
             "root":          _get(out, "root", "output"),
@@ -1405,13 +1406,165 @@ def main():
                 plt.close()
 
 
-    
+
+    # ===================================
+    # Varying Group Size
+    # ====================================
+
+    specs_grp = shifted_spectra
+
+    if out["varying_group_size"]:
+
+        var_dir = out_root / f'{out["subdir_prefix"]}_{timestamp}' / 'Varying_group_size'
+        var_dir.mkdir(parents=True, exist_ok=True)
+
+        spacings = [10, 15, 30, 60, 120, 240] # minutes
+        var_results = []
+        n_total = len(dts)
+
+        for spacing in spacings:
+            spacing_sec = float(spacing * 60)  # seconds
+            
+            var_groups = []
+            i = 0
+            while i < n_total:
+                j = i + 1
+                while j < n_total and (dts[j] - dts[i]).total_seconds() < spacing_sec:
+                    j += 1
+                var_groups.append([[specs_grp[k], fper[k], metadata["res_freq"][k]] for k in range(i, j)])
+                i = j
+
+            group_sizes = [len(g) for g in var_groups]
+            residual_stds = []
+            residual_avgs = []
+            for group in var_groups:
+                freqs_avg = np.mean([x[1] for x in group], axis=0)
+                spec_avg = np.mean([x[0] for x in group], axis=0)
+
+                if not spec_avg.any():
+                    continue
+
+                try:
+                    _, baseline = remove_baseline(
+                        spectrum=spec_avg,
+                        window_length=base["sg_window_warm"],
+                        polyorder=base["sg_poly_warm"],
+                    )
+                except Exception as e:
+                    print(f"[Grouping variation] spacing={spacing}min: SG fit failed ({e}), skipping group")
+                    continue
+
+                residuals = spec_avg - baseline
+                residual_stds.append(np.nanstd(residuals))
+                residual_avgs.append(np.nanmean(residuals))
+
+            var_results.append({
+                "spacing_minutes": spacing,
+                "n_groups": len(var_groups),
+                "average_group_size": np.mean(group_sizes),
+                "average_residual_std": np.mean(residual_stds),
+                "average_residual_average": np.mean(residual_avgs),
+            })
+
+        # ------------------
+        # Plotting
+        # ------------------
+
+        spacings   = [r["spacing_minutes"] for r in var_results]
+        n_groups   = [r["n_groups"] for r in var_results]
+        grp_size  = [r["average_group_size"] for r in var_results]
+        resid_std  = [r["average_residual_std"] for r in var_results]
+
+
+        # Plotting variation of residual std and number of groups with variation in group size
+        fig, ax1 = plt.subplots(figsize=(10, 5))
+        ln1 = ax1.plot(spacings, resid_std, marker="o", color="blue", alpha=0.7, label="Average residual std")
+        ax1.set_xlabel("Grouping time [minutes]")
+        ax1.set_ylabel("Average residual std  [V²/Hz]")
+
+        ax2 = ax1.twinx()
+        ln2 = ax2.plot(spacings, n_groups, marker="s", color="red", alpha=0.7, label="Number of groups")
+        ax2.set_ylabel("Number of groups")
+
+        ax1.set_title("SG fit residual spread vs. grouping time")
+        ax1.grid(alpha=0.3)
+        lns = ln1+ln2
+        labs = [l.get_label() for l in lns]
+        plt.legend(lns, labs)
+        plt.tight_layout()
+        plt.savefig(f"{var_dir}/residual_std_vs_grouping.png", dpi=150, bbox_inches='tight')
+        plt.close()
+
+
+        # Plotting average group size againist grouping time
+        fig, ax = plt.subplots(figsize=(10, 5))
+        ax.plot(spacings, grp_size, marker="o")
+        ax.set_xlabel("Grouping time threshold  [minutes]")
+        ax.set_ylabel("Average spectra per group")
+        ax.set_title("Average group size vs. grouping time")
+        ax.grid(alpha=0.3)
+        plt.tight_layout()
+        plt.savefig(f"{var_dir}/group_size_vs_grouping_time.png", dpi=150, bbox_inches='tight')
+        plt.close()
+
+
+        # Plot the SG fit for the first group in each grouping time for each grouping time
+        fig, ax = plt.subplots(figsize=(13, 5))
+        colors = cm.viridis(np.linspace(0, 1, len(spacings)))
+
+        for c_idx, test_spacing in enumerate(spacings):
+            spacing_sec = test_spacing * 60
+            var_groups = []
+            i = 0
+            while i < n_total:
+                j = i + 1
+                while j < n_total and (dts[j] - dts[i]).total_seconds() < spacing_sec:
+                    j += 1
+                var_groups.append([[specs_grp[k], fper[k], metadata["res_freq"][k]] for k in range(i, j)])
+                i = j
+
+            if len(var_groups) == 0:
+                continue
+
+            rep_group = next((g for g in var_groups if len(g) > 0), None)
+            if rep_group is None:
+                continue
+
+            freqs_avg = np.mean([x[1] for x in rep_group], axis=0)
+            spec_avg = np.mean([x[0] for x in rep_group], axis=0)
+            _, baseline = remove_baseline(
+                spectrum=spec_avg,
+                window_length=base["sg_window_warm"],
+                polyorder=base["sg_poly_warm"],
+            )
+
+            ax.plot(freqs_avg / 1e6, baseline, color=colors[c_idx],
+                    label=f"{test_spacing} min  (n={len(rep_group)})")
+
+        norm_spacing = mcolors.Normalize(vmin=min(spacings), vmax=max(spacings))
+        sm_res = ScalarMappable(cmap=cm.viridis, norm=norm_spacing)
+        sm_res.set_array([])
+        fig.colorbar(sm_res, ax=ax, label="Grouping time  [minutes]")
+        ax.set_xlabel("IF frequency  [MHz]")
+        ax.set_ylabel("PSD  [V²/Hz]")
+        ax.set_title("Group averaged spectra for grouping time variation (1st group)")
+        ax.legend(fontsize=8)
+        plt.tight_layout()
+        plt.savefig(f"{var_dir}/sg_fit_grouping_time.png", dpi=150, bbox_inches='tight')
+        plt.close()
+
+
+        # Print a summary of the results
+        print("\n[Grouping time variation summary]")
+        for r in var_results:
+            print(f"  grouping time={r['spacing_minutes']:>4} min | "
+                  f"n_groups={r['n_groups']:>4} | "
+                  f"average size={r['average_group_size']:.1f} | "
+                  f"average residual std={r['average_residual_std']:.4g}")
+
     # ---------
     # Old Code
     # ---------
-
-
-
 
 
     specs = []

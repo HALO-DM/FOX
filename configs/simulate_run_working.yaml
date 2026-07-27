@@ -40,7 +40,7 @@ baseline:
   sg_window_cold: 351
   sg_poly_cold: 4
   sigma_cut: 3.5
-  clipping_mode: "Claude"    # "Claude" or "Blue"
+  clipping_mode: "Blue"    # "Claude" or "Blue"
   n_iterations: 3
 
 rebin:
@@ -58,7 +58,8 @@ output:
   combined_plot: false  # save combined PNG of all spectra
   offset_combined_plot: false # save combined PNG of all spectra with offset
   set_average_diagnostics: false # save all groups set averaging diagnostic plots
-  clipping_residuals: true   # save all groups post clipping residuals
+  clipping_residuals: false   # save all groups post clipping residuals
+  varying_group_size: true   # complete investigation into how changing the group size for averaging impacts results
   plots_step: 1         # plot every Nth spectrum
   # max_plots: 100      # optional cap
   root: "output"        # base output folder
