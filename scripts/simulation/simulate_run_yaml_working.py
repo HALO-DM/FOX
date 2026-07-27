@@ -1587,6 +1587,84 @@ def main():
         plt.close()
 
 
+        # Plot each spacing's representative (first) group: individual spectra
+        # superposed in grey, with the group average overlaid in red
+        for test_spacing in tqdm(spacings, desc="Group size variation diagnostic plots"):
+            spacing_sec = test_spacing * 60
+            var_groups = []
+            i = 0
+            while i < n_total:
+                j = i + 1
+                while j < n_total and (dts[j] - dts[i]).total_seconds() < spacing_sec:
+                    j += 1
+                var_groups.append([[specs_grp[k], fper[k], metadata["res_freq"][k]] for k in range(i, j)])
+                i = j
+
+            if len(var_groups) == 0:
+                continue
+
+            rep_group = next((g for g in var_groups if len(g) > 0), None)
+            if rep_group is None:
+                continue
+
+            fig, ax = plt.subplots(figsize=(13, 5))
+            greys = cm.Greys(np.linspace(0.3, 0.9, len(rep_group)))
+            for i_spec, x in enumerate(rep_group):
+                ax.plot(x[1] / 1e6, x[0], color=greys[i_spec])
+
+            ax.plot(np.mean([x[1] for x in rep_group], axis=0) / 1e6, np.mean([x[0] for x in rep_group], axis=0), alpha=0.8, color="red", label="set averaged")
+            norm = mcolors.Normalize(vmin=0, vmax=len(rep_group))
+            sm = ScalarMappable(cmap=cm.Greys, norm=norm)
+            sm.set_array([])
+            fig.colorbar(sm, ax=ax, label="Spectrum index in set")
+            ax.set_xlabel("IF frequency  [MHz]")
+            ax.set_ylabel("PSD  [V²/Hz]")
+            ax.set_title(f"Set-averaged spectra and individual spectra — spacing {test_spacing} (n={len(rep_group)})")
+            ax.legend()
+            plt.tight_layout()
+            plt.savefig(f"{var_dir}/set_and_average_spectra_spacing_{test_spacing}.png", dpi=150, bbox_inches='tight')
+            plt.close()
+
+
+            # Plot the average spectra with errors for each time spacing
+            fig, ax = plt.subplots(figsize=(13, 5))
+            ax.errorbar(np.mean([x[1] for x in rep_group], axis=0)/1e6, np.mean([x[0] for x in rep_group], axis=0), np.std([x[0] for x in rep_group], axis=0), alpha=0.25, ecolor="blue", color="red")
+            ax.plot(np.mean([x[1] for x in rep_group], axis=0) / 1e6, np.mean([x[0] for x in rep_group], axis=0), alpha=0.8, color="red", label="set averaged")
+            ax.set_xlabel("IF frequency  [MHz]")
+            ax.set_ylabel("PSD  [V²/Hz]")
+            ax.set_title(f"Set-averaged spectra with errors — spacing {test_spacing} (n={len(rep_group)})")
+            ax.legend()
+            plt.tight_layout()
+            plt.savefig(f"{var_dir}/average_spectra_errors_spacing_{test_spacing}.png", dpi=150, bbox_inches='tight')
+            plt.close()
+
+            # Plot the average spectra with errors for each time spacing (zoomed)
+            fig, ax = plt.subplots(figsize=(26, 10))
+            freqs_avg = np.mean([x[1] for x in rep_group], axis=0) / 1e6
+            spec_avg = np.mean([x[0] for x in rep_group], axis=0)
+            spec_std = np.std([x[0] for x in rep_group], axis=0)
+
+            ax.errorbar(freqs_avg, spec_avg, spec_std, alpha=0.5, ecolor="blue", color="red")
+            ax.set_xlabel("IF frequency  [MHz]")
+            ax.set_ylabel("PSD  [V²/Hz]")
+            ax.set_title(f"Set-averaged spectra with errors zoomed - spacing {test_spacing} (n={len(rep_group)})")
+
+            x_min, x_max = 1.5, 2
+            ax.set_xlim(x_min, x_max)
+
+            in_range = (freqs_avg >= x_min) & (freqs_avg <= x_max)
+            if in_range.any():
+                y_lower = np.min(spec_avg[in_range] - spec_std[in_range])
+                y_upper = np.max(spec_avg[in_range] + spec_std[in_range])
+                y_pad = 0.05 * (y_upper - y_lower)
+                ax.set_ylim(y_lower - y_pad, y_upper + y_pad)
+
+            plt.tight_layout()
+            plt.savefig(f"{var_dir}/average_spectra_errors_zoom_spacing_{test_spacing}.png", dpi=150, bbox_inches='tight')
+            plt.close()
+
+
+
         # Print a summary of the results
         print("\n[Grouping time variation summary]")
         for r in var_results:
