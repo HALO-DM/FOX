@@ -5,6 +5,8 @@ from pathlib import Path
 from typing import List, Tuple, Optional
 import h5py
 
+
+    
 @dataclass
 class SpectrumSet:
     """
@@ -188,6 +190,132 @@ def read_hdf5(path: str | Path) -> SpectrumSet:
     return SpectrumSet(
         spectra=spectra_list,
         freqs_per_spec=freqs_list,
+        rf_grid=rf_grid,
+        rf_index_map=rf_index_map,
+    )
+
+
+
+
+def read_qshs_hdf5(
+    path: str | Path,
+    *,
+    power_path: str = "/Power_Spectra",
+    use_shifted_frequency: bool = True,
+    center_frequency_hz: float | None = None,
+    sort_frequency: bool = True,
+) -> SpectrumSet:
+    """
+    Read one QSHS HDF5 file and convert it to a FOX SpectrumSet.
+
+    Current QSHS assumption:
+      /Power_Spectra has shape (2, n_bins)
+      row 0 = FFT frequency-offset axis [Hz]
+      row 1 = power spectrum
+
+    By default, this keeps the shifted frequency axis:
+      rf_grid = frequency_offset_hz
+
+    If center_frequency_hz is provided and use_shifted_frequency=False:
+      rf_grid = center_frequency_hz + frequency_offset_hz
+
+    Returns a SpectrumSet with one spectrum.
+    """
+    path = Path(path)
+
+    with h5py.File(path, "r") as h5:
+        arr = np.asarray(h5[power_path][()], dtype=float)
+
+    if arr.ndim != 2 or arr.shape[0] != 2:
+        raise ValueError(
+            f"Expected {power_path} to have shape (2, n_bins), got {arr.shape}"
+        )
+
+    freq_offset_hz = np.asarray(arr[0], dtype=float)
+    power = np.asarray(arr[1], dtype=float)
+
+    # QSHS row 0 appears to be FFT-ordered:
+    # 0, +df, ..., +fmax, -fmax, ..., -df.
+    # Sort into physical frequency order for plotting/pipeline use.
+    if sort_frequency:
+        order = np.argsort(freq_offset_hz)
+        freq_offset_hz = freq_offset_hz[order]
+        power = power[order]
+
+    if use_shifted_frequency:
+        freq_hz = freq_offset_hz
+    else:
+        if center_frequency_hz is None:
+            raise ValueError(
+                "center_frequency_hz is required when use_shifted_frequency=False"
+            )
+        freq_hz = float(center_frequency_hz) + freq_offset_hz
+
+    return SpectrumSet(
+        spectra=[power],
+        freqs_per_spec=[freq_hz],
+        rf_grid=freq_hz.copy(),
+        rf_index_map=[np.arange(freq_hz.size, dtype=int)],
+    )
+
+
+
+def read_qshs_hdf5_dir(
+    directory: str | Path,
+    *,
+    pattern: str = "*.hdf5",
+    power_path: str = "/Power_Spectra",
+    use_shifted_frequency: bool = True,
+    center_frequency_hz: float | None = None,
+    sort_frequency: bool = True,
+    bin_width: float | None = None,
+) -> SpectrumSet:
+    """
+    Read a directory of QSHS HDF5 files.
+
+    Assumes:
+      - one spectrum per file
+      - each file has /Power_Spectra with row 0 = frequency offset
+        and row 1 = power
+
+    Returns one merged SpectrumSet containing all spectra.
+    """
+
+    directory = Path(directory)
+    files = sorted(directory.glob(pattern))
+
+    if not files:
+        raise FileNotFoundError(f"No QSHS HDF5 files matching {pattern} in {directory}")
+
+    spectra = []
+    freqs_per_spec = []
+
+    for fp in files:
+        one = read_qshs_hdf5(
+            fp,
+            power_path=power_path,
+            use_shifted_frequency=use_shifted_frequency,
+            center_frequency_hz=center_frequency_hz,
+            sort_frequency=sort_frequency,
+        )
+        spectra.append(one.spectra[0])
+        freqs_per_spec.append(one.freqs_per_spec[0])
+
+    # Build one common grid for all files.
+    #
+    # In shifted-frequency mode, all spectra likely share the same frequency-offset
+    # grid. That means they will all overlap perfectly.
+    #
+    # Later, when using absolute RF center frequencies per file, this same helper
+    # will let spectra land at different RF positions.
+    rf_grid, rf_index_map = _build_rf_grid_and_map(
+        freqs_per_spec,
+        bin_width=bin_width,
+    )
+
+    return SpectrumSet(
+        spectra=spectra,
+        freqs_per_spec=freqs_per_spec,
         rf_grid=rf_grid,
         rf_index_map=rf_index_map,
     )
