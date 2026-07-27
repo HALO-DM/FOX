@@ -93,6 +93,7 @@ def load_yaml_config(path: pathlib.Path) -> dict:
             "bw_min":                   float(_get(qc, "bw_min", 0.00027)),
             "bandwidth_zeros_filter":   bool(_get(qc, "bandwidth_zeros_filter", True)),
             "res_freq_zeros_filter":    bool(_get(qc, "res_freq_zeros_filter", True)),
+            "cw_freq_zeros_filter":     bool(_get(qc, "cw_freq_zeros_filter", True)),
             "bad_time_filter":          bool(_get(qc, "bad_time_filter", True)),
             "start_time":               _get(qc, "start_time", None),
             "end_time":                 _get(qc, "end_time", None),
@@ -450,6 +451,23 @@ def main():
         print(f"[QC]: {len(bad_zeros_res_freq)} spectra were removed as res_freq were arrays of zeros.")
 
 
+    # QC: Cut spectra that have arrays of zeros for cw_freq
+        if qc["cw_freq_zeros_filter"]:
+            sset, sset_zeros_cw_freq, kept, bad_zeros_cw_freq = filter_spectrum_set(
+                sset,
+                predicate=lambda s, f, md, i: metadata_is_zeros(
+                    s,
+                    f,
+                    md,
+                    i,
+                    item = "cw_freq",
+                ),
+            )
+            for idx, s in enumerate(bad_zeros_cw_freq):
+                invalid_files.append([sset_zeros_cw_freq.metadata["file_name"][idx], "cw_freq data is zeros", sset_zeros_cw_freq.metadata["date"][idx]])
+            print(f"[QC]: {len(bad_zeros_cw_freq)} spectra were removed as cw_freq were arrays of zeros.")
+
+
     print(f"[QC]: {len(kept)} / {len(kept) + len(invalid_files)} files are valid and suitable for anaylsis, {len(invalid_files)} files are invalid.")
     # replace arrays with filtered ones for the rest of the chain
     specs, fper, rf, rf_map, metadata = sset.spectra, sset.freqs_per_spec, sset.rf_grid, sset.rf_index_map, sset.metadata
@@ -471,6 +489,7 @@ def main():
         invalid_power_zeros = invalid_files_df[invalid_files_df[1] == "power spectra is zeros"]
         invalid_bandwidth = invalid_files_df[invalid_files_df[1] == "bandwidth is too small"]
         invalid_res_freq_zeros = invalid_files_df[invalid_files_df[1] == "res_freq data is zeros"]
+        invalid_cw_freq_zeros = invalid_files_df[invalid_files_df[1] == "cw_freq data is zeros"]
 
         start_date = min( valid_files_df[1].min(), invalid_files_df[2].min())
         end_date = max( valid_files_df[1].max(), invalid_files_df[2].max())
@@ -478,11 +497,11 @@ def main():
         bin_num = int( (end_date - start_date) / time_interval)
 
         plt.figure(figsize=(18,6))
-        plt.hist((valid_files_df[1], invalid_metadata[2], invalid_high_power[2], invalid_high_noise[2], invalid_power_zeros[2], invalid_bandwidth[2], invalid_res_freq_zeros[2])
+        plt.hist((valid_files_df[1], invalid_metadata[2], invalid_high_power[2], invalid_high_noise[2], invalid_power_zeros[2], invalid_bandwidth[2], invalid_res_freq_zeros[2], invalid_cw_freq_zeros[2])
                 , bin_num, range=(start_date, end_date), stacked=True)
         plt.gca().xaxis.set_major_formatter(mdates.DateFormatter("%Y-%m-%d"))
         plt.gca().xaxis.set_major_locator(mdates.DayLocator(interval=1))
-        plt.legend(["valid files", "missing metadata", "power too high", "too noisy", "power is zeros", "bandwidth is too small", "res freq is zeros"])
+        plt.legend(["valid files", "missing metadata", "power too high", "too noisy", "power is zeros", "bandwidth is too small", "res freq is zeros", "cw freq is zeros"])
         plt.xlabel("Date")
         plt.ylabel("Number of files")
         plt.title("Spectra files per day (before timestamp filter)")
@@ -1195,14 +1214,28 @@ def main():
 
             # Plot zoomed set averaged spectra with errors zoomed in per group
             fig, ax = plt.subplots(figsize=(26, 10))
-            ax.errorbar(np.mean([x[1] for x in group], axis=0)/1e6, np.mean([x[0] for x in group], axis=0), np.std([x[0] for x in group], axis=0), alpha=0.5, ecolor="blue", color="red")
+
+            freqs_avg = np.mean([x[1] for x in group], axis=0) / 1e6
+            spec_avg = np.mean([x[0] for x in group], axis=0)
+            spec_std = np.std([x[0] for x in group], axis=0)
+
+            ax.errorbar(freqs_avg, spec_avg, spec_std, alpha=0.5, ecolor="blue", color="red")
             ax.set_xlabel("IF frequency  [MHz]")
             ax.set_ylabel("PSD  [V²/Hz]")
             ax.set_title(f"Set-averaged spectra with errors — group {g} (zoomed)")
+
+            x_min, x_max = 1.5, 2
+            ax.set_xlim(x_min, x_max)
+
+            in_range = (freqs_avg >= x_min) & (freqs_avg <= x_max)
+            if in_range.any():
+                y_lower = np.min(spec_avg[in_range] - spec_std[in_range])
+                y_upper = np.max(spec_avg[in_range] + spec_std[in_range])
+                y_pad = 0.05 * (y_upper - y_lower)
+                ax.set_ylim(y_lower - y_pad, y_upper + y_pad)
+
             plt.tight_layout()
-            plt.xlim(1.5, 2)
-            plt.ylim(1.78e-10, 1.84e-10)
-            plt.savefig(f"{warm_run_dir}/set_averaged_spectra_errors_zoom{g}.png", dpi = 150, bbox_inches='tight')
+            plt.savefig(f"{warm_run_dir}/set_averaged_spectra_errors_zoom{g}.png", dpi=150, bbox_inches='tight')
             plt.close()
         
 
@@ -1418,7 +1451,7 @@ def main():
         var_dir = out_root / f'{out["subdir_prefix"]}_{timestamp}' / 'Varying_group_size'
         var_dir.mkdir(parents=True, exist_ok=True)
 
-        spacings = [10, 15, 30, 60, 120, 240] # minutes
+        spacings = [5, 10, 15, 30, 60, 90, 120, 150, 180, 210, 240] # minutes
         var_results = []
         n_total = len(dts)
 

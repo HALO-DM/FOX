@@ -29,6 +29,7 @@ quality:
   bw_min: 0.00027                   # min bandwidth allowed (same as QSHS)
   bandwidth_zeros_filter: true      # filter the spectra for bandwdith data being arrays of zeros
   res_freq_zeros_filter: true       # filter the spectra for res_freq data being arrays of zeros
+  cw_freq_zeros_filter: true        # filter the spectra for cw_freq data being arrays of zeros
   bad_time_filter: true            # filter spectra within a known bad time frame
   start_time: ["2026-01-31 09:55:41" ] # List of start times of the known bad data in format YYYY-MM-DD HH:MM:SS
   end_time: ["2026-02-01 00:10:58"] # List of end times of the known bad data in format YYYY-MM-DD HH:MM:SS
@@ -40,7 +41,7 @@ baseline:
   sg_window_cold: 351
   sg_poly_cold: 4
   sigma_cut: 3.5
-  clipping_mode: "Blue"    # "Claude" or "Blue"
+  clipping_mode: "Claude"    # "Claude" or "Blue"
   n_iterations: 3
 
 rebin:
