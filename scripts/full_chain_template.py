@@ -50,7 +50,14 @@ def main():
     proc = [remove_baseline(s, window_length=401, polyorder=4)[0] for s in specs]
 
     # 3) combine
-    combined, sigma_c, counts = combine_ml(proc, rf_map, total_rf_bins=len(rf))
+    combined, sigma_c, counts = combine_ml(
+        proc,
+        rf_map,
+        total_rf_bins=len(rf),
+        lorentzian_weight=False,
+        lorentz_params=None,
+        spec_freqs=None,
+    )
 
     # 4) rebin + grand spectrum (SHM template)
     C, K = 10, 9

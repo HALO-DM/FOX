@@ -338,7 +338,14 @@ def main():
     
 
     # 3) combine
-    combined, sigma_c, counts = combine_ml(proc, rf_map, total_rf_bins=len(rf))
+    combined, sigma_c, counts = combine_ml(
+        proc,
+        rf_map,
+        total_rf_bins=len(rf),
+        lorentzian_weight=False,
+        lorentz_params=None,
+        spec_freqs=None,
+    )
     plt.figure(figsize=(10,3))
     plt.plot(rf/1e9, combined, lw=0.8, color="black", label="combined")
     plt.title("Combined spectrum (baseline-removed)")

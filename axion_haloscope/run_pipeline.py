@@ -19,7 +19,14 @@ def run_demo():
     proc = [remove_baseline(s, window_length=401, polyorder=4)[0] for s in spectra]
 
     # ----- step 3: vertical ML combine -----
-    combined, sigma_c, counts = combine_ml(proc, rf_map, total_rf_bins=len(rf_grid))
+    combined, sigma_c, counts = combine_ml(
+        proc,
+        rf_map,
+        total_rf_bins=len(rf),
+        lorentzian_weight=False,
+        lorentz_params=None,
+        spec_freqs=None,
+    )
 
     # ----- step 4: rebin + matched-filter grand spectrum -----
     C = 10                                   # rebin factor
