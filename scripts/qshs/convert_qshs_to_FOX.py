@@ -77,14 +77,14 @@ def main():
     # Initialising
     # ===================
 
-    input_dir = "input/Jan"
+    input_dir = "input/Feb/All"
 
     pattern = "*.hdf5"
     save_fox_h5 = True
 
     plot_qshs_data = False
     plot_slow_controls = False
-    save_slow_controls = True
+    save_slow_controls = False
 
     out_root = "output/qshs_to_FOX"
     os.makedirs(out_root, exist_ok=True)
@@ -111,6 +111,7 @@ def main():
         f"{sset.rf_grid[0]/1e6:.6f} to {sset.rf_grid[-1]/1e6:.6f} MHz"
     )
 
+    # Output complete SpectrumSet
     if save_fox_h5:
         out_h5 = f"{run_dir}/converted_spectra.h5"
         write_hdf5(sset, out_h5)
@@ -151,6 +152,7 @@ def main():
                         for props in props_list:
                             hardware_rows.append({"SOURCE": "Hardware", "FIELD": component_name, **props})
 
+
                 # --- Mode Fit ---
                 raw = slow_controls_mode_fit.item()
                 if isinstance(raw, bytes):
@@ -186,6 +188,7 @@ def main():
                             bandwidths_list.append(value)
                         elif key == "q_loaded":
                             q_loaded_list.append(value)
+
         
                 # --- Status ---
                 raw = slow_controls_status.item()
@@ -213,22 +216,34 @@ def main():
 
                 table_str = tabulate(df, headers="keys", tablefmt="plain", showindex=False, stralign="left", numalign="left")
 
+
                 # Optional: Plot slow controls
                 if plot_slow_controls:
+                    slow_plot_dir = f"{out_root}/run_{timestamp}/slow_controls_plots"
+                    os.makedirs(slow_plot_dir, exist_ok=True)
+                    
                     plt.tight_layout()
-                    plt.savefig(f"{run_dir}/qshs_slow_controls_data_{valid_files.index(s)}.png", dpi=150)
+                    plt.savefig(f"{slow_plot_dir}/qshs_slow_controls_data_{valid_files.index(s)}.png", dpi=150)
                     plt.close(fig)
+
 
                 # Optional: Save slow controls
                 if save_slow_controls:
-                    with open(f"{run_dir}/slow_controls_summary_{valid_files.index(s)}.txt", "w") as f:
+                    save_slow_dir = f"{out_root}/run_{timestamp}/slow_controls_summaries"
+                    os.makedirs(save_slow_dir, exist_ok=True)
+
+                    with open(f"{save_slow_dir}/slow_controls_summary_{valid_files.index(s)}.txt", "w") as f:
                         f.write(table_str)
 
                         if plot_qshs_data:
                             fig, axes = plt.subplots(2, 2, figsize=(19, 9))
 
+
                 # Optional: Plot QSHS data
                 if plot_qshs_data:
+                    qshs_plot_dir = f"{out_root}/run_{timestamp}/qshs_data_plots"
+                    os.makedirs(qshs_plot_dir, exist_ok=True)
+
                     fig, axes = plt.subplots(2, 2, figsize=(19, 9))
                     axes[0, 0].plot(raw_data[0],raw_data[1], label="Raw")
                     axes[0, 0].set_title("Raw Data")
@@ -265,7 +280,7 @@ def main():
                     axes[1, 1].grid(True)
                     
                     plt.tight_layout()
-                    plt.savefig(f"{run_dir}/qshs_data_{valid_files.index(s)}.png", dpi=150)
+                    plt.savefig(f"{qshs_plot_dir}/qshs_data_{valid_files.index(s)}.png", dpi=150)
                     plt.close(fig)
 
 

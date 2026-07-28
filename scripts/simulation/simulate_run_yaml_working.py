@@ -4,7 +4,7 @@ Simulate a haloscope scan from a YAML config:
 - simulation parameters
 - optional axion injection
 - optional saving of per-spectrum PNGs and spectra.npz
-Outputs to: ./output/run_YYYYmmdd_HHMMSS/
+Outputs to: ./output/run_DD.MM.YYYY_HH.MM.SS
 """
 from __future__ import annotations
 import argparse, datetime, pathlib, sys
@@ -179,6 +179,11 @@ def filter_by_datetime(data, start, end, key="date"):
     ) 
 
 def main():
+
+    # ===================
+    # Initialising
+    # ===================
+
     ap = argparse.ArgumentParser(description="Simulate haloscope run from YAML config")
     ap.add_argument("config", help="Path to YAML config (e.g. configs/simulate_run.yaml)")
     args = ap.parse_args()
@@ -247,7 +252,6 @@ def main():
     # Quality Control
     # =======================================================================
 
-
     print("=" * 60)
     print(f"Quality Control")
     print("=" * 60)
@@ -267,6 +271,7 @@ def main():
 
     print(f"[QC]: {len(bad_no_metadata)} spectra were removed as files were missing metadata.")
     print(f"[QC]: {len(bad_zero_power)} spectra were removed as power data were arrays of zeros.")
+
 
     # QC: Cut spectra with power above threshold
     if qc["max_power_filter"]:
@@ -302,7 +307,7 @@ def main():
             max_plots = None if out["max_plots"] is None else int(out["max_plots"])
 
 
-    # QC: Cut spectra that has rms values above threshold
+    # QC: Cut spectra that have rms values above threshold
     if qc["noise_filter"]:
         sset, sset_noise, kept, bad_noise = filter_spectrum_set(
             sset,
@@ -378,7 +383,7 @@ def main():
             print(f"[QC]: {total_bad_time_filter} spectra were removed as within known bad data times.")
 
 
-    # QC: Cut spectra that has bandwidth values below threshold
+    # QC: Cut spectra that have bandwidth values below the threshold value
     if qc["small_bandwidth_filter"]:
         sset, sset_bandwidth, kept, bad_bandwidth = filter_spectrum_set(
             sset,
@@ -411,7 +416,7 @@ def main():
             step = max(1, int(out["plots_step"]))
             max_plots = None if out["max_plots"] is None else int(out["max_plots"])
 
-            # Plot bandwidth againist date to show those which have failed
+            # Plot bandwidth againist date to show which are below the threshold
             good_bandwidths = np.array(sset.metadata["bandwidth"])
             good_dates = pd.to_datetime(sset.metadata["date"])
             good_order = np.argsort(good_dates)
@@ -438,7 +443,7 @@ def main():
             plt.close()
 
 
-    # QC: Cut spectra that have arrays of zeros for res_freq
+    # QC: Cut spectra that have a res_freq value of zero
     if qc["res_freq_zeros_filter"]:
         sset, sset_zeros_res_freq, kept, bad_zeros_res_freq = filter_spectrum_set(
             sset,
@@ -455,7 +460,7 @@ def main():
         print(f"[QC]: {len(bad_zeros_res_freq)} spectra were removed as given res_freq is zero.")
 
 
-    # QC: Cut spectra that have arrays of zeros for cw_freq
+    # QC: Cut spectra that have a cw_freq value of zero
         if qc["cw_freq_zeros_filter"]:
             sset, sset_zeros_cw_freq, kept, bad_zeros_cw_freq = filter_spectrum_set(
                 sset,
@@ -479,6 +484,9 @@ def main():
     raw_run_dir = out_root / f'{out["subdir_prefix"]}_{timestamp}'/ 'raw_spectra_plots'
     raw_run_dir.mkdir(parents=True, exist_ok=True)
 
+    # ----------------------------
+    # Plotting of filtered data
+    # ----------------------------
 
     # Plot histogram of data againist time
     valid_files_df = pd.DataFrame(zip(metadata["file_name"] , metadata["date"]))
@@ -607,47 +615,12 @@ def main():
     ax.set_title("rms over time (data)"); plt.grid(alpha=0.3); plt.tight_layout()
     plt.savefig(QC_run_dir/"rms_againist_time_data.png", dpi=150); plt.close()
 
-
-    # Plot rms evolution with spectra num - simulation and data
-    # Simulate the data
-    ax = None
-    if inj["enabled"]:
-        total_bins = sim["n_bins"] + (sim["n_spectra"] - 1) * sim["tune_step_bins"]
-        f_ax = inj["f_axion_hz"]
-        if f_ax is None:
-            f_ax = sim["f_start_hz"] + 0.5 * total_bins * sim["bin_width_hz"]
-        s_ax = width_from_fq(f_ax)
-        ax = AxionParams(f_axion_hz=float(f_ax), sigma_hz=s_ax, total_power=inj["total_power"])
-
-    spec_num = len(rms_vals)
-
-    specs_sim, _, _, _, _ = simulate_spectra(
-        n_spectra=spec_num, n_bins=sim["n_bins"],
-        bin_width_hz=sim["bin_width_hz"], f_start_hz=sim["f_start_hz"],
-        tune_step_bins=sim["tune_step_bins"], rng_seed=sim["rng_seed"],
-        noise_sigma=sim["noise_sigma"], axion=ax
-    )
-    rms_vals_sim = []
-    
-    for s in specs_sim:
-        med = np.nanmedian(s)
-        rms = np.sqrt(np.nanmean((s - med) ** 2))
-        rms_vals_sim.append(rms)
-    
-    fig, ax = plt.subplots(figsize=(13, 7))
-    ax.scatter(range(0,spec_num), rms_vals_sim, marker=".", label="simulation")
-    ax.scatter(range(0, spec_num), rms_vals, marker=".", label="data")
-    ax.set_xlabel("Spectra number"); ax.set_ylabel("rms values [arb]")
-    plt.xticks(rotation=45, ha="right")
-    plt.legend()
-    ax.set_title("rms againist spectra number"); plt.grid(alpha=0.3); plt.tight_layout()
-    plt.savefig(QC_run_dir/"rms_againist_spec_num.png", dpi=150); plt.close()
-
     
     # Export the spectrum set of all valid files
     out_h5 = f"{data_dir}/valid_converted_spectra.h5"
     write_hdf5(sset, out_h5)
     print(f"[QSHS] Valid files SpectrumSet saved to: {out_h5}")
+
 
     # =======================================================================
     # TIME CUTTING
@@ -694,7 +667,6 @@ def main():
     invalid_files_df = pd.DataFrame(invalid_files)
     valid_files_df = pd.DataFrame(zip(metadata["file_name"] , metadata["date"]))
     valid_files_df[1] = pd.to_datetime(valid_files_df[1], format="%Y-%m-%d %H:%M:%S")
-
 
     if len(invalid_files) != 0:
         invalid_files_df = pd.DataFrame(invalid_files)
@@ -809,6 +781,7 @@ def main():
         difference = f - res_freqs[0]
         res_freq_diff.append(difference)
 
+
     # Always save one valid example raw spectrum
     plt.figure(figsize=(13, 7))
     plt.plot(fper[0]/1e9, specs[0], lw=0.6)
@@ -824,6 +797,7 @@ def main():
 
     step = max(1, int(out["plots_step"]))
     max_plots = None if out["max_plots"] is None else int(out["max_plots"])
+
 
     # Optional: save per-spectrum PNGs + spectra.npz for valid data
     if out["save_data"]:
@@ -841,6 +815,7 @@ def main():
             plt.close(fig)
             count += 1
         np.savez(run_dir/"spectra.npz", spectra=np.array(specs), freqs=fper, rf_grid=rf)
+
 
     # Optional: plot all valid/invalid raw spectra in one figure
     if out["combined_plot"]:
@@ -867,6 +842,7 @@ def main():
             plt.title("All invalid raw spectra"); plt.grid(alpha=0.3); plt.tight_layout()
             plt.savefig(raw_run_dir/"raw_invalid_spectrum_all.png", dpi=150); plt.close()
 
+
     # Optional: plot all valid raw spectra in one figure with offset
     if out["offset_combined_plot"]:
         # Plot the resonance frequency offset againist the spectrum index
@@ -888,6 +864,8 @@ def main():
         plt.title("All valid spectra offset"); plt.grid(alpha=0.3); plt.tight_layout()
         plt.savefig(raw_run_dir/"raw_spectrum_all_valid_offset.png", dpi=150); plt.close()  
 
+
+    # Plot injected frequency distrubtion (frequency againist time)
     if out["injection_distribution"]:
         fig, ax = plt.subplots(figsize = (13,5))
         colour_vals = (cw_freqs - res_freqs*1e9) / 1e9  # Hz -> GHz
@@ -904,7 +882,6 @@ def main():
         plt.close()
 
     t0 = time.time()
-
 
 
     # =======================================================================
@@ -944,6 +921,7 @@ def main():
     rf = rf[cut_min_idx:cut_max_idx]
     rf_map = new_rf_map
 
+    # Plot example trimmed spectra
     plt.figure(figsize=(13, 7))
     plt.plot(fper[0]/1e9, specs[0], lw=0.6)
     plt.xlabel("Frequency [GHz]"); plt.ylabel("Raw Power [arb]")
@@ -955,7 +933,6 @@ def main():
     plt.xlabel("Frequency [GHz]"); plt.ylabel("Raw Power [arb]")
     plt.title("Example valid raw spectrum"); plt.grid(alpha=0.3); plt.tight_layout()
     plt.savefig(cut_run_dir/"trimmed_spectrum_last.png", dpi=150); plt.close()
-
 
 
     # =======================================================================
@@ -1076,7 +1053,7 @@ def main():
 
 
     # -----------------------------------------------------------------------
-    # Graphing
+    # Plotting
     # -----------------------------------------------------------------------
 
     _cmap_g_1 = plt.cm.viridis
@@ -1271,7 +1248,7 @@ def main():
             plt.close()
         
 
-    # Plot group averaged spectra with sg fits
+    # Plot group averaged spectra with SG fits
     fig, ax = plt.subplots(figsize=(13, 7))
     for g, ((freqs, specs), fit) in enumerate(zip(group_avg_spectra, group_sg_fits)):
         ax.plot(freqs/1e6, specs,lw=1.0, alpha=0.55, color=_gcol_1(g), label=f"Grp {g}")
@@ -1285,6 +1262,7 @@ def main():
     plt.tight_layout()
     plt.savefig(f"{warm_run_dir}/group_averaged_spectra_with_sg_fits.png", dpi = 150, bbox_inches='tight')
     plt.close()
+
 
     # -----------------------------------------------------------------------
     # Iterative Sigma Clipping
@@ -1360,6 +1338,7 @@ def main():
         plt.savefig(f"{warm_run_dir}/masked_bin_iteration_{iteration}.png", dpi=150, bbox_inches='tight')
         plt.close()
 
+
     # --------------------
     # Residuals Plotting
     # --------------------
@@ -1370,33 +1349,38 @@ def main():
         clip_run_dir.mkdir(parents=True, exist_ok=True)
 
         for g, fit in enumerate(tqdm(group_sg_fits, desc="Clipping residuals plots")):
+
             if base["clipping_mode"] == "Claude":
+
                 avg = group_avg_spectra[g]
                 if avg is None or fit is None:
                     continue
                 freqs, specs = avg
                 residuals = specs - fit
 
-                fig, ax = plt.subplots(figsize=(14, 5))
+                # Plot residuals againist frequency
+                fig, ax = plt.subplots(figsize=(13, 7))
                 ax.plot( freqs/1e6 ,residuals)
                 ax.set_xlabel("IF frequency  [MHz]")
                 ax.set_ylabel("Residuals  [V²/Hz]")
-                ax.set_title(f"Residuals - group {g} (Claude clipping method)")
+                ax.set_title(f"Residuals - group {g} (Claude's clipping method)")
                 plt.tight_layout()
-                plt.savefig(f"{clip_run_dir}/claude_clipping_residuals_{g}.png", dpi=150, bbox_inches='tight')
+                plt.savefig(f"{clip_run_dir}/claude_residuals_{g}.png", dpi=150, bbox_inches='tight')
                 plt.close()
 
-                # histogram of residuals
+                # Plot histogram of residuals
                 fig, ax = plt.subplots(figsize=(13, 7))
                 ax.hist(residuals[np.isfinite(residuals)], bins=50, color="steelblue")
                 ax.set_xlabel("Residuals  [V²/Hz]")
                 ax.set_ylabel("Counts")
-                ax.set_title(f"Residuals histogram - group {g} (Claude clipping method)")
+                ax.set_title(f"Residuals histogram - group {g} (Claude's clipping method)")
                 plt.tight_layout()
-                plt.savefig(f"{clip_run_dir}/claude_clipping_residuals_hist_{g}.png", dpi=150, bbox_inches='tight')
+                plt.savefig(f"{clip_run_dir}/claude_residuals_hist_{g}.png", dpi=150, bbox_inches='tight')
                 plt.close()
 
+
             elif base["clipping_mode"] == "Blue":
+
                 group = groups[g]
                 if fit is None or len(group) == 0:
                     continue
@@ -1405,7 +1389,8 @@ def main():
                 colors = cm.viridis(np.linspace(0, 1, n))
                 all_residuals = []
 
-                fig, ax = plt.subplots(figsize=(14, 5))
+                # Plot residuals againist frequnecy for each group
+                fig, ax = plt.subplots(figsize=(13, 7))
                 for spec_idx, (spectra, frequencies, res_freq) in enumerate(group):
                     residuals = spectra - fit
                     all_residuals.append(residuals)
@@ -1416,15 +1401,15 @@ def main():
                 sm = ScalarMappable(cmap=cm.viridis, norm=norm)
                 sm.set_array([])
                 fig.colorbar(sm, ax=ax, label="Spectrum index in group")
-
                 ax.set_xlabel("IF frequency  [MHz]")
                 ax.set_ylabel("Residuals  [V²/Hz]")
-                ax.set_title(f"Residuals — group {g} (Blue clipping method)")
+                ax.set_title(f"Residuals — group {g} (Blue's clipping method)")
                 plt.tight_layout()
-                plt.savefig(f"{clip_run_dir}/blue_clipping_residuals_{g}.png", dpi=150, bbox_inches='tight')
+                plt.savefig(f"{clip_run_dir}/blue_residuals_{g}.png", dpi=150, bbox_inches='tight')
                 plt.close()
 
-                # Stacked version
+
+                # Plot stacked histogram of residuals in each group
                 fig, ax = plt.subplots(figsize=(13, 7))
                 ax.hist([r[np.isfinite(r)] for r in all_residuals], bins=50, stacked=True, color=colors)
                 norm2 = mcolors.Normalize(vmin=0, vmax=n - 1)
@@ -1433,9 +1418,9 @@ def main():
                 fig.colorbar(sm2, ax=ax, label="Spectrum index in group")
                 ax.set_xlabel("Residuals  [V²/Hz]")
                 ax.set_ylabel("Counts")
-                ax.set_title(f"Residuals histogram (stacked) — group {g} (Blue clipping method)")
+                ax.set_title(f"Residuals histogram (stacked) — group {g} (Blue's clipping method)")
                 plt.tight_layout()
-                plt.savefig(f"{clip_run_dir}/blue_clipping_residuals_hist_stack_{g}.png", dpi=150, bbox_inches='tight')
+                plt.savefig(f"{clip_run_dir}/blue_residuals_hist_{g}.png", dpi=150, bbox_inches='tight')
                 plt.close()
 
     specs, fper = finalise_specs(base["clipping_mode"], group_avg_spectra, groups, group_sg_fits)
@@ -1455,6 +1440,7 @@ def main():
         spacings_config = [5, 10, 15, 30, 60, 90, 120, 150, 180, 210, 240]  # minutes
         n_total = len(dts)
 
+
         def build_groups(spacing_minutes):
             spacing_sec = float(spacing_minutes * 60)
             groups_out = []
@@ -1466,6 +1452,7 @@ def main():
                 groups_out.append([[specs_grp[k], fper[k], metadata["res_freq"][k]] for k in range(i, j)])
                 i = j
             return groups_out
+
 
         groups_by_spacing = {sp: build_groups(sp) for sp in spacings_config}
 
@@ -1502,6 +1489,7 @@ def main():
                 "average_residual_average": np.mean(np.absolute(np.array(residual_avgs))),
             })
 
+
         # ------------------
         # Plotting
         # ------------------
@@ -1512,7 +1500,8 @@ def main():
         resid_av      = [r["average_residual_average"] for r in var_results]
         resid_std     = [r["average_residual_std"] for r in var_results]
 
-        # Plot absolute residual average vs grouping time
+
+        # Plot absolute residual average vs grouping size
         fig, ax = plt.subplots(figsize=(13, 7))
         ax.plot(spacings_plot, resid_av, marker="o", alpha=0.7)
         ax.set_xlabel("Grouping time [minutes]")
@@ -1524,7 +1513,7 @@ def main():
         plt.close()
 
 
-        # Plot residual std vs grouping time
+        # Plot residual std vs grouping size
         fig, ax = plt.subplots(figsize=(13, 7))
         ax.plot(spacings_plot, resid_std, marker="o")
         ax.set_xlabel("Grouping time threshold  [minutes]")
@@ -1535,7 +1524,8 @@ def main():
         plt.savefig(f"{var_dir}/residual_std_vs_grouping.png", dpi=150, bbox_inches='tight')
         plt.close()
 
-        # Plot SG fit for first group for each grouping time
+
+        # Plot SG fit for first group for each group size
         fig, ax = plt.subplots(figsize=(13, 7))
         colors = cm.viridis(np.linspace(0, 1, len(spacings_config)))
 
@@ -1572,16 +1562,20 @@ def main():
         plt.savefig(f"{var_dir}/sg_fit_grouping_time.png", dpi=150, bbox_inches='tight')
         plt.close()
 
-        # Plot per-spacing diagnostic plots: set + average, set + average with errors, zoomed
+
+        # Plot per-group size diagnostic plots: set + average, set + average with errors, zoomed
         for test_spacing in tqdm(spacings_config, desc="Group size variation diagnostic plots"):
+
             var_groups = groups_by_spacing[test_spacing]
             rep_group = next((g for g in var_groups if len(g) > 0), None)
+
             if rep_group is None:
                 continue
 
             freqs_avg = np.mean([x[1] for x in rep_group], axis=0) / 1e6
             spec_avg = np.mean([x[0] for x in rep_group], axis=0)
             spec_std = np.std([x[0] for x in rep_group], axis=0)
+
 
             # Plot set + average spectra 
             fig, ax = plt.subplots(figsize=(13, 7))
@@ -1601,6 +1595,7 @@ def main():
             plt.savefig(f"{var_dir}/set_and_average_spectra_spacing_{test_spacing}.png", dpi=150, bbox_inches='tight')
             plt.close()
 
+
             # Plot average spectra with errors
             fig, ax = plt.subplots(figsize=(13, 7))
             ax.errorbar(freqs_avg, spec_avg, spec_std, alpha=0.10, ecolor="blue", color="red")
@@ -1612,6 +1607,7 @@ def main():
             plt.tight_layout()
             plt.savefig(f"{var_dir}/average_spectra_errors_spacing_{test_spacing}.png", dpi=150, bbox_inches='tight')
             plt.close()
+
 
             # Plot average spectra with errors, zoomed
             fig, ax = plt.subplots(figsize=(26, 14))
@@ -1633,7 +1629,8 @@ def main():
             plt.savefig(f"{var_dir}/average_spectra_errors_zoom_spacing_{test_spacing}.png", dpi=150, bbox_inches='tight')
             plt.close()
 
-        # Plot avg-of-avg std vs group spacing
+
+        # Plot avg-of-avg std vs group size
         spacing_avg_of_avg_std = []
         for spacing in spacings_config:
             var_groups = groups_by_spacing[spacing]
