@@ -2,6 +2,7 @@ import numpy as np
 import sys
 from axion_haloscope.baseline import remove_baseline
 from scipy.interpolate import interp1d
+from typing import Optional
 
 def _sg_masked(freqs, psd, mask_bad, window, order):
     """
@@ -106,23 +107,17 @@ def blue_clipping(groups, group_masks, group_sg_fits, sigma_cut,
     total_new = 0
     for g, group in enumerate(groups):
         current_masks = group_masks[g]
-        spectra_stack = np.array([spec for spec, *_ in group])
-        mask_stack    = np.array([m != 0 for m in current_masks])
-
-        masked_stack    = np.ma.masked_array(spectra_stack, mask=mask_stack)
-        average_spectra = masked_stack.mean(axis=0).filled(np.nan)
-        
-
-        average_for_fit = _interpolate_nans(average_spectra)
-        _, baseline = remove_baseline(average_for_fit, window_length=sg_window, polyorder=sg_order)
-        group_sg_fits[g] = baseline
+        baseline = group_sg_fits[g]
+        if baseline is None:
+            continue
 
         n_new = 0
         for spec_idx, (spectra, frequencies, res_freq) in enumerate(group):
             current_mask = current_masks[spec_idx]
-            deviation = np.abs(spectra - baseline)
-            sd_spectra = np.std(spectra - baseline)
-            new_bad = (current_mask == 0) & (deviation > sigma_cut * sd_spectra)
+
+            deviation = spectra - baseline
+            sd_spectra = np.std(deviation[current_mask == 0])
+            new_bad = (current_mask == 0) & (np.abs(deviation) > sigma_cut * sd_spectra)
 
             combined = current_mask.copy()
             combined[new_bad] = iteration
@@ -130,15 +125,44 @@ def blue_clipping(groups, group_masks, group_sg_fits, sigma_cut,
 
             n_new += int(np.sum(new_bad))
 
-            cleaned_spec = _interpolate_nans(np.where(combined == 0, spectra, np.nan))
-            cleaned_freq = _interpolate_nans(np.where(combined == 0, frequencies, np.nan))
-            groups[g][spec_idx] = [cleaned_spec, cleaned_freq, res_freq]
+        spectra_stack = np.array([spec for spec, *_ in group])
+        mask_stack    = np.array([m != 0 for m in current_masks])
+
+        masked_stack    = np.ma.masked_array(spectra_stack, mask=mask_stack)
+        average_spectra = masked_stack.mean(axis=0).filled(np.nan)
+
+        average_for_fit = _interpolate_nans(average_spectra)
+        _, new_baseline = remove_baseline(
+            average_for_fit, window_length=sg_window, polyorder=sg_order
+        )
+        group_sg_fits[g] = new_baseline
 
         total_new += n_new
-        n_bins = sum(len(m) for m in current_masks)
+        n_bins   = sum(len(m) for m in current_masks)
         n_masked = sum(int(np.count_nonzero(m)) for m in current_masks)
         print(f"    Group {g+1:3d}: newly masked={n_new:4d}  "
               f"total masked={n_masked:4d}/{n_bins}")
 
     print(f"  Total newly masked this iteration: {total_new}")
     return group_masks, group_sg_fits
+
+def general_clipping(spectra, sg_window, sg_order, sigma_cut, baseline=None, current_mask=None, iteration=None):
+    if not current_mask:
+        current_mask = [np.zeros(len(spectra[0]), dtype=int) if spectra is not None else None]
+    if not baseline:
+        residual, baseline = remove_baseline(
+            spectra,
+            window_length=sg_window,
+            window_order=sg_order
+        )
+    if not iteration:
+        iteration = 1
+    std = np.std(residual)
+    threshold = sigma_cut * std
+
+    new_bad = (current_mask == 0) & (np.abs(residual) > threshold)
+    mask = current_mask.copy()
+    mask[new_bad] = iteration
+    mask_count = int(np.sum(new_bad))
+
+    return mask, mask_count, baseline, residual
