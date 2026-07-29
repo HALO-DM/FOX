@@ -868,6 +868,7 @@ def main():
 
     # Plot injected frequency distrubtion (frequency againist time)
     if out["injection_distribution"]:
+        cbar_label  = r"$|f_{\rm CW} - f_{\rm res}|$  [GHz]"
         fig, ax = plt.subplots(figsize = (13,5))
         colour_vals = (cw_freqs - res_freqs*1e9) / 1e9  # Hz -> GHz
         metadata_dates = pd.to_datetime(metadata["date"], format="%Y-%m-%d %H:%M:%S")
@@ -1274,7 +1275,7 @@ def main():
         
 
             # Plot histogram of each set averaged spectra per group
-            fig,ax = plt.subplots(figsize=(13, 7))
+            fig,ax = plt.subplots(figsize=(9, 5))
             # ax.hist(specs, bins=100)
             ax.hist(np.mean([x[0] for x in group], axis=0), bins=100)
             ax.set_xlabel("PSD  [V²/Hz]")
@@ -1302,7 +1303,7 @@ def main():
 
 
             # Plot standard deviation of each set average againist frequency per group
-            fig, ax = plt.subplots(figsize=(13, 7))
+            fig, ax = plt.subplots(figsize=(9, 5))
             ax.plot(np.mean([x[1] for x in group], axis=0)/1e6, np.std([x[0] for x in group], axis=0), alpha=0.8, color=_gcol_1(g), label =f"Grp {g}")
             sm_res = ScalarMappable(cmap=_cmap_g_1, norm=_norm_res)
             sm_res.set_array([])
@@ -1426,7 +1427,7 @@ def main():
                 residuals = specs - fit
 
                 # Plot residuals againist frequency
-                fig, ax = plt.subplots(figsize=(13, 7))
+                fig, ax = plt.subplots(figsize=(14, 5))
                 ax.plot( freqs/1e6 ,residuals)
                 ax.set_xlabel("IF frequency  [MHz]")
                 ax.set_ylabel("Residuals  [V²/Hz]")
@@ -1436,7 +1437,7 @@ def main():
                 plt.close()
 
                 # Plot histogram of residuals
-                fig, ax = plt.subplots(figsize=(13, 7))
+                fig, ax = plt.subplots(figsize=(9, 5))
                 ax.hist(residuals[np.isfinite(residuals)], bins=50, color="steelblue")
                 ax.set_xlabel("Residuals  [V²/Hz]")
                 ax.set_ylabel("Counts")
@@ -1457,7 +1458,7 @@ def main():
                 all_residuals = []
 
                 # Plot residuals againist frequnecy for each group
-                fig, ax = plt.subplots(figsize=(13, 7))
+                fig, ax = plt.subplots(figsize=(14, 5))
                 for spec_idx, (spectra, frequencies, res_freq) in enumerate(group):
                     residuals = spectra - fit
                     all_residuals.append(residuals)
@@ -1477,7 +1478,7 @@ def main():
 
 
                 # Plot stacked histogram of residuals in each group
-                fig, ax = plt.subplots(figsize=(13, 7))
+                fig, ax = plt.subplots(figsize=(9, 5))
                 ax.hist([r[np.isfinite(r)] for r in all_residuals], bins=50, stacked=True, color=colors)
                 norm2 = mcolors.Normalize(vmin=0, vmax=n - 1)
                 sm2 = ScalarMappable(cmap=cm.viridis, norm=norm2)
@@ -1638,7 +1639,7 @@ def main():
 
 
         # Plot absolute residual average vs grouping size
-        fig, ax = plt.subplots(figsize=(13, 7))
+        fig, ax = plt.subplots(figsize=(9, 5))
         ax.plot(spacings_plot, resid_av, marker="o", alpha=0.7)
         ax.set_xlabel("Grouping time [minutes]")
         ax.set_ylabel("Average residuals  [V²/Hz]")
@@ -1650,7 +1651,7 @@ def main():
 
 
         # Plot residual std vs grouping size
-        fig, ax = plt.subplots(figsize=(13, 7))
+        fig, ax = plt.subplots(figsize=(9, 5))
         ax.plot(spacings_plot, resid_std, marker="o")
         ax.set_xlabel("Grouping time threshold  [minutes]")
         ax.set_ylabel("Average residual std  [V²/Hz]")
