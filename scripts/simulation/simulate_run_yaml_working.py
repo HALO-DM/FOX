@@ -35,7 +35,7 @@ from axion_haloscope.detection  import threshold_for_detection, find_candidates
 from axion_haloscope.limit      import compute_local_snr_template, coupling_limit, plot_exclusion
 from axion_haloscope.data_quality_working import filter_spectrum_set, too_noisy, power_too_high, metadata_is_zeros, time_filter, small_bandwidth
 from axion_haloscope.io_working import SpectrumSet, SpectrumMetadata, read_hdf5, write_hdf5
-from axion_haloscope.sigma_clipping import claude_clipping, blue_clipping, finalise_specs
+from axion_haloscope.sigma_clipping import claude_clipping, blue_clipping, finalise_specs, general_clipping
 from axion_haloscope.width_fq   import width_from_fq
 
 
@@ -974,6 +974,72 @@ def main():
         # Reassign specs as the shifted spectrum
         specs = shifted_spectra
 
+    # =======================================================================
+    # Data Cleaning
+    # =======================================================================
+
+    _cmap_g_0 = plt.cm.viridis
+    res_freq_array = np.asarray(metadata["res_freq"], dtype=float)
+    _finite_res = res_freq_array[np.isfinite(res_freq_array)]
+    _norm_res = Normalize(
+        vmin=np.nanmin(_finite_res) if len(_finite_res) else 0,
+        vmax=np.nanmax(_finite_res) if len(_finite_res) else 1,
+    )
+
+    def _gcol_0(spec_idx):
+        v = res_freq_array[spec_idx]
+        if not np.isfinite(v):
+            return "grey"
+        return _cmap_g_0(_norm_res(v))
+
+    data_clean_dir = run_dir / 'data_cleaning'
+    data_clean_dir.mkdir(parents=True, exist_ok=True)
+
+    n_iter = base["n_iterations"]
+    for spec_idx, (freq, spec) in enumerate(zip(fper, specs)):
+        mask = None
+        
+
+        color = _gcol_0(spec_idx)
+
+        for iteration in range(1, n_iter + 1):
+            mask, baseline, residuals = general_clipping(
+                freq, spec, base["sg_window_warm"], base["sg_poly_warm"], base["sigma_cut"],
+                current_mask=mask, iteration=iteration
+            )
+            unmasked = mask == 0
+            masked_previously = (mask > 0) & (mask != iteration)
+            masked_this_iteration = mask == iteration
+            if not masked_this_iteration.any():
+                break
+            if iteration == 1:
+                spec_dir = data_clean_dir / f"spectra_{spec_idx}"
+                spec_dir.mkdir(parents=True, exist_ok=True)
+            fig, ax = plt.subplots(figsize=(14, 5))
+            if masked_this_iteration.any():
+                ax.scatter(freq[masked_this_iteration]/1e6, spec[masked_this_iteration],
+                        marker=".", color="red", zorder=5, label=f"{np.count_nonzero(mask == iteration)} Bins Masked this iteration")
+            if masked_previously.any():
+                ax.scatter(freq[masked_previously]/1e6, spec[masked_previously],
+                        marker=".", c="grey", zorder=4, label=f"{np.count_nonzero((mask > 0) & (mask != iteration))} Bins Previously Masked ")
+
+            ax.plot(freq/1e6, spec, lw=1.0, alpha=0.35, color="black")
+            ax.plot(freq[unmasked]/1e6, spec[unmasked], lw=1.0, alpha=0.75, color=color, label="Data")
+            ax.plot(freq/1e6, baseline, lw=1.8, alpha=0.95, color=color, linestyle="--", label="Baseline")
+
+            sm_res = ScalarMappable(cmap=_cmap_g_0, norm=_norm_res)
+            sm_res.set_array([])
+            fig.colorbar(sm_res, ax=ax, label="Cavity resonance  [GHz]")
+
+            ax.set_xlabel("IF frequency  [MHz]")
+            ax.set_ylabel("PSD  [V²/Hz]")
+            ax.set_title(f"Spectra post cleaning - Iteration {iteration}")
+            ax.legend()
+            plt.tight_layout()
+            plt.savefig(spec_dir / f"masked_bin_iteration_{iteration}.png", dpi=150, bbox_inches='tight')
+            plt.close()
+
+
 
     # =======================================================================
     # Warm Baseline Removal
@@ -1362,7 +1428,6 @@ def main():
             [np.zeros(len(item[0]), dtype=int) for item in set]
             for set in sets
         ]
-
 
     sigma_cut = base["sigma_cut"]
     n_iterations = base["n_iterations"]

@@ -41,8 +41,7 @@ def finalise_specs(mode, group_avg_spectra, groups, group_sg_fits):
         for g, group in enumerate(groups):
             avg = group_avg_spectra[g]
             fit = group_sg_fits[g]
-            if avg is None or fit is None:
-                continue
+            continue
 
             f_grid = avg[0]
             baseline_interp = interp1d(
@@ -146,23 +145,22 @@ def blue_clipping(groups, group_masks, group_sg_fits, sigma_cut,
     print(f"  Total newly masked this iteration: {total_new}")
     return group_masks, group_sg_fits
 
-def general_clipping(spectra, sg_window, sg_order, sigma_cut, baseline=None, current_mask=None, iteration=None):
-    if not current_mask:
-        current_mask = [np.zeros(len(spectra[0]), dtype=int) if spectra is not None else None]
-    if not baseline:
-        residual, baseline = remove_baseline(
-            spectra,
-            window_length=sg_window,
-            window_order=sg_order
-        )
-    if not iteration:
+def general_clipping(freqs, spectra, sg_window, sg_order, sigma_cut,
+                      baseline=None, current_mask=None, iteration=None):
+    if current_mask is None:
+        current_mask = np.zeros(len(spectra), dtype=int)
+    if iteration is None:
         iteration = 1
-    std = np.std(residual)
+
+    if baseline is None:
+        baseline = _sg_masked(freqs, spectra, current_mask, sg_window, sg_order)
+
+    residual = spectra - baseline
+
+    std = np.std(residual[current_mask == 0])
     threshold = sigma_cut * std
 
     new_bad = (current_mask == 0) & (np.abs(residual) > threshold)
     mask = current_mask.copy()
     mask[new_bad] = iteration
-    mask_count = int(np.sum(new_bad))
-
-    return mask, mask_count, baseline, residual
+    return mask, baseline, residual
