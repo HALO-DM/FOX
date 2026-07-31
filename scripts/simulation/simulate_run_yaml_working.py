@@ -916,6 +916,10 @@ def main():
         data_clean_dir.mkdir(parents=True, exist_ok=True)
 
         n_iter = base["n_iterations"]
+        counter = 0
+        num_clean_graphs = 5
+        new_specs = []
+        new_freqs = []
         for spec_idx, (freq, spec) in enumerate(zip(fper, specs)):
             mask = None
             
@@ -923,14 +927,24 @@ def main():
             color = _gcol_0(spec_idx)
 
             for iteration in range(1, n_iter + 1):
-                mask, baseline, residuals, threshold = general_clipping(
+                mask, baseline, residuals, threshold, _ = general_clipping(
                     spec, base["sg_window_warm"], base["sg_poly_warm"], base["sigma_cut"], freqs=freq,
                     current_mask=mask, iteration=iteration
                 )
                 unmasked = mask == 0
                 masked_previously = (mask > 0) & (mask != iteration)
                 masked_this_iteration = mask == iteration
+
+                new_spec = spec.copy()
+                new_spec[~unmasked] = baseline[~unmasked]
+
                 if not masked_this_iteration.any() and not out["save_data"]:
+                    break
+                if counter != num_clean_graphs:
+                    counter += 1
+                elif counter != 0 and out["save_data"]:
+                    continue
+                else:
                     break
                 if iteration == 1:
                     spec_dir = data_clean_dir / f"spectra_{spec_idx}"
@@ -951,8 +965,8 @@ def main():
                     ax2.scatter(freq[masked_previously]/1e6, residuals[masked_previously],
                             marker=".", c="grey", zorder=4, label=f"{np.count_nonzero((mask > 0) & (mask != iteration))} Bins Previously Masked ")
 
-                ax1.plot(freq[unmasked]/1e6, spec[unmasked], lw=1.0, alpha=0.75, color=color, label="Masked Data")
-                ax1.plot(freq/1e6, spec, lw=1.0, alpha=0.35, color=color, label="Unmasked Data")
+                ax1.plot(freq[unmasked]/1e6, spec[unmasked], lw=1.0, alpha=0.75, color=color, label="Post-Mask Data")
+                ax1.plot(freq/1e6, spec, lw=1.0, alpha=0.35, color=color, label="Raw Data")
                 ax1.plot(freq/1e6, baseline, lw=1.8, alpha=0.95, color=color, linestyle="--", label="Baseline")
 
                 ax2.plot(freq[unmasked]/1e6, residuals[unmasked], lw=1.0, alpha=0.75, color=color, label="Masked Residuals")
@@ -974,14 +988,14 @@ def main():
                 ax1.set_title(f"Spectra post cleaning - Iteration {iteration}")
                 ax1.grid(alpha=0.3); ax1.legend()
 
-                ax2.set_xlabel("IF frequency  [MHz]")
+                ax2.set_xlabel("Residuals [V²/Hz]")
                 ax2.set_ylabel("PSD  [V²/Hz]")
                 ax2.grid(alpha=0.3); ax2.legend()
                 
                 plt.savefig(spec_dir / f"masked_bin_iteration_{iteration}.png", dpi=150, bbox_inches='tight')
                 plt.close()
-
-
+            new_specs.append(new_spec)
+    specs = new_specs
 
     # =======================================================================
     # Warm Baseline Removal
@@ -1338,12 +1352,12 @@ def main():
     # Iterative Sigma Clipping
     # -----------------------------------------------------------------------
 
-    if base["clipping_mode"] == "Claude":
+    if base["clipping_mode"] == "Claude" and "set_masks" not in globals():
         set_masks = [
             np.zeros(len(avg[0]), dtype=int) if avg is not None else None
             for avg in set_avg_spectra
         ]
-    elif base["clipping_mode"] == "Blue":
+    elif base["clipping_mode"] == "Blue" and "set_masks" not in globals():
         set_masks = [
             [np.zeros(len(item[0]), dtype=int) for item in set]
             for set in sets
@@ -1829,7 +1843,7 @@ def main():
                 f"masked={r['total_masked']:>6}/{r['total_bins']:<6}")
 
 
-
+    print(specs)
     # ---------
     # Old Code
     # ---------
