@@ -104,9 +104,25 @@ def aliasing(freqs, psd_mixed, freq_downmixed, fs, combined_freq, tag, run_dir):
     plt.savefig(run_dir/"aliasing.png", dpi=300); plt.close()
 
 
-def plot_spectra(x, y, title, output_loc):
+def plot_spectra(x: np.array,
+                y: np.array,
+                title: str,
+                output_loc: str
+                ):
     """
-    Doc string here 
+    Plot of data counts per day.
+        
+    Parameters
+    ----------
+        x : np.array
+            x values to plot.
+        y : np.array
+            y values to plot.
+        title : float
+            title of the plot.
+        output_loc : string
+            location of where the plot will be saved.
+
     """
     plt.figure(figsize=(13, 7))
     plt.plot(x, y, lw=0.6)
@@ -115,7 +131,33 @@ def plot_spectra(x, y, title, output_loc):
     plt.savefig(output_loc, dpi=150); plt.close()
 
 
-def vs_time_hist(data, bin_num, range, data_label, y_label, title, output_loc):
+def vs_time_hist(data: np.array,
+                bin_num: int,
+                range,
+                data_label: str,
+                y_label: str,
+                title: str,
+                output_loc: str):
+    """
+    Plot of data counts per day.
+    
+    Parameters
+    ----------
+        data : 
+            values that are being binned.
+        bin_num:
+            the number of time intervals between the start and end time.
+        range :
+            the start and end time.
+        data_label : string
+            label for the data.
+        y_label : string
+            y axis label.
+        title : string
+            title for the plot.
+        output_loc : string
+            location of where the plot will be saved.      
+    """
     plt.figure(figsize=(13,7))
     plt.hist(data, bin_num, range, stacked=True)
     plt.gca().xaxis.set_major_formatter(mdates.DateFormatter("%Y-%m-%d"))
@@ -130,8 +172,41 @@ def vs_time_hist(data, bin_num, range, data_label, y_label, title, output_loc):
     plt.savefig(output_loc, dpi=150)
     plt.close()
 
-def plot_hist(data, vline, n, bins, xlabel, vlabel, title, cb_label, output_loc):
 
+def plot_hist(data: np.array,
+            vline: list,
+            n: int, 
+            bins: int,
+            xlabel: str,
+            vlabel: list,
+            title: str,
+            cb_label: str,
+            output_loc: str):
+    """
+    Plot a histogram of the inputted data, optional colour bar and optional vertical lines.
+
+    Parameters
+    ----------
+        data : np.array
+            values that are being binned.
+        vline : list
+            optional - x value of vertical line to be plotted.
+        n : int
+            number of different colours required.
+        bins : int
+            number of bins for the histogram.
+        xlabel : float
+            label for the x axis
+        vlabel: float
+            optional - label for the vertical line
+        title : string
+            title of the plot
+        cb_label : string
+            optional - label for the colour bar
+        output_loc : list
+            location of where the plot will be saved.
+    
+    """
     colors = cm.viridis(np.linspace(0, 1, n))
     fig,ax = plt.subplots(figsize=(13, 7))
     ax.hist(data, bins, stacked=True, color=colors)
