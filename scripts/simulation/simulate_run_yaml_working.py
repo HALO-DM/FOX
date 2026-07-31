@@ -37,6 +37,7 @@ from axion_haloscope.data_quality_working import filter_spectrum_set, too_noisy,
 from axion_haloscope.io_working import SpectrumSet, SpectrumMetadata, read_hdf5, write_hdf5
 from axion_haloscope.sigma_clipping import claude_clipping, blue_clipping, finalise_specs, general_clipping
 from axion_haloscope.width_fq   import width_from_fq
+from axion_haloscope.graphs import plot_spectra, vs_time_hist, plot_hist
 
 
 mpl.rcParams.update({
@@ -292,20 +293,15 @@ def main():
         # Seperate invalid power spectra to plot
         specs_invalid_power, fper_invalid_power = sset_power.spectra, sset_power.freqs_per_spec
         if len(specs_invalid_power) != 0:
-            plt.figure(figsize=(13, 7))
-            plt.plot(fper_invalid_power[0]/1e9, specs_invalid_power[0], lw=0.6)
-            plt.xlabel("Frequency [GHz]"); plt.ylabel("Raw Power [arb]")
-            plt.title("Example invalid raw spectrum (high power)"); plt.grid(alpha=0.3); plt.tight_layout()
-            plt.savefig(QC_run_dir/"invalid_power_raw_spectrum.png", dpi=150); plt.close()
+            plot_spectra(fper_invalid_power[0]/1e9, specs_invalid_power[0],
+                        "Example invalid raw spectrum (high power)", QC_run_dir/"invalid_power_raw_spectrum_first.png")
 
-            plt.figure(figsize=(13, 7))
-            plt.plot(fper_invalid_power[-1]/1e9, specs_invalid_power[-1], lw=0.6)
-            plt.xlabel("Frequency [GHz]"); plt.ylabel("Raw Power [arb]")
-            plt.title("Example invalid raw spectrum (high power)"); plt.grid(alpha=0.3); plt.tight_layout()
-            plt.savefig(QC_run_dir/"invalid_power_raw_spectrum_last.png", dpi=150); plt.close()
+            plot_spectra(fper_invalid_power[-1]/1e9, specs_invalid_power[-1],
+                        "Example invalid raw spectrum (high power)", QC_run_dir/"invalid_power_raw_spectrum_last.png")
 
             step = max(1, int(out["plots_step"]))
             max_plots = None if out["max_plots"] is None else int(out["max_plots"])
+            
 
 
     # QC: Cut spectra that have rms values above threshold
@@ -323,20 +319,15 @@ def main():
         for idx, s in enumerate(bad_noise):
             invalid_files.append([sset_noise.metadata["file_name"][idx], "too noisy", sset_noise.metadata["date"][idx]])
         print(f"[QC]: {len(bad_noise)} spectra were removed as too noisy.")
-        # Seperate invalid power spectra to plot
+        # Seperate invalid noise spectra to plot
         specs_invalid_noise, fper_invalid_noise = sset_noise.spectra, sset_noise.freqs_per_spec
         if len(specs_invalid_noise) != 0:
-            plt.figure(figsize=(13, 7))
-            plt.plot(fper_invalid_noise[0]/1e9, specs_invalid_noise[0], lw=0.6)
-            plt.xlabel("Frequency [GHz]"); plt.ylabel("Raw Power [arb]")
-            plt.title("Example invalid raw spectrum (too noisey)"); plt.grid(alpha=0.3); plt.tight_layout()
-            plt.savefig(QC_run_dir/"invalid_noise_raw_spectrum.png", dpi=150); plt.close()
+            
+            plot_spectra(fper_invalid_noise[0]/1e9, specs_invalid_noise[0],
+                        "Example invalid raw spectrum (too noisey)", QC_run_dir/"invalid_noise_raw_spectrum_first.png")
 
-            plt.figure(figsize=(13, 7))
-            plt.plot(fper_invalid_noise[-1]/1e9, specs_invalid_noise[-1], lw=0.6)
-            plt.xlabel("Frequency [GHz]"); plt.ylabel("Raw Power [arb]")
-            plt.title("Example invalid raw spectrum (too noisey)"); plt.grid(alpha=0.3); plt.tight_layout()
-            plt.savefig(QC_run_dir/"invalid_noise_raw_spectrum_last.png", dpi=150); plt.close()
+            plot_spectra(fper_invalid_noise[-1]/1e9, specs_invalid_noise[-1],
+                        "Example invalid raw spectrum (too noisey)", QC_run_dir/"invalid_noise_raw_spectrum_last.png")
 
             step = max(1, int(out["plots_step"]))
             max_plots = None if out["max_plots"] is None else int(out["max_plots"])
@@ -367,20 +358,18 @@ def main():
                 
                 specs_invalid_time, fper_invalid_time = sset_time_filtered.spectra, sset_time_filtered.freqs_per_spec
                 if len(specs_invalid_time) != 0:
-                    plt.figure(figsize=(13, 7))
-                    plt.plot(fper_invalid_time[0]/1e9, specs_invalid_time[0], lw=0.6)
-                    plt.xlabel("Frequency [GHz]"); plt.ylabel("Raw Power [arb]")
-                    plt.title(f"Example invalid raw spectrum (invalid time {qc['start_time'][t]}-{qc['end_time'][t]})"); plt.grid(alpha=0.3); plt.tight_layout()
-                    plt.savefig(QC_run_dir/f"invalid_time_raw_spectrum_{qc['start_time'][t]}-{qc['end_time'][t]}.png", dpi=150); plt.close()
+                    
+                    plot_spectra(fper_invalid_time[0]/1e9, specs_invalid_time[0],
+                                f"Example invalid raw spectrum (invalid time {qc['start_time'][t]}-{qc['end_time'][t]})",
+                                QC_run_dir/f"invalid_time_raw_spectrum_first_{qc['start_time'][t]}-{qc['end_time'][t]}.png")
 
-                    plt.figure(figsize=(13, 7))
-                    plt.plot(fper_invalid_time[-1]/1e9, specs_invalid_time[-1], lw=0.6)
-                    plt.xlabel("Frequency [GHz]"); plt.ylabel("Raw Power [arb]")
-                    plt.title(f"Example invalid raw spectrum (invalid time {qc['start_time'][t]}-{qc['end_time'][t]})"); plt.grid(alpha=0.3); plt.tight_layout()
-                    plt.savefig(QC_run_dir/f"invalid_time_raw_spectrum_last_{qc['start_time'][t]}-{qc['end_time'][t]}.png", dpi=150); plt.close()
+                    plot_spectra(fper_invalid_time[-1]/1e9, specs_invalid_time[-1],
+                                f"Example invalid raw spectrum (invalid time {qc['start_time'][t]}-{qc['end_time'][t]})",
+                                QC_run_dir/f"invalid_time_raw_spectrum_last_{qc['start_time'][t]}-{qc['end_time'][t]}.png")
 
                     step = max(1, int(out["plots_step"]))
                     max_plots = None if out["max_plots"] is None else int(out["max_plots"])
+                    
             print(f"[QC]: {total_bad_time_filter} spectra were removed as within known bad data times.")
 
 
@@ -402,20 +391,16 @@ def main():
         # Seperate invalid bandwidth spectra to plot
         specs_invalid_bandwidth, fper_invalid_bandwidth = sset_bandwidth.spectra, sset_bandwidth.freqs_per_spec
         if len(specs_invalid_bandwidth) != 0:
-            plt.figure(figsize=(13, 7))
-            plt.plot(fper_invalid_bandwidth[0]/1e9, specs_invalid_bandwidth[0], lw=0.6)
-            plt.xlabel("Frequency [GHz]"); plt.ylabel("Raw Power [arb]")
-            plt.title("Example invalid raw spectrum (small bandwidth)"); plt.grid(alpha=0.3); plt.tight_layout()
-            plt.savefig(QC_run_dir/"invalid_bandwidth_raw_spectrum.png", dpi=150); plt.close()
+            
+            plot_spectra(fper_invalid_bandwidth[0]/1e9, specs_invalid_bandwidth[0],
+                        f"Example invalid raw spectrum (invalid bandwidth)", QC_run_dir/f"invalid_bandwidth_spectrum_first.png")
 
-            plt.figure(figsize=(13, 7))
-            plt.plot(fper_invalid_bandwidth[-1]/1e9, specs_invalid_bandwidth[-1], lw=0.6)
-            plt.xlabel("Frequency [GHz]"); plt.ylabel("Raw Power [arb]")
-            plt.title("Example invalid raw spectrum (small bandwidth)"); plt.grid(alpha=0.3); plt.tight_layout()
-            plt.savefig(QC_run_dir/"invalid_bandwidth_raw_spectrum_last.png", dpi=150); plt.close()
+            plot_spectra(fper_invalid_bandwidth[-1]/1e9, specs_invalid_bandwidth[-1],
+                                    f"Example invalid raw spectrum (invalid bandwidth)", QC_run_dir/f"invalid_bandwidth_spectrum_last.png")
 
             step = max(1, int(out["plots_step"]))
             max_plots = None if out["max_plots"] is None else int(out["max_plots"])
+            
 
             # Plot bandwidth againist date to show which are below the threshold
             good_bandwidths = np.array(sset.metadata["bandwidth"])
@@ -510,23 +495,13 @@ def main():
         time_interval = pd.Timedelta(hours=24)
         bin_num = int( (end_date - start_date) / time_interval)
 
-        plt.figure(figsize=(13,7))
-        plt.hist((valid_files_df[1], invalid_metadata[2], invalid_high_power[2], invalid_high_noise[2], invalid_power_zeros[2], invalid_bandwidth[2], invalid_res_freq_zeros[2])
-                , bin_num, range=(start_date, end_date), stacked=True)
-        plt.gca().xaxis.set_major_formatter(mdates.DateFormatter("%Y-%m-%d"))
-        plt.gca().xaxis.set_major_locator(mdates.DayLocator(interval=1))
-        plt.legend([f"valid files (n = {len(valid_files_df[1])})", f"missing metadata (n = {len(invalid_metadata[2])})",
-                    f"power too high (n = {len(invalid_high_power[2])})", f"too noisy (n = {len(invalid_high_noise[2])})",
-                    f"power is zeros (n = {len(invalid_power_zeros[2])})", f"bandwidth is too small (n = {len(invalid_bandwidth[2])})",
-                    f"res freq is zeros (n = {len(invalid_res_freq_zeros[2])})"])
-        plt.xlabel("Date")
-        plt.ylabel("Number of files")
-        plt.title(f"Spectra files per day (before timestamp filter) n = {len(valid_files_df[0] + invalid_files_df[0])}")
-        plt.xticks(rotation=45, ha="right")
-        plt.grid(alpha=0.3)
-        plt.tight_layout()
-        plt.savefig(raw_run_dir/"spectra_hist.png", dpi=150)
-        plt.close()
+        data = [valid_files_df[1], invalid_metadata[2], invalid_high_power[2], invalid_high_noise[2], invalid_power_zeros[2], invalid_bandwidth[2], invalid_res_freq_zeros[2]]
+        labels = [f"valid files (n = {len(valid_files_df[1])})", f"missing metadata (n = {len(invalid_metadata[2])})", f"power too high (n = {len(invalid_high_power[2])})", f"too noisy (n = {len(invalid_high_noise[2])})",
+                        f"power is zeros (n = {len(invalid_power_zeros[2])})", f"bandwidth is too small (n = {len(invalid_bandwidth[2])})", f"res freq is zeros (n = {len(invalid_res_freq_zeros[2])})"]
+
+        vs_time_hist( data, bin_num, (start_date, end_date), labels, "Number of files",
+                    f"Spectra files per day (before timestamp filter) n = {len(valid_files_df[0] + invalid_files_df[0])}", raw_run_dir/"spectra_hist.png")
+
 
     else:
         start_date = valid_files_df[1].min()
@@ -534,19 +509,8 @@ def main():
         time_interval = pd.Timedelta(hours=0.1)
         bin_num = int( (end_date - start_date) / time_interval)
 
-        plt.figure(figsize=(13,7))
-        plt.hist(valid_files_df[1], bin_num, range=(start_date, end_date), stacked=True)
-        plt.gca().xaxis.set_major_formatter(mdates.DateFormatter("%Y-%m-%d"))
-        plt.gca().xaxis.set_major_locator(mdates.DayLocator(interval=1))
-        plt.legend(f"valid files (n = {len(valid_files_df[1])})")
-        plt.xlabel("Date")
-        plt.ylabel("Number of files")
-        plt.title("Spectra files per day (before timestamp filter)")
-        plt.xticks(rotation=45, ha="right")
-        plt.grid(alpha=0.3)
-        plt.tight_layout()
-        plt.savefig(raw_run_dir/"spectra_hist.png", dpi=150)
-        plt.close()
+        vs_time_hist(valid_files_df[1], bin_num, (start_date, end_date), f"valid files (n = {len(valid_files_df[1])})", "Number of files", 
+                     "Spectra files per day (before timestamp filter)", raw_run_dir/"spectra_hist.png")
 
 
     # Plot of total number of events againist time
@@ -689,23 +653,13 @@ def main():
         time_interval = pd.Timedelta(hours=24)
         bin_num = int( (end_date - start_date) / time_interval)
 
-        plt.figure(figsize=(13,7))
-        plt.hist((valid_files_df[1], invalid_metadata[2], invalid_high_power[2], invalid_high_noise[2], invalid_power_zeros[2], invalid_bandwidth[2], invalid_res_freq_zeros[2], invalid_time[2])
-                , bin_num, range=(start_date, end_date), stacked=True)
-        plt.gca().xaxis.set_major_formatter(mdates.DateFormatter("%Y-%m-%d"))
-        plt.gca().xaxis.set_major_locator(mdates.DayLocator(interval=1))
-        plt.legend([f"valid files (n = {len(valid_files_df[1])})", f"missing metadata (n = {len(invalid_metadata[2])})",
-                    f"power too high (n = {len(invalid_high_power[2])})", f"too noisy (n = {len(invalid_high_noise[2])})",
-                    f"power is zeros (n = {len(invalid_power_zeros[2])})", f"bandwidth is too small (n = {len(invalid_bandwidth[2])})",
-                    f"res freq is zeros (n = {len(invalid_res_freq_zeros[2])})", f"invalid time filter (n = {len(invalid_time)})"])
-        plt.xlabel("Date")
-        plt.ylabel("Number of files")
-        plt.title(f"Spectra files per day (post timestamp filter) n = {len(invalid_files_df[0] + valid_files_df[0])}")
-        plt.xticks(rotation=45, ha="right")
-        plt.grid(alpha=0.3)
-        plt.tight_layout()
-        plt.savefig(raw_run_dir/"spectra_hist_time_cut.png", dpi=150)
-        plt.close()
+
+        data = (valid_files_df[1], invalid_metadata[2], invalid_high_power[2], invalid_high_noise[2], invalid_power_zeros[2], invalid_bandwidth[2], invalid_res_freq_zeros[2], invalid_time[2])
+        labels = [ f"valid files (n = {len(valid_files_df[1])})", f"missing metadata (n = {len(invalid_metadata[2])})",
+                f"power too high (n = {len(invalid_high_power[2])})", f"too noisy (n = {len(invalid_high_noise[2])})",
+                f"power is zeros (n = {len(invalid_power_zeros[2])})", f"bandwidth is too small (n = {len(invalid_bandwidth[2])})",
+                f"res freq is zeros (n = {len(invalid_res_freq_zeros[2])})", f"invalid time filter (n = {len(invalid_time)})"]
+        vs_time_hist(data, bin_num, (start_date, end_date), labels, "Number of files", f"Spectra files per day (post timestamp filter) n = {len(invalid_files_df[0] + valid_files_df[0])}", raw_run_dir/"spectra_hist_time_cut.png")
 
     else:
         start_date = valid_files_df[1].min()
@@ -713,19 +667,7 @@ def main():
         time_interval = pd.Timedelta(hours=0.1)
         bin_num = int( (end_date - start_date) / time_interval)
 
-        plt.figure(figsize=(13,7))
-        plt.hist(valid_files_df[1], bin_num, range=(start_date, end_date), stacked=True)
-        plt.gca().xaxis.set_major_formatter(mdates.DateFormatter("%Y-%m-%d"))
-        plt.gca().xaxis.set_major_locator(mdates.DayLocator(interval=1))
-        plt.legend(f"valid files (n = {len(valid_files_df[1])})")
-        plt.xlabel("Date")
-        plt.ylabel("Number of files")
-        plt.title("Spectra files per day (post timestamp filter)")
-        plt.xticks(rotation=45, ha="right")
-        plt.grid(alpha=0.3)
-        plt.tight_layout()
-        plt.savefig(raw_run_dir/"spectra_hist_time_cut.png", dpi=150)
-        plt.close()
+        vs_time_hist(valid_files_df[1], bin_num, (start_date, end_date), f"valid files (n = {len(valid_files_df[1])})", "Number of files", f"Spectra files per day (post timestamp filter) n = {len(valid_files_df[0])}", raw_run_dir/"spectra_hist_time_cut.png")
 
 
     # Plot of total number of events againist time (post time filter)
@@ -791,18 +733,8 @@ def main():
 
 
     # Always save one valid example raw spectrum
-    plt.figure(figsize=(13, 7))
-    plt.plot(fper[0]/1e9, specs[0], lw=0.6)
-    plt.xlabel("Frequency [GHz]"); plt.ylabel("Raw Power [arb]")
-    plt.title("Example valid raw spectrum"); plt.grid(alpha=0.3); plt.tight_layout()
-    plt.savefig(raw_run_dir/"valid_raw_spectrum.png", dpi=150); plt.close()
-
-    plt.figure(figsize=(13, 7))
-    plt.plot(fper[-1]/1e9, specs[-1], lw=0.6)
-    plt.xlabel("Frequency [GHz]"); plt.ylabel("Raw Power [arb]")
-    plt.title("Example valid raw spectrum"); plt.grid(alpha=0.3); plt.tight_layout()
-    plt.savefig(raw_run_dir/"valid_raw_spectrum_last.png", dpi=150); plt.close()
-
+    plot_spectra(fper[0]/1e9, specs[0], f"Example valid raw spectrum", QC_run_dir/f"valid_raw_spectrum_first.png")
+    plot_spectra(fper[-1]/1e9, specs[-1], f"Example valid raw spectrum", QC_run_dir/f"valid_raw_spectrum_last.png")
     step = max(1, int(out["plots_step"]))
     max_plots = None if out["max_plots"] is None else int(out["max_plots"])
 
@@ -815,12 +747,8 @@ def main():
                 continue
             if max_plots is not None and count >= max_plots:
                 break
-            fig, axp = plt.subplots(figsize=(13, 7))
-            axp.plot(freqs/1e6, spec, lw=0.6)
-            axp.set(xlabel="Frequency [MHz]", ylabel="Raw Power [arb]", title=f"Spectrum {i:03d}")
-            axp.grid(alpha=0.3); fig.tight_layout()
-            fig.savefig(raw_run_dir / f"spectrum_{i:03d}.png", dpi=120)
-            plt.close(fig)
+
+            plot_spectra(freqs/1e9, specs, f"Spectrum {i:03d}", raw_run_dir / f"spectrum_{i:03d}.png")
             count += 1
         np.savez(run_dir/"spectra.npz", spectra=np.array(specs), freqs=fper, rf_grid=rf)
 
@@ -931,17 +859,8 @@ def main():
     rf_map = new_rf_map
 
     # Plot example trimmed spectra
-    plt.figure(figsize=(13, 7))
-    plt.plot(fper[0]/1e9, specs[0], lw=0.6)
-    plt.xlabel("Frequency [GHz]"); plt.ylabel("Raw Power [arb]")
-    plt.title("Example valid raw spectrum"); plt.grid(alpha=0.3); plt.tight_layout()
-    plt.savefig(cut_run_dir/"trimmed_spectrum_first.png", dpi=150); plt.close()
-
-    plt.figure(figsize=(13, 7))
-    plt.plot(fper[0]/1e9, specs[0], lw=0.6)
-    plt.xlabel("Frequency [GHz]"); plt.ylabel("Raw Power [arb]")
-    plt.title("Example valid raw spectrum"); plt.grid(alpha=0.3); plt.tight_layout()
-    plt.savefig(cut_run_dir/"trimmed_spectrum_last.png", dpi=150); plt.close()
+    plot_spectra(fper[0]/1e9, specs[0], "Example valid trimmed spectrum", cut_run_dir/"trimmed_spectrum_first.png")
+    plot_spectra(fper[-1]/1e9, specs[-1], "Example valid trimmed spectrum", cut_run_dir/"trimmed_spectrum_last.png")
 
 
     # =======================================================================
@@ -1172,8 +1091,6 @@ def main():
 
         # Plot set averaged spectra for all sets on one axis
         fig, ax = plt.subplots(figsize=(13, 7))
-        # for g, (freqs, specs) in enumerate(set_avg_spectra):
-            # ax.plot(freqs/1e6, specs, alpha=0.8, color=_gcol_1(s), label =f"Set {s}")
         for s, set in enumerate(sets):
             ax.plot(np.mean([x[1] for x in set], axis=0)/1e6, np.mean([x[0] for x in set], axis=0), alpha=0.8, color=_gcol_1(s), label =f"Set {s}")
         sm_res = ScalarMappable(cmap=_cmap_g_1, norm=_norm_res)
@@ -1268,23 +1185,13 @@ def main():
         plt.tight_layout()
         plt.savefig(f"{warm_run_dir}/std_vs_freq_all.png", dpi = 150, bbox_inches='tight')
         plt.close()
-
     
         # Plot a histogram of standard deviation of averaged sets for all sets
         n = len(sets)
-        colors = cm.viridis(np.linspace(0, 1, n))
-        fig,ax = plt.subplots(figsize=(13, 7))
-        ax.hist([np.std([x[0] for x in set], axis=0) for set in sets], bins=50, stacked=True, color=colors)
-        norm2 = mcolors.Normalize(vmin=0, vmax=n - 1)
-        sm2 = ScalarMappable(cmap=cm.viridis, norm=norm2)
-        sm2.set_array([])
-        fig.colorbar(sm2, ax=ax, label="Mean cavity resonance [GHz]")
-        ax.set_xlabel("Standard Deviation of average  [V²/Hz]")
-        ax.set_ylabel("Counts")
-        ax.set_title(f"Histogram of standard deviation of averaged sets - all sets (n = {len(sets)})")
-        plt.tight_layout()
-        plt.savefig(f"{warm_run_dir}/std_hist_all", dpi = 150, bbox_inches='tight')
-        plt.close()
+        plot_hist(data=[np.std([x[0] for x in set], axis=0) for set in sets],
+                vline=None, n=n, bins=50, xlabel="Standard Deviation of average  [V²/Hz]", vlabel=None, 
+                title=f"Histogram of standard deviation of averaged sets - all sets (n = {len(sets)})",
+                cb_label="Mean cavity resonance [GHz]", output_loc=f"{warm_run_dir}/std_hist_all" )
 
 
         # Plot average std for each set againist set number
@@ -1356,7 +1263,6 @@ def main():
             ax.set_xlabel("IF frequency  [MHz]")
             ax.set_ylabel("PSD  [V²/Hz]")
             ax.set_title(f"Set-averaged spectra with errors — set {s}")
-            ax.set_yscale("log")
             plt.tight_layout()
             plt.legend()
             plt.savefig(f"{warm_run_dir}/set_averaged_spectra_errors_{s}.png", dpi = 150, bbox_inches='tight')
@@ -1393,18 +1299,9 @@ def main():
             # Plot histogram of each set averaged spectra per set
             mean_val = np.mean([x[0] for x in set])
             med_val = np.median([x[0] for x in set])
-            fig,ax = plt.subplots(figsize=(13, 7))
-            # ax.hist(specs, bins=100)
-            ax.hist(np.mean([x[0] for x in set], axis=0), bins=100)
-            ax.set_xlabel("PSD  [V²/Hz]")
-            ax.set_ylabel("Counts")
-            ax.set_title(f"Histogram of set averaged set {s}")
-            plt.axvline(mean_val, color = 'r', alpha=0.8, ls="--", label = f'mean value ({mean_val:.4g})')
-            plt.axvline(med_val, color = 'g', alpha=0.8, ls="--", label = f'median value ({med_val:.4g})')
-            plt.tight_layout()
-            plt.legend()
-            plt.savefig(f"{warm_run_dir}/histogram_of_set_{s}", dpi = 150, bbox_inches='tight')
-            plt.close()
+            plot_hist(data=np.mean([x[0] for x in set], axis=0), vline=[mean_val, med_val],
+                    n=1, bins=100, xlabel="PSD  [V²/Hz]", vlabel=["mean value", "median value"],
+                    title=f"Histogram of set averaged set {s}", cb_label=None, output_loc=f"{warm_run_dir}/PSD_histogram_of_set_test{s}")
 
 
             # Plot standard deviation of each set average againist frequency per set
@@ -1542,14 +1439,10 @@ def main():
                 plt.close()
 
                 # Plot histogram of residuals
-                fig, ax = plt.subplots(figsize=(13, 7))
-                ax.hist(residuals[np.isfinite(residuals)], bins=50, color="steelblue")
-                ax.set_xlabel("Residuals  [V²/Hz]")
-                ax.set_ylabel("Counts")
-                ax.set_title(f"Residuals histogram - set {s} (Claude's clipping method)")
-                plt.tight_layout()
-                plt.savefig(f"{clip_run_dir}/claude_residuals_hist_{s}.png", dpi=150, bbox_inches='tight')
-                plt.close()
+                plot_hist(data=residuals[np.isfinite(residuals)], vline=None, n=1, bins=50, xlabel="IF frequency  [MHz]",
+                        vlabel=None, title=f"Residuals - set {s} (Claude's clipping method)", cb_label=None, 
+                        output_loc=f"{clip_run_dir}/claude_residuals_hist__test{s}.png" )
+        
 
 
             elif base["clipping_mode"] == "Blue":
@@ -1583,18 +1476,10 @@ def main():
 
 
                 # Plot stacked histogram of residuals in each set
-                fig, ax = plt.subplots(figsize=(13, 7))
-                ax.hist([r[np.isfinite(r)] for r in all_residuals], bins=50, stacked=True, color=colors)
-                norm2 = mcolors.Normalize(vmin=0, vmax=n - 1)
-                sm2 = ScalarMappable(cmap=cm.viridis, norm=norm2)
-                sm2.set_array([])
-                fig.colorbar(sm2, ax=ax, label="Spectrum index in set")
-                ax.set_xlabel("Residuals  [V²/Hz]")
-                ax.set_ylabel("Counts")
-                ax.set_title(f"Residuals histogram (stacked) — set {s} (Blue's clipping method)")
-                plt.tight_layout()
-                plt.savefig(f"{clip_run_dir}/blue_residuals_hist_{s}.png", dpi=150, bbox_inches='tight')
-                plt.close()
+                plot_hist(data=[r[np.isfinite(r)] for r in all_residuals],
+                        vline=None, n=n, bins=50, xlabel="Residuals  [V²/Hz]", vlabel=None,
+                        title=f"Residuals histogram (stacked) — set {s} (Blue's clipping method)", cb_label="Spectrum index in set", 
+                        output_loc=f"{clip_run_dir}/blue_residuals_hist_test{s}.png")
 
     specs, fper = finalise_specs(base["clipping_mode"], set_avg_spectra, sets, set_sg_fits)
 

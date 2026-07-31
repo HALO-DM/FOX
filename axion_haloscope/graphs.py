@@ -1,5 +1,9 @@
 import numpy as np
 import matplotlib.pyplot as plt
+import matplotlib.dates as mdates
+from matplotlib.cm import ScalarMappable
+import matplotlib.colors as mcolors
+import matplotlib.cm as cm
 
 def simulation_stages(freq_axion, freq_local_oscillator,fs, freq_downmixed, n_bins, x_signal, 
                       x_mixed, x_filtered, freqs, psd_filt, mask_show, 
@@ -98,3 +102,55 @@ def aliasing(freqs, psd_mixed, freq_downmixed, fs, combined_freq, tag, run_dir):
     ax.legend()
     ax.grid(True, alpha=0.3)
     plt.savefig(run_dir/"aliasing.png", dpi=300); plt.close()
+
+
+def plot_spectra(x, y, title, output_loc):
+    """
+    Doc string here 
+    """
+    plt.figure(figsize=(13, 7))
+    plt.plot(x, y, lw=0.6)
+    plt.xlabel("Frequency[GHz]"); plt.ylabel( "Raw Power [arb]")
+    plt.title(title); plt.grid(alpha=0.3); plt.tight_layout()
+    plt.savefig(output_loc, dpi=150); plt.close()
+
+
+def vs_time_hist(data, bin_num, range, data_label, y_label, title, output_loc):
+    plt.figure(figsize=(13,7))
+    plt.hist(data, bin_num, range, stacked=True)
+    plt.gca().xaxis.set_major_formatter(mdates.DateFormatter("%Y-%m-%d"))
+    plt.gca().xaxis.set_major_locator(mdates.DayLocator(interval=1))
+    plt.legend(data_label)
+    plt.xlabel("Date")
+    plt.ylabel(y_label)
+    plt.title(title)
+    plt.xticks(rotation=45, ha="right")
+    plt.grid(alpha=0.3)
+    plt.tight_layout()
+    plt.savefig(output_loc, dpi=150)
+    plt.close()
+
+def plot_hist(data, vline, n, bins, xlabel, vlabel, title, cb_label, output_loc):
+
+    colors = cm.viridis(np.linspace(0, 1, n))
+    fig,ax = plt.subplots(figsize=(13, 7))
+    ax.hist(data, bins, stacked=True, color=colors)
+    norm2 = mcolors.Normalize(vmin=0, vmax=n - 1)
+    sm2 = ScalarMappable(cmap=cm.viridis, norm=norm2)
+    sm2.set_array([])
+
+    if n > 1:
+        fig.colorbar(sm2, ax=ax, label=cb_label)
+
+    if vline is not None:
+        line_colours = cm.tab10(np.linspace(0, 1, len(vline)))
+        for line, label, lc in zip(vline, vlabel, line_colours):
+            plt.axvline(line, color=lc, alpha=0.8, ls="--", label = f'{label} ({line:.4g})')
+        ax.legend()
+
+    ax.set_xlabel(xlabel)
+    ax.set_ylabel("Counts")
+    ax.set_title(title)
+    plt.tight_layout()
+    plt.savefig(output_loc, dpi = 150, bbox_inches='tight')
+    plt.close()
