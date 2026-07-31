@@ -1003,39 +1003,61 @@ def main():
         color = _gcol_0(spec_idx)
 
         for iteration in range(1, n_iter + 1):
-            mask, baseline, residuals = general_clipping(
-                freq, spec, base["sg_window_warm"], base["sg_poly_warm"], base["sigma_cut"],
+            mask, baseline, residuals, threshold = general_clipping(
+                spec, base["sg_window_warm"], base["sg_poly_warm"], base["sigma_cut"], freqs=freq,
                 current_mask=mask, iteration=iteration
             )
             unmasked = mask == 0
             masked_previously = (mask > 0) & (mask != iteration)
             masked_this_iteration = mask == iteration
-            if not masked_this_iteration.any():
+            if not masked_this_iteration.any() and not out["save_data"]:
                 break
             if iteration == 1:
                 spec_dir = data_clean_dir / f"spectra_{spec_idx}"
                 spec_dir.mkdir(parents=True, exist_ok=True)
-            fig, ax = plt.subplots(figsize=(14, 5))
+
+            fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(20, 8), sharex=True,
+                                                   gridspec_kw={"height_ratios": [2, 1]})
+            
             if masked_this_iteration.any():
-                ax.scatter(freq[masked_this_iteration]/1e6, spec[masked_this_iteration],
+                ax1.scatter(freq[masked_this_iteration]/1e6, spec[masked_this_iteration],
                         marker=".", color="red", zorder=5, label=f"{np.count_nonzero(mask == iteration)} Bins Masked this iteration")
+                ax2.scatter(freq[masked_this_iteration]/1e6, residuals[masked_this_iteration],
+                        marker=".", color="red", zorder=5, label=f"{np.count_nonzero(mask == iteration)} Bins Masked this iteration")
+                
             if masked_previously.any():
-                ax.scatter(freq[masked_previously]/1e6, spec[masked_previously],
+                ax1.scatter(freq[masked_previously]/1e6, spec[masked_previously],
+                        marker=".", c="grey", zorder=4, label=f"{np.count_nonzero((mask > 0) & (mask != iteration))} Bins Previously Masked ")
+                ax2.scatter(freq[masked_previously]/1e6, residuals[masked_previously],
                         marker=".", c="grey", zorder=4, label=f"{np.count_nonzero((mask > 0) & (mask != iteration))} Bins Previously Masked ")
 
-            ax.plot(freq/1e6, spec, lw=1.0, alpha=0.35, color="black")
-            ax.plot(freq[unmasked]/1e6, spec[unmasked], lw=1.0, alpha=0.75, color=color, label="Data")
-            ax.plot(freq/1e6, baseline, lw=1.8, alpha=0.95, color=color, linestyle="--", label="Baseline")
+            ax1.plot(freq[unmasked]/1e6, spec[unmasked], lw=1.0, alpha=0.75, color=color, label="Masked Data")
+            ax1.plot(freq/1e6, spec, lw=1.0, alpha=0.35, color=color, label="Unmasked Data")
+            ax1.plot(freq/1e6, baseline, lw=1.8, alpha=0.95, color=color, linestyle="--", label="Baseline")
+
+            ax2.plot(freq[unmasked]/1e6, residuals[unmasked], lw=1.0, alpha=0.75, color=color, label="Masked Residuals")
+            ax2.plot(freq/1e6, residuals, lw=1.0, alpha=0.35, color=color, label="Unmasked Residuals")
+            ax2.axhline(threshold, alpha=0.35, color="red", linestyle="dashed",label=fr"{base["sigma_cut"]}$\sigma$ Threshold")
+            ax2.axhline(-threshold, alpha=0.35, color="red", linestyle="dashed")
+            max_vals = [np.max(spec[masked_this_iteration])] if masked_this_iteration.any() else []
+            if masked_previously.any():
+                max_vals.append(np.max(np.abs(residuals[masked_previously])))
+
+            if max_vals and max(max_vals) < 1.5 * threshold:
+                ax2.set_ylim(-1.5 * threshold, 1.5 * threshold)
 
             sm_res = ScalarMappable(cmap=_cmap_g_0, norm=_norm_res)
             sm_res.set_array([])
-            fig.colorbar(sm_res, ax=ax, label="Cavity resonance  [GHz]")
+            fig.colorbar(sm_res, ax=[ax1,ax2], label="Cavity resonance  [GHz]")
 
-            ax.set_xlabel("IF frequency  [MHz]")
-            ax.set_ylabel("PSD  [V²/Hz]")
-            ax.set_title(f"Spectra post cleaning - Iteration {iteration}")
-            ax.legend()
-            plt.tight_layout()
+            ax1.set_ylabel("PSD  [V²/Hz]")
+            ax1.set_title(f"Spectra post cleaning - Iteration {iteration}")
+            ax1.grid(alpha=0.3); ax1.legend()
+
+            ax2.set_xlabel("IF frequency  [MHz]")
+            ax2.set_ylabel("PSD  [V²/Hz]")
+            ax2.grid(alpha=0.3); ax2.legend()
+            
             plt.savefig(spec_dir / f"masked_bin_iteration_{iteration}.png", dpi=150, bbox_inches='tight')
             plt.close()
 

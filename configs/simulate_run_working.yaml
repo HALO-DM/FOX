@@ -42,7 +42,7 @@ baseline:
   sg_poly_cold: 4
   spacing_minutes: 30
   sigma_cut: 4.5
-  clipping_mode: "Blue"    # "Claude" or "Blue"
+  clipping_mode: "Claude"    # "Claude" or "Blue"
   n_iterations: 3
 
 rebin:

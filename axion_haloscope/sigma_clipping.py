@@ -145,7 +145,7 @@ def blue_clipping(groups, group_masks, group_sg_fits, sigma_cut,
     print(f"  Total newly masked this iteration: {total_new}")
     return group_masks, group_sg_fits
 
-def general_clipping(freqs, spectra, sg_window, sg_order, sigma_cut,
+def general_clipping(spectra, sg_window, sg_order, sigma_cut, freqs=None,
                       baseline=None, current_mask=None, iteration=None):
     if current_mask is None:
         current_mask = np.zeros(len(spectra), dtype=int)
@@ -154,6 +154,7 @@ def general_clipping(freqs, spectra, sg_window, sg_order, sigma_cut,
 
     if baseline is None:
         baseline = _sg_masked(freqs, spectra, current_mask, sg_window, sg_order)
+    freqs = freqs if (freqs is not None) else np.arange(len(spectra))
 
     residual = spectra - baseline
 
@@ -163,4 +164,4 @@ def general_clipping(freqs, spectra, sg_window, sg_order, sigma_cut,
     new_bad = (current_mask == 0) & (np.abs(residual) > threshold)
     mask = current_mask.copy()
     mask[new_bad] = iteration
-    return mask, baseline, residual
+    return mask, baseline, residual, threshold
