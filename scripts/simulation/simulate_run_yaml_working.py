@@ -72,10 +72,10 @@ def load_yaml_config(path: pathlib.Path) -> dict:
             "noise_sigma":    float(_get(sim, "noise_sigma", 1.0)),
         },
         "input": {
-            "read_input":       bool(_get(inp, "read_input", False)),
-            "directory":        _get(inp, "directory", "scripts/qshs/output/qshs_import"),
-            "input_file_name":  _get(inp, "input_file_name", "spectra.h5"),
-            "full_data_directory": _get(inp, "full_data_directory", "input/Feb/All"),
+            "read_input":           bool(_get(inp, "read_input", False)),
+            "directory":            _get(inp, "directory", "scripts/qshs/output/qshs_import"),
+            "input_file_name":      _get(inp, "input_file_name", "spectra.h5"),
+            "full_data_directory":  _get(inp, "full_data_directory", "input/Feb/All"),
         },
         "injection": {
             "enabled":     bool(_get(inj, "enabled", False)),
@@ -97,6 +97,7 @@ def load_yaml_config(path: pathlib.Path) -> dict:
             "bad_time_filter":          bool(_get(qc, "bad_time_filter", True)),
             "start_time":               _get(qc, "start_time", None),
             "end_time":                 _get(qc, "end_time", None),
+            "data_cleaning":            bool(_get(qc, "data_cleaning", True)),
         },
         "baseline": {
             "sg_window_warm": int(_get(base, "sg_window_warm", 251)),
@@ -119,17 +120,17 @@ def load_yaml_config(path: pathlib.Path) -> dict:
             "g0":         float(_get(det, "g0", 1.0)),
         },
         "output": {
-            "save_data":     bool(_get(out, "save_data", False)),
-            "combined_plot": bool(_get(out, "combined_plot", False)),
-            "offset_combined_plot": bool(_get(out, "offset_combined_plot", False)),
-            "injection_distribution": bool(_get(out, "injection_distribution", False)),
-            "set_average_diagnostics": bool(_get(out, "set_average_diagnostics", False)),
-            "clipping_residuals": bool(_get(out, "clipping_residuals", False)),
-            "varying_set_size": bool(_get(out, "varying_set_size", False)),
-            "plots_step":    int(_get(out, "plots_step", 1)),   # plot every Nth spectrum
-            "max_plots":     out.get("max_plots", None),        # optional int
-            "root":          _get(out, "root", "output"),
-            "subdir_prefix": _get(out, "subdir_prefix", "run"),
+            "save_data":                bool(_get(out, "save_data", False)),
+            "combined_plot":            bool(_get(out, "combined_plot", False)),
+            "offset_combined_plot":     bool(_get(out, "offset_combined_plot", False)),
+            "injection_distribution":   bool(_get(out, "injection_distribution", False)),
+            "set_average_diagnostics":  bool(_get(out, "set_average_diagnostics", False)),
+            "clipping_residuals":       bool(_get(out, "clipping_residuals", False)),
+            "varying_set_size":         bool(_get(out, "varying_set_size", False)),
+            "plots_step":               int(_get(out, "plots_step", 1)),   # plot every Nth spectrum
+            "max_plots":                out.get("max_plots", None),        # optional int
+            "root":                     _get(out, "root", "output"),
+            "subdir_prefix":            _get(out, "subdir_prefix", "run"),
         },
     }
     return cfg
@@ -977,89 +978,89 @@ def main():
     # =======================================================================
     # Data Cleaning
     # =======================================================================
+    if qc["data_cleaning"]:
+        _cmap_g_0 = plt.cm.viridis
+        res_freq_array = np.asarray(metadata["res_freq"], dtype=float)
+        _finite_res = res_freq_array[np.isfinite(res_freq_array)]
+        _norm_res = Normalize(
+            vmin=np.nanmin(_finite_res) if len(_finite_res) else 0,
+            vmax=np.nanmax(_finite_res) if len(_finite_res) else 1,
+        )
 
-    _cmap_g_0 = plt.cm.viridis
-    res_freq_array = np.asarray(metadata["res_freq"], dtype=float)
-    _finite_res = res_freq_array[np.isfinite(res_freq_array)]
-    _norm_res = Normalize(
-        vmin=np.nanmin(_finite_res) if len(_finite_res) else 0,
-        vmax=np.nanmax(_finite_res) if len(_finite_res) else 1,
-    )
+        def _gcol_0(spec_idx):
+            v = res_freq_array[spec_idx]
+            if not np.isfinite(v):
+                return "grey"
+            return _cmap_g_0(_norm_res(v))
 
-    def _gcol_0(spec_idx):
-        v = res_freq_array[spec_idx]
-        if not np.isfinite(v):
-            return "grey"
-        return _cmap_g_0(_norm_res(v))
+        data_clean_dir = run_dir / 'data_cleaning'
+        data_clean_dir.mkdir(parents=True, exist_ok=True)
 
-    data_clean_dir = run_dir / 'data_cleaning'
-    data_clean_dir.mkdir(parents=True, exist_ok=True)
-
-    n_iter = base["n_iterations"]
-    for spec_idx, (freq, spec) in enumerate(zip(fper, specs)):
-        mask = None
-        
-
-        color = _gcol_0(spec_idx)
-
-        for iteration in range(1, n_iter + 1):
-            mask, baseline, residuals, threshold = general_clipping(
-                spec, base["sg_window_warm"], base["sg_poly_warm"], base["sigma_cut"], freqs=freq,
-                current_mask=mask, iteration=iteration
-            )
-            unmasked = mask == 0
-            masked_previously = (mask > 0) & (mask != iteration)
-            masked_this_iteration = mask == iteration
-            if not masked_this_iteration.any() and not out["save_data"]:
-                break
-            if iteration == 1:
-                spec_dir = data_clean_dir / f"spectra_{spec_idx}"
-                spec_dir.mkdir(parents=True, exist_ok=True)
-
-            fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(20, 8), sharex=True,
-                                                   gridspec_kw={"height_ratios": [2, 1]})
+        n_iter = base["n_iterations"]
+        for spec_idx, (freq, spec) in enumerate(zip(fper, specs)):
+            mask = None
             
-            if masked_this_iteration.any():
-                ax1.scatter(freq[masked_this_iteration]/1e6, spec[masked_this_iteration],
-                        marker=".", color="red", zorder=5, label=f"{np.count_nonzero(mask == iteration)} Bins Masked this iteration")
-                ax2.scatter(freq[masked_this_iteration]/1e6, residuals[masked_this_iteration],
-                        marker=".", color="red", zorder=5, label=f"{np.count_nonzero(mask == iteration)} Bins Masked this iteration")
+
+            color = _gcol_0(spec_idx)
+
+            for iteration in range(1, n_iter + 1):
+                mask, baseline, residuals, threshold = general_clipping(
+                    spec, base["sg_window_warm"], base["sg_poly_warm"], base["sigma_cut"], freqs=freq,
+                    current_mask=mask, iteration=iteration
+                )
+                unmasked = mask == 0
+                masked_previously = (mask > 0) & (mask != iteration)
+                masked_this_iteration = mask == iteration
+                if not masked_this_iteration.any() and not out["save_data"]:
+                    break
+                if iteration == 1:
+                    spec_dir = data_clean_dir / f"spectra_{spec_idx}"
+                    spec_dir.mkdir(parents=True, exist_ok=True)
+
+                fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(20, 8), sharex=True,
+                                                    gridspec_kw={"height_ratios": [2, 1]})
                 
-            if masked_previously.any():
-                ax1.scatter(freq[masked_previously]/1e6, spec[masked_previously],
-                        marker=".", c="grey", zorder=4, label=f"{np.count_nonzero((mask > 0) & (mask != iteration))} Bins Previously Masked ")
-                ax2.scatter(freq[masked_previously]/1e6, residuals[masked_previously],
-                        marker=".", c="grey", zorder=4, label=f"{np.count_nonzero((mask > 0) & (mask != iteration))} Bins Previously Masked ")
+                if masked_this_iteration.any():
+                    ax1.scatter(freq[masked_this_iteration]/1e6, spec[masked_this_iteration],
+                            marker=".", color="red", zorder=5, label=f"{np.count_nonzero(mask == iteration)} Bins Masked this iteration")
+                    ax2.scatter(freq[masked_this_iteration]/1e6, residuals[masked_this_iteration],
+                            marker=".", color="red", zorder=5, label=f"{np.count_nonzero(mask == iteration)} Bins Masked this iteration")
+                    
+                if masked_previously.any():
+                    ax1.scatter(freq[masked_previously]/1e6, spec[masked_previously],
+                            marker=".", c="grey", zorder=4, label=f"{np.count_nonzero((mask > 0) & (mask != iteration))} Bins Previously Masked ")
+                    ax2.scatter(freq[masked_previously]/1e6, residuals[masked_previously],
+                            marker=".", c="grey", zorder=4, label=f"{np.count_nonzero((mask > 0) & (mask != iteration))} Bins Previously Masked ")
 
-            ax1.plot(freq[unmasked]/1e6, spec[unmasked], lw=1.0, alpha=0.75, color=color, label="Masked Data")
-            ax1.plot(freq/1e6, spec, lw=1.0, alpha=0.35, color=color, label="Unmasked Data")
-            ax1.plot(freq/1e6, baseline, lw=1.8, alpha=0.95, color=color, linestyle="--", label="Baseline")
+                ax1.plot(freq[unmasked]/1e6, spec[unmasked], lw=1.0, alpha=0.75, color=color, label="Masked Data")
+                ax1.plot(freq/1e6, spec, lw=1.0, alpha=0.35, color=color, label="Unmasked Data")
+                ax1.plot(freq/1e6, baseline, lw=1.8, alpha=0.95, color=color, linestyle="--", label="Baseline")
 
-            ax2.plot(freq[unmasked]/1e6, residuals[unmasked], lw=1.0, alpha=0.75, color=color, label="Masked Residuals")
-            ax2.plot(freq/1e6, residuals, lw=1.0, alpha=0.35, color=color, label="Unmasked Residuals")
-            ax2.axhline(threshold, alpha=0.35, color="red", linestyle="dashed",label=fr"{base["sigma_cut"]}$\sigma$ Threshold")
-            ax2.axhline(-threshold, alpha=0.35, color="red", linestyle="dashed")
-            max_vals = [np.max(spec[masked_this_iteration])] if masked_this_iteration.any() else []
-            if masked_previously.any():
-                max_vals.append(np.max(np.abs(residuals[masked_previously])))
+                ax2.plot(freq[unmasked]/1e6, residuals[unmasked], lw=1.0, alpha=0.75, color=color, label="Masked Residuals")
+                ax2.plot(freq/1e6, residuals, lw=1.0, alpha=0.35, color=color, label="Unmasked Residuals")
+                ax2.axhline(threshold, alpha=0.35, color="red", linestyle="dashed",label=f"{base["sigma_cut"]}σ Threshold")
+                ax2.axhline(-threshold, alpha=0.35, color="red", linestyle="dashed")
+                max_vals = [np.max(spec[masked_this_iteration])] if masked_this_iteration.any() else []
+                if masked_previously.any():
+                    max_vals.append(np.max(np.abs(residuals[masked_previously])))
 
-            if max_vals and max(max_vals) < 1.5 * threshold:
-                ax2.set_ylim(-1.5 * threshold, 1.5 * threshold)
+                if max_vals and max(max_vals) < 1.5 * threshold:
+                    ax2.set_ylim(-1.5 * threshold, 1.5 * threshold)
 
-            sm_res = ScalarMappable(cmap=_cmap_g_0, norm=_norm_res)
-            sm_res.set_array([])
-            fig.colorbar(sm_res, ax=[ax1,ax2], label="Cavity resonance  [GHz]")
+                sm_res = ScalarMappable(cmap=_cmap_g_0, norm=_norm_res)
+                sm_res.set_array([])
+                fig.colorbar(sm_res, ax=[ax1,ax2], label="Cavity resonance  [GHz]")
 
-            ax1.set_ylabel("PSD  [V²/Hz]")
-            ax1.set_title(f"Spectra post cleaning - Iteration {iteration}")
-            ax1.grid(alpha=0.3); ax1.legend()
+                ax1.set_ylabel("PSD  [V²/Hz]")
+                ax1.set_title(f"Spectra post cleaning - Iteration {iteration}")
+                ax1.grid(alpha=0.3); ax1.legend()
 
-            ax2.set_xlabel("IF frequency  [MHz]")
-            ax2.set_ylabel("PSD  [V²/Hz]")
-            ax2.grid(alpha=0.3); ax2.legend()
-            
-            plt.savefig(spec_dir / f"masked_bin_iteration_{iteration}.png", dpi=150, bbox_inches='tight')
-            plt.close()
+                ax2.set_xlabel("IF frequency  [MHz]")
+                ax2.set_ylabel("PSD  [V²/Hz]")
+                ax2.grid(alpha=0.3); ax2.legend()
+                
+                plt.savefig(spec_dir / f"masked_bin_iteration_{iteration}.png", dpi=150, bbox_inches='tight')
+                plt.close()
 
 
 
@@ -1481,7 +1482,8 @@ def main():
             masks  = plotting_set_masks[s]
             fit   = set_sg_fits[s]
 
-            for spectra, mask in zip(set, masks):
+            for mask in masks:
+
                 unmasked = mask == 0
                 masked_this_iteration = mask == iteration
                 masked_previously = (mask > 0) & (mask != iteration)

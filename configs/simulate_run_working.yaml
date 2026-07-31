@@ -33,6 +33,7 @@ quality:
   bad_time_filter: true            # filter spectra within a known bad time frame
   start_time: ["2026-01-31 09:55:41" ] # List of start times of the known bad data in format YYYY-MM-DD HH:MM:SS
   end_time: ["2026-02-01 00:10:58"] # List of end times of the known bad data in format YYYY-MM-DD HH:MM:SS
+  data_cleaning: false
 
 
 baseline:
@@ -42,7 +43,7 @@ baseline:
   sg_poly_cold: 4
   spacing_minutes: 30
   sigma_cut: 4.5
-  clipping_mode: "Claude"    # "Claude" or "Blue"
+  clipping_mode: "Blue"    # "Claude" or "Blue"
   n_iterations: 3
 
 rebin:
