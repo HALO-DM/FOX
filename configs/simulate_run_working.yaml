@@ -31,9 +31,9 @@ quality:
   res_freq_zeros_filter: true       # filter the spectra for res_freq data being arrays of zeros
   cw_freq_zeros_filter: true        # filter the spectra for cw_freq data being arrays of zeros
   bad_time_filter: true            # filter spectra within a known bad time frame
-  start_time: ["2026-01-31 09:55:41" ] # List of start times of the known bad data in format YYYY-MM-DD HH:MM:SS
+  start_time: ["2026-01-31 09:55:41"] # List of start times of the known bad data in format YYYY-MM-DD HH:MM:SS
   end_time: ["2026-02-01 00:10:58"] # List of end times of the known bad data in format YYYY-MM-DD HH:MM:SS
-  data_cleaning: false
+  data_cleaning: true
 
 
 baseline:
@@ -42,8 +42,8 @@ baseline:
   sg_window_cold: 351
   sg_poly_cold: 4
   spacing_minutes: 30
-  sigma_cut: 4.5
-  clipping_mode: "Blue"    # "Claude" or "Blue"
+  sigma_cut: 3.5
+  clipping_mode: "Claude"    # "Claude" or "Blue"
   n_iterations: 3
 
 rebin:
@@ -63,7 +63,7 @@ output:
   injection_distribution: false   # save injected freqency distribution
   set_average_diagnostics: false # save all groups set averaging diagnostic plots
   clipping_residuals: false   # save all groups post clipping residuals
-  varying_group_size: true   # complete investigation into how changing the group size for averaging impacts results
+  varying_group_size: false   # complete investigation into how changing the group size for averaging impacts results
   plots_step: 1         # plot every Nth spectrum
   # max_plots: 100      # optional cap
   root: "output"        # base output folder

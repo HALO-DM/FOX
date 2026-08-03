@@ -71,12 +71,14 @@ def finalise_specs(mode, group_avg_spectra, groups, group_sg_fits):
 def claude_clipping(group_avg_spectra, group_masks, group_sg_fits, 
                 sigma_cut, sg_window, sg_order, iteration):
     total_new = 0
+    new_group_masks = group_masks.copy()
+    new_group_sg_fits = group_sg_fits.copy()
     for g, avg in enumerate(group_avg_spectra):
         if avg is None:
             continue
         f, p         = avg
-        current_mask = group_masks[g]
-        prev_fit     = group_sg_fits[g]
+        current_mask = group_masks[g].copy()
+        prev_fit     = group_sg_fits[g].copy()
         if prev_fit is None:
             continue
         new_mask, new_fit, _, _, sigma = general_clipping(p, sg_window, sg_order, sigma_cut, freqs=f, baseline=prev_fit, current_mask=current_mask, iteration=iteration)
@@ -84,24 +86,26 @@ def claude_clipping(group_avg_spectra, group_masks, group_sg_fits,
         n_new     = int(np.count_nonzero(new_mask == iteration))
         total_new += n_new
 
-        group_masks[g]   = new_mask
-        group_sg_fits[g] = new_fit
+        new_group_masks[g]   = new_mask
+        new_group_sg_fits[g] = new_fit
 
         print(f"    Group {g:3d}: sigma={sigma:.4g}  "
             f"newly masked={n_new:4d}  "
             f"total masked={int(np.count_nonzero(new_mask)):4d}/{len(f)}")
     print(f"  Total newly masked this iteration: {total_new}")
-    return group_masks, group_sg_fits
+    return new_group_masks, new_group_sg_fits
 
 
 def blue_clipping(groups, group_masks, group_sg_fits, sigma_cut,
                    sg_window, sg_order, iteration):
     total_new = 0
+    new_group_masks = group_masks.copy()
+    new_group_sg_fits = group_sg_fits.copy()
     for g, group in enumerate(groups):
-        current_masks = group_masks[g]
+        current_masks = group_masks[g].copy()
 
         n_new = 0
-        for spec_idx, (spectra, frequencies, res_freq) in enumerate(group):
+        for spec_idx, (spectra, frequencies, _) in enumerate(group):
             current_mask = current_masks[spec_idx]
             mask, *_ = general_clipping(spectra, sg_window, sg_order, sigma_cut, freqs=frequencies, current_mask=current_mask, iteration=iteration)
             n_new += int(np.count_nonzero(mask == iteration))
@@ -117,7 +121,8 @@ def blue_clipping(groups, group_masks, group_sg_fits, sigma_cut,
         _, new_baseline = remove_baseline(
             average_for_fit, window_length=sg_window, polyorder=sg_order
         )
-        group_sg_fits[g] = new_baseline
+        new_group_masks[g]   = current_masks
+        new_group_sg_fits[g] = new_baseline
 
         total_new += n_new
         n_bins   = sum(len(m) for m in current_masks)
@@ -126,7 +131,7 @@ def blue_clipping(groups, group_masks, group_sg_fits, sigma_cut,
               f"total masked={n_masked:4d}/{n_bins}")
 
     print(f"  Total newly masked this iteration: {total_new}")
-    return group_masks, group_sg_fits
+    return new_group_masks, new_group_sg_fits
 
 def general_clipping(spectra, sg_window, sg_order, sigma_cut, freqs=None,
                       baseline=None, current_mask=None, iteration=None):

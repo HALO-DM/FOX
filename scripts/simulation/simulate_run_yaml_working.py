@@ -19,7 +19,6 @@ import matplotlib.pyplot as plt
 import time
 import pandas as pd
 import shutil
-import h5py
 import matplotlib.dates as mdates
 import matplotlib.cm as cm
 import matplotlib.colors as mcolors
@@ -34,7 +33,7 @@ from axion_haloscope.lineshape  import shm_maxwell_template
 from axion_haloscope.detection  import threshold_for_detection, find_candidates
 from axion_haloscope.limit      import compute_local_snr_template, coupling_limit, plot_exclusion
 from axion_haloscope.data_quality_working import filter_spectrum_set, too_noisy, power_too_high, metadata_is_zeros, time_filter, small_bandwidth
-from axion_haloscope.io_working import SpectrumSet, SpectrumMetadata, read_hdf5, write_hdf5
+from axion_haloscope.io_working import SpectrumSet, read_hdf5, write_hdf5
 from axion_haloscope.sigma_clipping import claude_clipping, blue_clipping, finalise_specs, general_clipping
 from axion_haloscope.width_fq   import width_from_fq
 from axion_haloscope.graphs import plot_spectra, vs_time_hist, plot_hist
@@ -949,6 +948,7 @@ def main():
                 if iteration == 1:
                     spec_dir = data_clean_dir / f"spectra_{spec_idx}"
                     spec_dir.mkdir(parents=True, exist_ok=True)
+                    
 
                 fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(20, 8), sharex=True,
                                                     gridspec_kw={"height_ratios": [2, 1]})
@@ -995,7 +995,7 @@ def main():
                 plt.savefig(spec_dir / f"masked_bin_iteration_{iteration}.png", dpi=150, bbox_inches='tight')
                 plt.close()
             new_specs.append(new_spec)
-    specs = new_specs
+        specs = new_specs
 
     # =======================================================================
     # Warm Baseline Removal
@@ -1334,7 +1334,7 @@ def main():
 
     # Plot set averaged spectra with SG fits
     fig, ax = plt.subplots(figsize=(13, 7))
-    for g, ((freqs, specs), fit) in enumerate(zip(set_avg_spectra, set_sg_fits)):
+    for s, ((freqs, specs), fit) in enumerate(zip(set_avg_spectra, set_sg_fits)):
         ax.plot(freqs/1e6, specs,lw=1.0, alpha=0.55, color=_gcol_1(s), label=f"Set {s}")
         ax.plot(freqs/1e6, fit, lw=1.8, alpha=0.95, color=_gcol_1(s), linestyle="--")
     sm_res2 = ScalarMappable(cmap=_cmap_g_1, norm=_norm_res)
@@ -1842,11 +1842,6 @@ def main():
                 f"average residual std={r['average_residual_std']:.4g} | "
                 f"masked={r['total_masked']:>6}/{r['total_bins']:<6}")
 
-
-    print(specs)
-    # ---------
-    # Old Code
-    # ---------
 
     colour_vals = np.abs(cw_freqs - res_freqs*1e9) / 1e9  # Hz -> GHz
 
