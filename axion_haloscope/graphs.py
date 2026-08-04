@@ -3,7 +3,18 @@ import matplotlib.pyplot as plt
 import matplotlib.dates as mdates
 from matplotlib.cm import ScalarMappable
 import matplotlib.colors as mcolors
+from matplotlib.colors import Normalize 
 import matplotlib.cm as cm
+import pandas as pd
+
+
+def make_colouriser(values, cmap=plt.cm.viridis, vmin=None, vmax=None):
+    finite = values[np.isfinite(values)]
+    norm = Normalize(vmin=vmin or np.nanmin(finite), vmax=vmax or np.nanmax(finite))
+    def colourise(i):
+        v = values[i]
+        return "grey" if not np.isfinite(v) else cmap(norm(v))
+    return colourise, norm
 
 def simulation_stages(freq_axion, freq_local_oscillator,fs, freq_downmixed, n_bins, x_signal, 
                       x_mixed, x_filtered, freqs, psd_filt, mask_show, 
@@ -104,13 +115,13 @@ def aliasing(freqs, psd_mixed, freq_downmixed, fs, combined_freq, tag, run_dir):
     plt.savefig(run_dir/"aliasing.png", dpi=300); plt.close()
 
 
-def plot_spectra(x: np.array,
+def plot_spectrum(x: np.array,
                 y: np.array,
                 title: str,
                 output_loc: str
                 ):
     """
-    Plot of data counts per day.
+    Plot of a spectrum against frequency
         
     Parameters
     ----------
@@ -228,4 +239,135 @@ def plot_hist(data: np.array,
     ax.set_title(title)
     plt.tight_layout()
     plt.savefig(output_loc, dpi = 150, bbox_inches='tight')
+    plt.close()
+
+def plot_bandwidth(bad_dates_sorted, bad_bandwidths_sorted, good_dates, good_bandwidths, good_order, qc_run_dir, qc):
+    plt.figure(figsize=(13, 7))
+    plt.scatter(bad_dates_sorted, bad_bandwidths_sorted, color="firebrick", label="removed (below min threshold)")
+    plt.scatter(good_dates[good_order], good_bandwidths[good_order], color="steelblue", alpha=0.6, label="kept (above min threshold)")
+    plt.axhline(qc["bw_min"], color="black", linestyle="--", linewidth=1, label=f"bw_min = {qc['bw_min']:.4g} Hz")
+    plt.xlabel("Date")
+    plt.ylabel("Bandwidth [Hz]")
+    plt.title("Removed spectra: bandwidth below threshold")
+    plt.xticks(rotation=45, ha="right")
+    plt.legend()
+    plt.ylim(0, 0.006)
+    plt.grid(alpha=0.3)
+    plt.tight_layout()
+    plt.savefig(qc_run_dir / "bad_bandwidth_vs_time.png", dpi=150)
+    plt.close()
+
+
+def plot_events_against_time(invalid_dates, valid_dates, all_dates, count_invalid, count_valid, count_all, raw_run_dir):
+        # Plot of total number of events againist time
+    fig, ax = plt.subplots(figsize=(13, 7))
+
+    ax.plot(invalid_dates, count_invalid, label='invalid files', color="red")
+
+    ax.plot(valid_dates, count_valid, label="valid files", color="green")
+    ax.plot(all_dates, count_all, label='all files', linestyle='dashed', color="orange")
+
+    ax.xaxis.set_major_formatter(mdates.DateFormatter("%Y-%m-%d"))
+    ax.xaxis.set_major_locator(mdates.DayLocator(interval=1))
+    ax.set_xlabel("Date-Time")
+    ax.set_ylabel("Events")
+    ax.set_title(f"Evolution of number of events w.r.t. time")
+    ax.legend()
+    plt.xticks(rotation=45, ha="right")
+    plt.grid(alpha=0.3)
+    plt.tight_layout()
+    plt.savefig(f"{raw_run_dir}/events_against_time.png", dpi=150, bbox_inches='tight')
+    plt.close()
+
+def plot_rms_against_time(sset, qc_run_dir):
+    # Plot rms evolution with time - data
+    rms_vals = []
+    dates = sset.metadata["date"]
+    dates = pd.to_datetime(dates)
+
+    for s in sset.spectra:
+        med = np.nanmedian(s)
+        rms = np.sqrt(np.nanmean((s - med) ** 2))
+        rms_vals.append(rms)
+
+    fig, ax = plt.subplots(figsize=(13, 7))
+    ax.scatter(dates, rms_vals, marker=".")
+    ax.set_xlabel("Date"); ax.set_ylabel("rms values [arb]")
+    ax.xaxis.set_major_locator(mdates.AutoDateLocator())
+    ax.xaxis.set_major_formatter(mdates.DateFormatter("%Y-%m-%d"))
+    plt.xticks(rotation=45, ha="right")
+    ax.set_title("rms over time (data)"); plt.grid(alpha=0.3); plt.tight_layout()
+    plt.savefig(qc_run_dir/"rms_against_time_data.png", dpi=150); plt.close()
+
+def plot_spectra(fper, specs, count, max_plots, run_dir, step, title, file_name, offset=None):
+    if offset == None:
+        offset = np.zeros(len(fper))
+    plt.figure(figsize=(13, 7))
+    for i, (freqs, spec) in enumerate(zip(fper, specs)):
+        if i % step != 0:
+            continue
+        if max_plots is not None and count >= max_plots:
+            break
+        plt.plot(freqs/1e9 + offset[i], spec, lw=0.6)
+    plt.xlabel("Frequency [GHz]"); plt.ylabel("Raw Power [arb]")
+    plt.title(title); plt.grid(alpha=0.3); plt.tight_layout()
+    plt.savefig(run_dir/file_name, dpi=150); plt.close()
+
+def plot_exclusion(freqs_r_hz, gmin, outfile=None, title="95% CL Exclusion (toy)"):
+    plt.figure(figsize=(9,4))
+    plt.plot(np.asarray(freqs_r_hz)/1e9, gmin, lw=1.5)
+    plt.xlabel("Frequency [GHz]"); plt.ylabel(r"$g_{a\gamma\gamma}$ (arb vs $g_0$)")
+    plt.title(title); plt.grid(alpha=0.3)
+    if outfile:
+        plt.tight_layout(); plt.savefig(outfile, dpi=160)
+    return plt.gca()
+
+def plot_scatter(res_freq_diff, raw_run_dir):
+    plt.figure(figsize=(13, 7))
+    plt.scatter(range(len(res_freq_diff)),res_freq_diff)
+    plt.xlabel("Spectrum Index"); plt.ylabel("Resonance Frequency Offset [Hz]")
+    plt.title("Resonance Frequency Offset vs Spectrum Index"); plt.grid(alpha=0.3); plt.tight_layout()
+    plt.savefig(raw_run_dir/"res_freq_offset_vs_index.png", dpi=150); plt.close()
+
+def plot_evo_of_freq(colour_vals, metadata_dates, cbar_label, raw_run_dir):
+    fig, ax = plt.subplots(figsize = (13,7))
+    ax.xaxis.set_major_formatter(mdates.DateFormatter("%Y-%m-%d %H:%M"))
+    ax.xaxis.set_major_locator(mdates.HourLocator(interval=1))
+    ax.plot(metadata_dates, colour_vals)
+    ax.set_xlabel("Date-Time")
+    ax.set_ylabel(cbar_label)
+    ax.set_title(f"Evolution of {cbar_label} w.r.t. Time")
+    plt.xticks(rotation=45, ha="right")
+    plt.tight_layout()
+    plt.savefig(f"{raw_run_dir}/evolution_of_frequency.png", dpi=150, bbox_inches='tight')
+    plt.close()
+
+def plot_sets(mode, fper, specs, colour_vals, cbar_label, run_dir, title, file_name, cmap, set_sg_fits=None, sets=None):
+    '''
+    Optimise Later
+    '''
+
+
+    colourise, norm = make_colouriser(colour_vals, cmap=plt.cm.viridis)
+    fig, ax = plt.subplots(figsize = (13,7))
+    if mode == "baseline_removal":
+        for spec, freq, cv in zip(specs, fper, colour_vals):
+            ax.plot(freq, spec, linestyle="", marker="o", markersize=3, color=colourise(cv), alpha=0.7)
+        ax.axhline(1.0, color="k", ls="--", lw=0.8, alpha=0.6)
+    elif mode == "sg_fit":
+        for s, (freqs, specs, fit) in enumerate(zip(fper, specs, set_sg_fits)):
+            ax.plot(freqs/1e6, specs,lw=1.0, alpha=0.55, color=colourise(s), label=f"Set {s}")
+            ax.plot(freqs/1e6, fit, lw=1.8, alpha=0.95, color=colourise(s), linestyle="--")
+    elif mode == "sets":
+        for s, set in enumerate(sets):
+            ax.plot(np.mean([x[1] for x in set], axis=0)/1e6, np.mean([x[0] for x in set], axis=0), alpha=0.8, color=colourise(s), label =f"Set {s}")
+    sm = ScalarMappable(cmap=cmap, norm=norm)
+    sm.set_array([])
+    fig.colorbar(sm, ax=ax, label=cbar_label)
+
+    ax.set_xlabel("IF frequency  [MHz]")
+    ax.set_ylabel("PSD  [V²/Hz]")
+    ax.set_title(title)
+    plt.tight_layout()
+    plt.savefig(f"{run_dir}/{file_name}", dpi=150, bbox_inches='tight')
     plt.close()

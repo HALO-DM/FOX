@@ -19,7 +19,7 @@ from .baseline import remove_baseline, mask_bins
 from .combine import combine_ml
 from .rebin import rebin_ml, axion_template_gaussian, grand_spectrum_ml
 from .detection import threshold_for_detection, find_candidates
-from .limit import compute_local_snr_template, coupling_limit, plot_exclusion
+from .limit import compute_local_snr_template, coupling_limit
 from .lineshape import shm_maxwell_template, shm_maxwell_profile
 
 from .io_working import write_hdf5, read_hdf5,read_qshs_hdf5, read_qshs_hdf5_dir
@@ -33,7 +33,7 @@ __all__ = [
     "combine_ml",
     "rebin_ml", "axion_template_gaussian", "grand_spectrum_ml",
     "threshold_for_detection", "find_candidates",
-    "compute_local_snr_template", "coupling_limit", "plot_exclusion",
+    "compute_local_snr_template", "coupling_limit",
     "shm_maxwell_template", "shm_maxwell_profile",
     "write_hdf5", "read_hdf5",    "read_qshs_hdf5", "read_qshs_hdf5_dir",
     "filter_spectrum_set", "identify_bad_spectra", "placeholder_bad_predicate","too_noisy"

@@ -8,6 +8,7 @@ from collections import defaultdict
 
 from axion_haloscope.noise import external_noise
 from axion_haloscope.io_working import SpectrumMetadata
+from axion_haloscope.width_fq   import width_from_fq
 
 @dataclass
 class AxionParams:
@@ -91,7 +92,7 @@ def axion_lineshape_gaussian(
         return np.zeros_like(L)
     return L / Lsum
 
-def inject_axion_power(
+def injected_axion_power(
     rf_grid_hz: np.ndarray, f_axion_hz: float, sigma_hz: float, total_power: float
 ) -> np.ndarray:
     """
@@ -152,7 +153,7 @@ def simulate_spectra(
     tune_step_bins: int = 60,
     noise_sigma: float = 1.0,
     rng_seed: int | None = 1234,
-    axion: AxionParams | None = None,
+    injected_axion: AxionParams | None = None,
     baseline_amp: float = 0.05,
     baseline_corr_bins: int = 400,
     baseline_key: Optional[np.ndarray] = None,
@@ -179,9 +180,18 @@ def simulate_spectra(
 
     f_range = np.max(freqs_per_spec) - np.min(freqs_per_spec)
 
+    axion = None
+    if injected_axion["enabled"]:
+        total_bins = n_bins + n_spectra - 1 * tune_step_bins
+        f_ax = injected_axion["f_axion_hz"]
+        if f_ax is None:
+            f_ax = f_start_hz + 0.5 * total_bins * bin_width_hz
+        s_ax = width_from_fq(f_ax)
+        axion = AxionParams(f_axion_hz=float(f_ax), sigma_hz=s_ax, total_power=injected_axion["total_power"])
+
     # Optional axion power on the global RF grid
     axion_power_global = (
-        inject_axion_power(rf_grid, axion.f_axion_hz, axion.sigma_hz, axion.total_power)
+        injected_axion_power(rf_grid, axion.f_axion_hz, axion.sigma_hz, axion.total_power)
         if axion is not None
         else np.zeros_like(rf_grid)
     )

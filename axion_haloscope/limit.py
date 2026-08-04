@@ -27,11 +27,3 @@ def coupling_limit(
     out[good] = g0 * np.sqrt(target_snr / (snr_efficiency * R_local[good]))
     return out
 
-def plot_exclusion(freqs_r_hz, gmin, outfile=None, title="95% CL Exclusion (toy)"):
-    plt.figure(figsize=(9,4))
-    plt.plot(np.asarray(freqs_r_hz)/1e9, gmin, lw=1.5)
-    plt.xlabel("Frequency [GHz]"); plt.ylabel(r"$g_{a\gamma\gamma}$ (arb vs $g_0$)")
-    plt.title(title); plt.grid(alpha=0.3)
-    if outfile:
-        plt.tight_layout(); plt.savefig(outfile, dpi=160)
-    return plt.gca()

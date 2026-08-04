@@ -58,12 +58,12 @@ detection:
 
 output:
   save_data: false      # save per-spectrum PNGs + spectra.npz
-  combined_plot: false  # save combined PNG of all spectra
-  offset_combined_plot: false # save combined PNG of all spectra with offset
-  injection_distribution: false   # save injected freqency distribution
-  set_average_diagnostics: false # save all groups set averaging diagnostic plots
-  clipping_residuals: false   # save all groups post clipping residuals
-  varying_group_size: false   # complete investigation into how changing the group size for averaging impacts results
+  combined_plot: true  # save combined PNG of all spectra
+  offset_combined_plot: true # save combined PNG of all spectra with offset
+  injection_distribution: true   # save injected freqency distribution
+  set_average_diagnostics: true # save all groups set averaging diagnostic plots
+  clipping_residuals: true   # save all groups post clipping residuals
+  varying_group_size: true   # complete investigation into how changing the group size for averaging impacts results
   plots_step: 1         # plot every Nth spectrum
   # max_plots: 100      # optional cap
   root: "output"        # base output folder
