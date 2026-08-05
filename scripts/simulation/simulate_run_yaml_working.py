@@ -37,7 +37,7 @@ from axion_haloscope.io_working import SpectrumSet, read_hdf5, write_hdf5
 from axion_haloscope.sigma_clipping import claude_clipping, blue_clipping, finalise_specs, general_clipping
 from axion_haloscope.graphs import (plot_spectrum, vs_time_hist, plot_hist, plot_bandwidth, plot_events_against_time, 
                                    plot_rms_against_time, plot_spectra, plot_exclusion, plot_scatter, plot_evo_of_freq,
-                                   plot_sets,plot_iteritive_clipping,plot_3x3_set_averaged, plot_3x3_std, plot_std_freq, plot_std_set_num, 
+                                   plot_sets,plot_iteritive_clipping,plot_3x3, plot_std_freq, plot_std_set_num, 
                                    plot_spectra_in_set, plot_log_spectra_in_set, plot_set_average_errors, 
                                    plot_zoom_set_average_errors, plot_std_against_freq, plot_claude_residuals,
                                    plot_blue_residuals, plot_combination, plot_grand_spectrum, plot_candidates,plot_data_cleaning)
@@ -752,7 +752,7 @@ def main():
 
                 plot_data_cleaning(freq, spec,metadata, baseline, threshold, 
                                    residuals, spec_idx, masked_this_iteration, 
-                                   masked_previously, mask, unmasked, iteration, base, run_dir)
+                                   masked_previously, mask, unmasked, iteration=iteration, base=base, run_dir=run_dir)
             new_specs.append(new_spec)
         specs = new_specs
 
@@ -801,10 +801,13 @@ def main():
                   "set_averaged_spectra_all.png", plt.cm.viridis, set_sg_fits=None, sets=sets)
 
         # Plot set average spectra for all sets 3x3
-        plot_3x3_set_averaged(sets, set_mean_res, warm_run_dir)
+        plot_3x3("mean", sets, set_mean_res, "IF frequency  [MHz]", "PSD  [V²/Hz]", 
+                 f"Set-averaged spectra — all sets (n = {len(sets)})", "set_averaged_spectra_all_3x3.png", warm_run_dir)
 
         # Plot standard deviation of averaged sets againist frequency for all sets 3x3
-        plot_3x3_std(sets, set_mean_res, warm_run_dir)  
+        plot_3x3("std", sets, set_mean_res, "Standard Deviation  [V²/Hz]", "IF frequency  [MHz]", 
+                 f"Standard deviation of averaged spectra against frequency - all sets (n = {len(sets)})",
+                 "std_vs_freq_all_3x3.png", warm_run_dir) 
 
         # Plot standard deviation of averaged sets againist frequency for all sets
         plot_std_freq(sets, set_mean_res, warm_run_dir)

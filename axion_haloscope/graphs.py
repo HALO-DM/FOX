@@ -413,41 +413,7 @@ def plot_iteritive_clipping(set_avg_spectra, plotting_set_masks, set_sg_fits,ite
     plt.savefig(f"{run_dir}/masked_bin_iteration_{iteration}.png", dpi=150, bbox_inches='tight')
     plt.close()
 
-def plot_3x3_set_averaged(sets, set_mean_res, run_dir):
-    colourise, norm = make_colouriser(set_mean_res, cmap=plt.cm.viridis, vmin=None, vmax=None)
-    fig, axes = plt.subplots(3, 3, sharex=True, sharey=True, figsize=(26, 10))
-    axes_flat = axes.flatten()
-    sets_per_subplot = 3
-    for ax_idx, ax in enumerate(axes_flat):
-        start = ax_idx * sets_per_subplot
-        end = start + sets_per_subplot
-        for s in range(start, min(end, len(sets))):
-            ax.plot(
-                np.mean([x[1] for x in sets[s]], axis=0) / 1e6,
-                np.mean([x[0] for x in sets[s]], axis=0),
-                alpha=0.8, color=colourise(s), label=f"Set {s}")
-
-    for row in range(3):
-        axes[row, 0].set_ylabel("PSD  [V²/Hz]")
-    for col in range(3):
-        axes[2, col].set_xlabel("IF frequency  [MHz]")
-
-    sm_res = ScalarMappable(cmap=plt.cm.viridis, norm=norm)
-    sm_res.set_array([])
-    fig.subplots_adjust(wspace=0.05, hspace=0.1)
-    fig.colorbar(sm_res, ax=axes_flat, label="Mean cavity resonance  [GHz]")
-
-    fig.canvas.draw()
-    positions = [ax.get_position() for ax in axes_flat]
-    left = min(p.x0 for p in positions)
-    right = max(p.x1 for p in positions)
-    center_x = (left + right) / 2
-
-    fig.suptitle(f"Set-averaged spectra — all sets (n = {len(sets)})", fontsize=32, x=center_x)
-    plt.savefig(f"{run_dir}/set_averaged_spectra_all_3x3.png", dpi=150, bbox_inches='tight')
-    plt.close()
-
-def plot_3x3_std(sets, set_mean_res, run_dir):
+def plot_3x3(mode, sets, set_mean_res, xlabel, ylabel, title, file_name, run_dir):
     colourise, norm = make_colouriser(set_mean_res, cmap=plt.cm.viridis, vmin=None, vmax=None)
     fig, axes = plt.subplots(3, 3, sharex=True, sharey=True, figsize=(26, 10))
     axes_flat = axes.flatten()
@@ -456,15 +422,21 @@ def plot_3x3_std(sets, set_mean_res, run_dir):
         start = ax_idx *sets_per_subplot
         end = start + sets_per_subplot
         for s in range(start, min(end, len(sets))):
-            ax.plot(
-                np.mean([x[1] for x in sets[s]], axis=0) / 1e6,
-                np.std([x[0] for x in sets[s]], axis=0),
-                alpha=0.8, color=colourise(s), label=f"Set {s}")
+            if mode == "set_average":
+                ax.plot(
+                    np.mean([x[1] for x in sets[s]], axis=0) / 1e6,
+                    np.mean([x[0] for x in sets[s]], axis=0),
+                    alpha=0.8, color=colourise(s), label=f"Set {s}")
+            elif mode == "std":
+                ax.plot(
+                    np.mean([x[1] for x in sets[s]], axis=0) / 1e6,
+                    np.std([x[0] for x in sets[s]], axis=0),
+                    alpha=0.8, color=colourise(s), label=f"Set {s}")
 
     for row in range(3):
-        axes[row, 0].set_ylabel("Standard Deviation  [V²/Hz]")
+        axes[row, 0].set_ylabel(xlabel)
     for col in range(3):
-        axes[2, col].set_xlabel("IF frequency  [MHz]")
+        axes[2, col].set_xlabel(ylabel)
 
     sm_res = ScalarMappable(cmap=plt.cm.viridis, norm=norm)
     sm_res.set_array([])
@@ -477,8 +449,8 @@ def plot_3x3_std(sets, set_mean_res, run_dir):
     right = max(p.x1 for p in positions)
     center_x = (left + right) / 2
 
-    fig.suptitle(f"Standard deviation of averaged spectra againist frequency - all sets (n = {len(sets)})", fontsize=32, x=center_x)
-    plt.savefig(f"{run_dir}/std_vs_freq_all_3x3.png", dpi=150, bbox_inches='tight')
+    fig.suptitle(title, fontsize=32, x=center_x)
+    plt.savefig(f"{run_dir}/{file_name}", dpi=150, bbox_inches='tight')
     plt.close()
 
 def plot_std_freq(sets, set_mean_res, run_dir):
