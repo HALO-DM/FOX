@@ -41,9 +41,5 @@ __all__ = [
 
 
 
-<<<<<<< HEAD
 from .data_quality_working import restrict_frequency_range
-=======
-from .data_quality import restrict_frequency_range
->>>>>>> a892df8 (adding QSHS test files and a few scripts to read them)
 __all__ += ["restrict_frequency_range"]

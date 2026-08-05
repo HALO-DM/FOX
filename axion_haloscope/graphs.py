@@ -351,8 +351,8 @@ def plot_sets(mode, fper, specs, colour_vals, cbar_label, run_dir, title, file_n
     colourise, norm = make_colouriser(colour_vals, cmap=cmap)
     fig, ax = plt.subplots(figsize = (13,7))
     if mode == "baseline_removal":
-        for spec, freq, cv in zip(specs, fper, colour_vals):
-            ax.plot(freq, spec, linestyle="", marker="o", markersize=3, color=colourise(cv), alpha=0.7)
+        for s, (spec, freq) in enumerate(zip(specs, fper)):
+            ax.plot(freq, spec, linestyle="", marker="o", markersize=3, color=colourise(s), alpha=0.7)
         ax.axhline(1.0, color="k", ls="--", lw=0.8, alpha=0.6)
     elif mode == "sg_fit":
         for s, (freqs, specs, fit) in enumerate(zip(fper, specs, set_sg_fits)):
@@ -626,3 +626,91 @@ def plot_blue_residuals(set, fit, colours, s, run_dir):
     plt.close()
 
     return all_residuals
+
+def plot_combination(rf, combined, run_dir):    
+    plt.figure(figsize=(13, 7))
+    plt.plot(rf/1e9, combined, lw=0.8, color="black", label="combined")
+    plt.title("Combined spectrum (baseline-removed)")
+    plt.xlabel("Frequency [GHz]"); plt.ylabel("Excess power [arb]"); plt.grid(alpha=0.3)
+    plt.tight_layout(); plt.savefig(run_dir/"combined.png", dpi=150); plt.close()
+
+def plot_grand_spectrum(freqs_r, z, run_dir):
+    plt.figure(figsize=(13, 7))
+    plt.plot(freqs_r/1e9, z, lw=0.8)
+    plt.title("Grand spectrum z-score (SHM matched filter)")
+    plt.xlabel("Frequency [GHz]"); plt.ylabel("z"); plt.grid(alpha=0.3)
+    plt.tight_layout(); plt.savefig(run_dir/"grand_z.png", dpi=150); plt.close()
+
+def plot_candidates(freqs_r, zvals, theta, cands, run_dir):
+    fig, ax = plt.subplots(figsize=(13, 7))
+
+    # plot the z-score trace
+    ax.plot(freqs_r/1e9, zvals, lw=0.7, label="z-score")
+
+    # detection threshold line
+    ax.axhline(theta, color="tab:red", ls="--", label=f"threshold ({theta:.2f}σ)")
+    ax.axhline(3, color="tab:orange", ls="--", label=f"Observation (3σ)")
+    ax.axhline(5, color="tab:purple", ls="--", label=f"Discovery (5σ)")
+
+    # mark candidate points
+    if len(cands) > 0:
+        ax.scatter(freqs_r[cands]/1e9, zvals[cands],
+                   color="tab:orange", s=30, zorder=5, label="candidates")
+
+    ax.set(xlabel="Frequency [GHz]", ylabel="z",
+           title="Grand spectrum with candidate markers")
+    ax.grid(alpha=0.3); ax.legend()
+    fig.tight_layout()
+    fig.savefig(run_dir/"candidates.png", dpi=150)
+    plt.close(fig)
+
+def plot_data_cleaning(freq, spec,metadata, baseline, threshold, residuals, spec_idx, masked_this_iteration, masked_previously, mask, unmasked, base, iteration, run_dir):
+
+    res_freq_array = np.asarray(metadata["res_freq"], dtype=float)
+
+    colouriser, norm =make_colouriser(res_freq_array, cmap=plt.cm.viridis, vmin=None, vmax=None)
+    color = colouriser(spec_idx)
+    fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(20, 8), sharex=True,
+                                                        gridspec_kw={"height_ratios": [2, 1]})
+                    
+    if masked_this_iteration.any():
+        ax1.scatter(freq[masked_this_iteration]/1e6, spec[masked_this_iteration],
+                marker=".", color="red", zorder=5, label=f"{np.count_nonzero(mask == iteration)} Bins Masked this iteration")
+        ax2.scatter(freq[masked_this_iteration]/1e6, residuals[masked_this_iteration],
+                marker=".", color="red", zorder=5, label=f"{np.count_nonzero(mask == iteration)} Bins Masked this iteration")
+        
+    if masked_previously.any():
+        ax1.scatter(freq[masked_previously]/1e6, spec[masked_previously],
+                marker=".", c="grey", zorder=4, label=f"{np.count_nonzero((mask > 0) & (mask != iteration))} Bins Previously Masked ")
+        ax2.scatter(freq[masked_previously]/1e6, residuals[masked_previously],
+                marker=".", c="grey", zorder=4, label=f"{np.count_nonzero((mask > 0) & (mask != iteration))} Bins Previously Masked ")
+
+    ax1.plot(freq[unmasked]/1e6, spec[unmasked], lw=1.0, alpha=0.75, color=color, label="Post-Mask Data")
+    ax1.plot(freq/1e6, spec, lw=1.0, alpha=0.35, color=color, label="Raw Data")
+    ax1.plot(freq/1e6, baseline, lw=1.8, alpha=0.95, color=color, linestyle="--", label="Baseline")
+
+    ax2.plot(freq[unmasked]/1e6, residuals[unmasked], lw=1.0, alpha=0.75, color=color, label="Masked Residuals")
+    ax2.plot(freq/1e6, residuals, lw=1.0, alpha=0.35, color=color, label="Unmasked Residuals")
+    ax2.axhline(threshold, alpha=0.35, color="red", linestyle="dashed",label=f"{base["sigma_cut"]}σ Threshold")
+    ax2.axhline(-threshold, alpha=0.35, color="red", linestyle="dashed")
+    max_vals = [np.max(spec[masked_this_iteration])] if masked_this_iteration.any() else []
+    if masked_previously.any():
+        max_vals.append(np.max(np.abs(residuals[masked_previously])))
+
+    if max_vals and max(max_vals) < 1.5 * threshold:
+        ax2.set_ylim(-1.5 * threshold, 1.5 * threshold)
+
+    sm_res = ScalarMappable(cmap=plt.cm.viridis, norm=norm)
+    sm_res.set_array([])
+    fig.colorbar(sm_res, ax=[ax1,ax2], label="Cavity resonance  [GHz]")
+
+    ax1.set_ylabel("PSD  [V²/Hz]")
+    ax1.set_title(f"Spectra post cleaning - Iteration {iteration}")
+    ax1.grid(alpha=0.3); ax1.legend()
+
+    ax2.set_xlabel("Residuals [V²/Hz]")
+    ax2.set_ylabel("PSD  [V²/Hz]")
+    ax2.grid(alpha=0.3); ax2.legend()
+    
+    plt.savefig(run_dir / f"masked_bin_iteration_{iteration}.png", dpi=150, bbox_inches='tight')
+    plt.close()

@@ -40,7 +40,7 @@ from axion_haloscope.graphs import (plot_spectrum, vs_time_hist, plot_hist, plot
                                    plot_sets,plot_iteritive_clipping,plot_3x3_set_averaged, plot_3x3_std, plot_std_freq, plot_std_set_num, 
                                    plot_spectra_in_set, plot_log_spectra_in_set, plot_set_average_errors, 
                                    plot_zoom_set_average_errors, plot_std_against_freq, plot_claude_residuals,
-                                   plot_blue_residuals)
+                                   plot_blue_residuals, plot_combination, plot_grand_spectrum, plot_candidates,plot_data_cleaning)
 from axion_haloscope.sets import set_creation, group_sets
 from axion_haloscope.diagnostics import evaluate_set_spacing, vary_set_size_plots
 from axion_haloscope.data_cuts import cut_by_values, cut_by_datetime
@@ -715,20 +715,6 @@ def main():
     # Data Cleaning
     # =======================================================================
     if qc["data_cleaning"]:
-        _cmap_g_0 = plt.cm.viridis
-        res_freq_array = np.asarray(metadata["res_freq"], dtype=float)
-        _finite_res = res_freq_array[np.isfinite(res_freq_array)]
-        _norm_res = Normalize(
-            vmin=np.nanmin(_finite_res) if len(_finite_res) else 0,
-            vmax=np.nanmax(_finite_res) if len(_finite_res) else 1,
-        )
-
-        def _gcol_0(spec_idx):
-            v = res_freq_array[spec_idx]
-            if not np.isfinite(v):
-                return "grey"
-            return _cmap_g_0(_norm_res(v))
-
         data_clean_dir = run_dir / 'data_cleaning'
         data_clean_dir.mkdir(parents=True, exist_ok=True)
 
@@ -739,10 +725,6 @@ def main():
         new_freqs = []
         for spec_idx, (freq, spec) in enumerate(zip(fper, specs)):
             mask = None
-            
-
-            color = _gcol_0(spec_idx)
-
             for iteration in range(1, n_iter + 1):
                 mask, baseline, residuals, threshold, _ = general_clipping(
                     spec, base["sg_window_warm"], base["sg_poly_warm"], base["sigma_cut"], freqs=freq,
@@ -768,50 +750,9 @@ def main():
                     spec_dir.mkdir(parents=True, exist_ok=True)
                     
 
-                fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(20, 8), sharex=True,
-                                                    gridspec_kw={"height_ratios": [2, 1]})
-                
-                if masked_this_iteration.any():
-                    ax1.scatter(freq[masked_this_iteration]/1e6, spec[masked_this_iteration],
-                            marker=".", color="red", zorder=5, label=f"{np.count_nonzero(mask == iteration)} Bins Masked this iteration")
-                    ax2.scatter(freq[masked_this_iteration]/1e6, residuals[masked_this_iteration],
-                            marker=".", color="red", zorder=5, label=f"{np.count_nonzero(mask == iteration)} Bins Masked this iteration")
-                    
-                if masked_previously.any():
-                    ax1.scatter(freq[masked_previously]/1e6, spec[masked_previously],
-                            marker=".", c="grey", zorder=4, label=f"{np.count_nonzero((mask > 0) & (mask != iteration))} Bins Previously Masked ")
-                    ax2.scatter(freq[masked_previously]/1e6, residuals[masked_previously],
-                            marker=".", c="grey", zorder=4, label=f"{np.count_nonzero((mask > 0) & (mask != iteration))} Bins Previously Masked ")
-
-                ax1.plot(freq[unmasked]/1e6, spec[unmasked], lw=1.0, alpha=0.75, color=color, label="Post-Mask Data")
-                ax1.plot(freq/1e6, spec, lw=1.0, alpha=0.35, color=color, label="Raw Data")
-                ax1.plot(freq/1e6, baseline, lw=1.8, alpha=0.95, color=color, linestyle="--", label="Baseline")
-
-                ax2.plot(freq[unmasked]/1e6, residuals[unmasked], lw=1.0, alpha=0.75, color=color, label="Masked Residuals")
-                ax2.plot(freq/1e6, residuals, lw=1.0, alpha=0.35, color=color, label="Unmasked Residuals")
-                ax2.axhline(threshold, alpha=0.35, color="red", linestyle="dashed",label=f"{base["sigma_cut"]}σ Threshold")
-                ax2.axhline(-threshold, alpha=0.35, color="red", linestyle="dashed")
-                max_vals = [np.max(spec[masked_this_iteration])] if masked_this_iteration.any() else []
-                if masked_previously.any():
-                    max_vals.append(np.max(np.abs(residuals[masked_previously])))
-
-                if max_vals and max(max_vals) < 1.5 * threshold:
-                    ax2.set_ylim(-1.5 * threshold, 1.5 * threshold)
-
-                sm_res = ScalarMappable(cmap=_cmap_g_0, norm=_norm_res)
-                sm_res.set_array([])
-                fig.colorbar(sm_res, ax=[ax1,ax2], label="Cavity resonance  [GHz]")
-
-                ax1.set_ylabel("PSD  [V²/Hz]")
-                ax1.set_title(f"Spectra post cleaning - Iteration {iteration}")
-                ax1.grid(alpha=0.3); ax1.legend()
-
-                ax2.set_xlabel("Residuals [V²/Hz]")
-                ax2.set_ylabel("PSD  [V²/Hz]")
-                ax2.grid(alpha=0.3); ax2.legend()
-                
-                plt.savefig(spec_dir / f"masked_bin_iteration_{iteration}.png", dpi=150, bbox_inches='tight')
-                plt.close()
+                plot_data_cleaning(freq, spec,metadata, baseline, threshold, 
+                                   residuals, spec_idx, masked_this_iteration, 
+                                   masked_previously, mask, unmasked, iteration, base, run_dir)
             new_specs.append(new_spec)
         specs = new_specs
 
@@ -855,6 +796,7 @@ def main():
 
         # Plot set averaged spectra for all sets on one axis
         colour_vals = np.abs(cw_freqs - res_freqs*1e9) / 1e9  # Hz -> GHz
+        cbar_label  = r"$|f_{\rm CW} - f_{\rm res}|$  [GHz]"
         plot_sets("sets", fper, specs, colour_vals, cbar_label, warm_run_dir, f"Set-averaged spectra — all sets (n = {len(sets)})",
                   "set_averaged_spectra_all.png", plt.cm.viridis, set_sg_fits=None, sets=sets)
 
@@ -910,7 +852,9 @@ def main():
 
             # Plot standard deviation of each set average againist frequency per set
             plot_std_against_freq(set, s, set_mean_res, warm_run_dir)
- 
+
+    colour_vals = np.abs(cw_freqs - res_freqs*1e9) / 1e9  # Hz -> GHz
+    cbar_label  = r"$|f_{\rm CW} - f_{\rm res}|$  [GHz]"
     plot_sets("sg_fit", fper, specs, colour_vals, cbar_label, warm_run_dir,
                            "Set-averaged spectra with initial SG fits  (dashed = fit)", "set_averaged_spectra_with_sg_fits.png",
                             cmap=plt.cm.viridis, set_sg_fits=set_sg_fits)
@@ -930,6 +874,8 @@ def main():
             [np.zeros(len(item[0]), dtype=int) for item in set]
             for set in sets
         ]
+    else:
+        raise ValueError(f"Clipping mode {base["clipping_mode"]} no found. Did you enter the correct name?")
 
     sigma_cut = base["sigma_cut"]
     n_iterations = base["n_iterations"]
@@ -1002,16 +948,13 @@ def main():
                         title=f"Residuals histogram (stacked) — set {s} (Blue's clipping method)", cb_label="Spectrum index in set", 
                         output_loc=f"{clip_run_dir}/blue_residuals_hist_test{s}.png")
 
-    specs, fper = finalise_specs(base["clipping_mode"], set_avg_spectra, sets, set_sg_fits)
 
-
-    # ===================================
+    # --------------------
     # Varying Set Size
-    # ====================================
-
-    specs_set = shifted_spectra
+    # --------------------
 
     if out["varying_set_size"]:
+        specs_set = shifted_spectra
         var_dir = out_root / f'{out["subdir_prefix"]}_{timestamp}' / 'varying_set_size'
         var_dir.mkdir(parents=True, exist_ok=True)
 
@@ -1033,8 +976,11 @@ def main():
                 f"average residual std={r['average_residual_std']:.4g} | "
                 f"masked={r['total_masked']:>6}/{r['total_bins']:<6}")
 
+    # --------------------
+    # Final Baseline Removal
+    # --------------------
+    specs, fper = finalise_specs(base["clipping_mode"], set_avg_spectra, sets, set_sg_fits)
 
-    colour_vals = np.abs(cw_freqs - res_freqs*1e9) / 1e9  # Hz -> GHz
     plot_sets("baseline_removal", fper, specs, colour_vals, r"$|f_{\rm CW} - f_{\rm res}|$  [GHz]", 
                           warm_run_dir, "Set-averaged spectra with initial SG fits  (dashed = fit)",
                           "spectra_baseline_removed.png", cmap=plt.cm.inferno)
@@ -1070,11 +1016,7 @@ def main():
     # Combination
     # =======================================================================
     combined, sigma_c, counts = combine_ml(proc, rf_map_new, total_rf_bins=len(rf))
-    plt.figure(figsize=(13, 7))
-    plt.plot(rf/1e9, combined, lw=0.8, color="black", label="combined")
-    plt.title("Combined spectrum (baseline-removed)")
-    plt.xlabel("Frequency [GHz]"); plt.ylabel("Excess power [arb]"); plt.grid(alpha=0.3)
-    plt.tight_layout(); plt.savefig(run_dir/"combined.png", dpi=150); plt.close()
+    plot_combination(rf, combined, run_dir)
 
     # =======================================================================
     # Rebin + Grand Spectrum (SHM template)
@@ -1091,11 +1033,7 @@ def main():
     Dg, sg = Dr, sr
 
     z = np.zeros_like(Dg); m = np.isfinite(sg) & (sg>0); z[m] = Dg[m]/sg[m]
-    plt.figure(figsize=(13, 7))
-    plt.plot(freqs_r/1e9, z, lw=0.8)
-    plt.title("Grand spectrum z-score (SHM matched filter)")
-    plt.xlabel("Frequency [GHz]"); plt.ylabel("z"); plt.grid(alpha=0.3)
-    plt.tight_layout(); plt.savefig(run_dir/"grand_z.png", dpi=150); plt.close()
+    plot_grand_spectrum(freqs_r, z, run_dir)
 
     # =======================================================================
     # Candidates
@@ -1106,30 +1044,11 @@ def main():
     theta = threshold_for_detection(det["target_snr"], det["confidence"])
     cands, _ = find_candidates(Dg, sg, theta, min_separation=K-1)
 
-    fig, ax = plt.subplots(figsize=(13, 7))
-
-    # plot the z-score trace
     zvals = np.zeros_like(Dg)
     msk = np.isfinite(sg) & (sg > 0)
-    zvals[msk] = Dg[msk] / sg[msk]
-    ax.plot(freqs_r/1e9, zvals, lw=0.7, label="z-score")
 
-    # detection threshold line
-    ax.axhline(theta, color="tab:red", ls="--", label=f"threshold ({theta:.2f}σ)")
-    ax.axhline(3, color="tab:orange", ls="--", label=f"Observation (3σ)")
-    ax.axhline(5, color="tab:purple", ls="--", label=f"Discovery (5σ)")
-
-    # mark candidate points
-    if len(cands) > 0:
-        ax.scatter(freqs_r[cands]/1e9, zvals[cands],
-                   color="tab:orange", s=30, zorder=5, label="candidates")
-
-    ax.set(xlabel="Frequency [GHz]", ylabel="z",
-           title="Grand spectrum with candidate markers")
-    ax.grid(alpha=0.3); ax.legend()
-    fig.tight_layout()
-    fig.savefig(ex_run_dir/"candidates.png", dpi=150)
-    plt.close(fig)
+    
+    plot_candidates(freqs_r, zvals, theta, cands, ex_run_dir)
 
 
     t1     = time.time()
