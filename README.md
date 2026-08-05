@@ -20,8 +20,48 @@ going into the FOX directory
 - run unit test
 > pytest --basetemp=./tests/test_output
 
-- run a simulation
-> python scripts/simulation/simulate_run_yaml.py configs/simulate_run.yaml
+4. Load data into input folder (or wherever you want to put it)
+- Ensure any zip folder is uncompressed first
+- This folder might look like: input/January_Data
+- Inside that folder should be a list of .hdf5 files
+
+4. Change Input Directory for conversion
+- In your text editor of choice, open scripts/qshs/convert_qshs_to_fox.py
+> nano scripts/qshs/convert_qshs_to_fox.py
+
+- In the "main" function, change the input directory string to your input folder location
+```python
+def main():
+    # ===================
+    # Initialising
+    # ===================
+
+    input_dir = "input/January_Data"
+
+    pattern = "*.hdf5"
+    save_fox_h5 = True
+```
+
+5. Run file conversion
+> python scripts/qshs/convert_qshs_to_fox.py
+- Copy the directory of the output file
+- Alternatively, open the following directory: output/qshs_to_FOX
+- Copy the directory of the most recent run
+
+6. Change Input Directory for Analysis
+- In your text editor of choice, open configs/simulate_run_working.yaml
+> nano configs/simulate_run_working.yaml
+
+7. Change the yaml input directory to the copied directory
+```yaml
+input:
+  read_input: true
+  directory: "output/qshs_to_FOX/run_<timestamp>"
+  input_file_name: "converted_spectra.h5"
+```
+
+8. Run the data analysis
+> python scripts/simulation/simulate_run_yaml_working.py configs/simulate_run_working.yaml
 
 ---
 ### Repository structure
