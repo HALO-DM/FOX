@@ -37,7 +37,7 @@ htmlcov/
 .ipynb_checkpoints/
 
 # Project inputs
-/input/Feb
+/input/*
 
 # Project outputs
 /output/*
