@@ -22,12 +22,14 @@ from axion_haloscope.combine    import combine_ml
 from axion_haloscope.rebin      import rebin_ml, grand_spectrum_ml
 from axion_haloscope.lineshape  import shm_maxwell_template
 from axion_haloscope.detection  import threshold_for_detection, find_candidates
-from axion_haloscope.limit      import compute_local_snr_template, coupling_limit, plot_exclusion
+from axion_haloscope.limit      import compute_local_snr_template, coupling_limit
+from axion_haloscope.graphs import plot_exclusion
 from axion_haloscope.data_quality import filter_spectrum_set, too_noisy
 from axion_haloscope.io import SpectrumSet
 from axion_haloscope.data_quality import filter_spectrum_set, too_noisy
 from axion_haloscope.io import SpectrumSet
 from axion_haloscope.width_fq   import width_from_fq
+from axion_haloscope.utils import find_project_root
 
 
 
@@ -99,7 +101,8 @@ def main():
     sim, inj, base, rb, det, out = (cfg[k] for k in ("simulation","injection","baseline","rebin","detection","output"))
 
     # Output folder
-    out_root = pathlib.Path(out["root"])/ "sim_spectra"
+    PROJECT_ROOT = find_project_root(pathlib.Path(__file__).resolve())
+    out_root = PROJECT_ROOT / out["root"] / "sim_spectra"
     timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
     run_dir = out_root / f'{out["subdir_prefix"]}_{timestamp}'
     run_dir.mkdir(parents=True, exist_ok=True)
@@ -120,7 +123,7 @@ def main():
         n_spectra=sim["n_spectra"], n_bins=sim["n_bins"],
         bin_width_hz=sim["bin_width_hz"], f_start_hz=sim["f_start_hz"],
         tune_step_bins=sim["tune_step_bins"], rng_seed=sim["rng_seed"],
-        noise_sigma=sim["noise_sigma"], axion=ax
+        noise_sigma=sim["noise_sigma"], injected_axion=inj
     )
 
     # Always save one example raw spectrum
@@ -160,8 +163,8 @@ def main():
     t0 = time.time()
 
     # QC: drop bad spectra (default thresholds; adjust if desired)
-    sset = SpectrumSet(spectra=list(specs), freqs_per_spec=list(fper), rf_grid=rf, rf_index_map=list(rf_map), metadata=None)
-    sset_qc, removed, kept, bad = filter_spectrum_set(sset, predicate=lambda s,f,i: too_noisy(s,f,i, rms_max=3.0))
+    sset = SpectrumSet(spectra=list(specs), freqs_per_spec=list(fper), rf_grid=rf, rf_index_map=list(rf_map))
+    sset_qc, kept, bad = filter_spectrum_set(sset, predicate=lambda s,f,i: too_noisy(s,f,i, rms_max=3.0))
     print(f"[QC] kept {len(kept)}/{sset.n_spectra()} spectra; dropped: {bad}")
     # replace arrays with filtered ones for the rest of the chain
     specs, fper, rf, rf_map = sset_qc.spectra, sset_qc.freqs_per_spec, sset_qc.rf_grid, sset_qc.rf_index_map

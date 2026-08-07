@@ -20,10 +20,6 @@ def cut_by_datetime(data, start, end, key="date"):
 
     mask = np.array([(d is not None) and (start_dt <= d <= end_dt) for d in dt])
 
-    print("=" * 60)
-    print(f"Timestamp filter: keeping {np.sum(mask)} / {len(mask)} files")
-    print("=" * 60)
-
     spectra  = [b for a, b in zip(mask, specs) if a]
     freqs_per_spec  = [b for a, b in zip(mask, fper) if a]
     rf_index_map  = [b for a, b in zip(mask, rf_map) if a]

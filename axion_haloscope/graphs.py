@@ -118,7 +118,8 @@ def aliasing(freqs, psd_mixed, freq_downmixed, fs, combined_freq, tag, run_dir):
 def plot_spectrum(x: np.array,
                 y: np.array,
                 title: str,
-                output_loc: str
+                output_loc: str,
+                label: str | None = None,
                 ):
     """
     Plot of a spectrum against frequency
@@ -136,9 +137,10 @@ def plot_spectrum(x: np.array,
 
     """
     plt.figure(figsize=(13, 7))
-    plt.plot(x, y, lw=0.6)
-    plt.xlabel("Frequency[GHz]"); plt.ylabel( "Raw Power [arb]")
+    plt.plot(x, y, lw=0.6, label = label)
+    plt.xlabel("Frequency[GHz]"); plt.ylabel("PSD  [V²/Hz]")
     plt.title(title); plt.grid(alpha=0.3); plt.tight_layout()
+    plt.legend()
     plt.savefig(output_loc, dpi=150); plt.close()
 
 
@@ -241,7 +243,7 @@ def plot_hist(data: np.array,
     plt.savefig(output_loc, dpi = 150, bbox_inches='tight')
     plt.close()
 
-def plot_bandwidth(bad_dates_sorted, bad_bandwidths_sorted, good_dates, good_bandwidths, good_order, qc_run_dir, qc):
+def plot_bandwidth(bad_dates_sorted, bad_bandwidths_sorted, good_dates, good_bandwidths, good_order, run_dir, qc):
     plt.figure(figsize=(13, 7))
     plt.scatter(bad_dates_sorted, bad_bandwidths_sorted, color="firebrick", label="removed (below min threshold)")
     plt.scatter(good_dates[good_order], good_bandwidths[good_order], color="steelblue", alpha=0.6, label="kept (above min threshold)")
@@ -254,11 +256,11 @@ def plot_bandwidth(bad_dates_sorted, bad_bandwidths_sorted, good_dates, good_ban
     plt.ylim(0, 0.006)
     plt.grid(alpha=0.3)
     plt.tight_layout()
-    plt.savefig(qc_run_dir / "bad_bandwidth_vs_time.png", dpi=150)
+    plt.savefig(run_dir / "bad_bandwidth_vs_time.png", dpi=150)
     plt.close()
 
 
-def plot_events_against_time(invalid_dates, valid_dates, all_dates, count_invalid, count_valid, count_all, raw_run_dir):
+def plot_events_against_time(invalid_dates, valid_dates, all_dates, count_invalid, count_valid, count_all, title, file_name, run_dir):
         # Plot of total number of events againist time
     fig, ax = plt.subplots(figsize=(13, 7))
 
@@ -271,15 +273,15 @@ def plot_events_against_time(invalid_dates, valid_dates, all_dates, count_invali
     ax.xaxis.set_major_locator(mdates.DayLocator(interval=1))
     ax.set_xlabel("Date-Time")
     ax.set_ylabel("Events")
-    ax.set_title(f"Evolution of number of events w.r.t. time")
+    ax.set_title("Evolution of number of events w.r.t. time")
     ax.legend()
     plt.xticks(rotation=45, ha="right")
     plt.grid(alpha=0.3)
     plt.tight_layout()
-    plt.savefig(f"{raw_run_dir}/events_against_time.png", dpi=150, bbox_inches='tight')
+    plt.savefig(f"{run_dir}/events_against_time.png", dpi=150, bbox_inches='tight')
     plt.close()
 
-def plot_rms_against_time(sset, qc_run_dir):
+def plot_rms_against_time(sset, run_dir):
     # Plot rms evolution with time - data
     rms_vals = []
     dates = sset.metadata["date"]
@@ -297,7 +299,7 @@ def plot_rms_against_time(sset, qc_run_dir):
     ax.xaxis.set_major_formatter(mdates.DateFormatter("%Y-%m-%d"))
     plt.xticks(rotation=45, ha="right")
     ax.set_title("rms over time (data)"); plt.grid(alpha=0.3); plt.tight_layout()
-    plt.savefig(qc_run_dir/"rms_against_time_data.png", dpi=150); plt.close()
+    plt.savefig(run_dir/"rms_against_time_data.png", dpi=150); plt.close()
 
 def plot_spectra(fper, specs, count, max_plots, run_dir, step, title, file_name, offset=None):
     if offset == None:
@@ -309,7 +311,7 @@ def plot_spectra(fper, specs, count, max_plots, run_dir, step, title, file_name,
         if max_plots is not None and count >= max_plots:
             break
         plt.plot(freqs/1e9 + offset[i], spec, lw=0.6)
-    plt.xlabel("Frequency [GHz]"); plt.ylabel("Raw Power [arb]")
+    plt.xlabel("Frequency [GHz]"); plt.ylabel("PSD  [V²/Hz]")
     plt.title(title); plt.grid(alpha=0.3); plt.tight_layout()
     plt.savefig(run_dir/file_name, dpi=150); plt.close()
 
@@ -322,14 +324,14 @@ def plot_exclusion(freqs_r_hz, gmin, outfile=None, title="95% CL Exclusion (toy)
         plt.tight_layout(); plt.savefig(outfile, dpi=160)
     return plt.gca()
 
-def plot_scatter(res_freq_diff, raw_run_dir):
+def plot_scatter(res_freq_diff, raw_rurun_dirn_dir):
     plt.figure(figsize=(13, 7))
     plt.scatter(range(len(res_freq_diff)),res_freq_diff)
     plt.xlabel("Spectrum Index"); plt.ylabel("Resonance Frequency Offset [Hz]")
     plt.title("Resonance Frequency Offset vs Spectrum Index"); plt.grid(alpha=0.3); plt.tight_layout()
-    plt.savefig(raw_run_dir/"res_freq_offset_vs_index.png", dpi=150); plt.close()
+    plt.savefig(run_dir/"res_freq_offset_vs_index.png", dpi=150); plt.close()
 
-def plot_evo_of_freq(colour_vals, metadata_dates, cbar_label, raw_run_dir):
+def plot_evo_of_freq(colour_vals, metadata_dates, cbar_label, run_dir):
     fig, ax = plt.subplots(figsize = (13,7))
     ax.xaxis.set_major_formatter(mdates.DateFormatter("%Y-%m-%d %H:%M"))
     ax.xaxis.set_major_locator(mdates.HourLocator(interval=1))
@@ -339,10 +341,10 @@ def plot_evo_of_freq(colour_vals, metadata_dates, cbar_label, raw_run_dir):
     ax.set_title(f"Evolution of {cbar_label} w.r.t. Time")
     plt.xticks(rotation=45, ha="right")
     plt.tight_layout()
-    plt.savefig(f"{raw_run_dir}/evolution_of_frequency.png", dpi=150, bbox_inches='tight')
+    plt.savefig(f"{run_dir}/evolution_of_frequency.png", dpi=150, bbox_inches='tight')
     plt.close()
 
-def plot_sets(mode, fper, specs, colour_vals, cbar_label, run_dir, title, file_name, cmap, set_sg_fits=None, sets=None):
+def plot_sets(mode, fper, specs, colour_vals, cbar_label, run_dir, title, file_name, cmap, set_avg_spectra=None, set_sg_fits=None, sets=None):
     '''
     Optimise Later
     '''
@@ -355,7 +357,7 @@ def plot_sets(mode, fper, specs, colour_vals, cbar_label, run_dir, title, file_n
             ax.plot(freq, spec, linestyle="", marker="o", markersize=3, color=colourise(s), alpha=0.7)
         ax.axhline(1.0, color="k", ls="--", lw=0.8, alpha=0.6)
     elif mode == "sg_fit":
-        for s, (freqs, specs, fit) in enumerate(zip(fper, specs, set_sg_fits)):
+        for s, ((freqs, specs), fit) in enumerate(zip(set_avg_spectra, set_sg_fits)):
             ax.plot(freqs/1e6, specs,lw=1.0, alpha=0.55, color=colourise(s), label=f"Set {s}")
             ax.plot(freqs/1e6, fit, lw=1.8, alpha=0.95, color=colourise(s), linestyle="--")
     elif mode == "sets":
@@ -373,7 +375,7 @@ def plot_sets(mode, fper, specs, colour_vals, cbar_label, run_dir, title, file_n
     plt.close()
 
 
-def plot_iteritive_clipping(set_avg_spectra, plotting_set_masks, set_sg_fits,iteration, run_dir, set_mean_res):
+def plot_iteritive_clipping(set_avg_spectra, plotting_set_masks, set_sg_fits, iteration, run_dir, set_mean_res):
     fig, ax = plt.subplots(figsize=(13, 7))
     colourise_1, norm1 = make_colouriser(set_mean_res, cmap=plt.cm.viridis, vmin=None, vmax=None)
     colourise_2, norm2 = make_colouriser(set_mean_res, cmap=plt.cm.inferno, vmin=None, vmax=None)
@@ -422,7 +424,7 @@ def plot_3x3(mode, sets, set_mean_res, xlabel, ylabel, title, file_name, run_dir
         start = ax_idx *sets_per_subplot
         end = start + sets_per_subplot
         for s in range(start, min(end, len(sets))):
-            if mode == "set_average":
+            if mode == "mean":
                 ax.plot(
                     np.mean([x[1] for x in sets[s]], axis=0) / 1e6,
                     np.mean([x[0] for x in sets[s]], axis=0),
@@ -432,6 +434,8 @@ def plot_3x3(mode, sets, set_mean_res, xlabel, ylabel, title, file_name, run_dir
                     np.mean([x[1] for x in sets[s]], axis=0) / 1e6,
                     np.std([x[0] for x in sets[s]], axis=0),
                     alpha=0.8, color=colourise(s), label=f"Set {s}")
+            else:
+                raise ValueError(f"3x3 Diagnotic plot mode {mode}no recognised. Please chose either 'mean' or 'std'")
 
     for row in range(3):
         axes[row, 0].set_ylabel(xlabel)
@@ -450,6 +454,7 @@ def plot_3x3(mode, sets, set_mean_res, xlabel, ylabel, title, file_name, run_dir
     center_x = (left + right) / 2
 
     fig.suptitle(title, fontsize=32, x=center_x)
+    plt.legend()
     plt.savefig(f"{run_dir}/{file_name}", dpi=150, bbox_inches='tight')
     plt.close()
 
@@ -493,26 +498,7 @@ def plot_spectra_in_set(set, s, run_dir):
     ax.set_title(f"Set-averaged spectra and the individual spectra — set {s} (n={len(set)})")
     plt.tight_layout()
     plt.legend()
-    plt.savefig(f"{run_dir}/set_and_average_spectra_{s}.png", dpi = 150, bbox_inches='tight')
-    plt.close()
-
-def plot_log_spectra_in_set(set, s, run_dir):
-    fig, ax = plt.subplots(figsize=(13, 7))
-    greys = cm.Greys(np.linspace(0.3, 0.9, len(set)))
-    for i, x in enumerate(set):
-        ax.plot(x[1]/1e6, np.log(x[0]), color=greys[i])
-    ax.plot(np.mean([x[1] for x in set], axis=0)/1e6, np.log(np.mean([x[0] for x in set], axis=0)), alpha=0.8, color="red", label="set averaged")
-    norm = mcolors.Normalize(vmin=0, vmax=len(set))
-    sm = ScalarMappable(cmap=cm.Greys, norm=norm)
-    sm.set_array([])
-    fig.colorbar(sm, ax=ax, label="Spectrum index in set")
-    # ax.set_yscale("log")
-    ax.set_xlabel("IF frequency  [MHz]")
-    ax.set_ylabel("PSD  [V²/Hz]")
-    ax.set_title(f"log set-averaged spectra and the log individual spectra — set {s} (n = {len(set)})")
-    plt.tight_layout()
-    plt.legend()
-    plt.savefig(f"{run_dir}/log_set_and_average_spectra_{s}.png", dpi = 150, bbox_inches='tight')
+    plt.savefig(f"{run_dir}/set_{s}.png", dpi = 150, bbox_inches='tight')
     plt.close()
 
 def plot_set_average_errors(set, s, run_dir):
@@ -524,7 +510,7 @@ def plot_set_average_errors(set, s, run_dir):
     ax.set_title(f"Set-averaged spectra with errors — set {s}")
     plt.tight_layout()
     plt.legend()
-    plt.savefig(f"{run_dir}/set_averaged_spectra_errors_{s}.png", dpi = 150, bbox_inches='tight')
+    plt.savefig(f"{run_dir}/set_{s}.png", dpi = 150, bbox_inches='tight')
     plt.close()
 
 def plot_zoom_set_average_errors(set, s, run_dir):
@@ -550,7 +536,7 @@ def plot_zoom_set_average_errors(set, s, run_dir):
 
     plt.tight_layout()
     plt.legend()
-    plt.savefig(f"{run_dir}/set_averaged_spectra_errors_zoom{s}.png", dpi=150, bbox_inches='tight')
+    plt.savefig(f"{run_dir}/set_{s}.png", dpi=150, bbox_inches='tight')
     plt.close()
 
 def plot_std_against_freq(set, s, set_mean_res, run_dir):
@@ -574,11 +560,12 @@ def plot_claude_residuals(freqs, residuals, s, run_dir):
     ax.set_ylabel("Residuals  [V²/Hz]")
     ax.set_title(f"Residuals - set {s} (Claude's clipping method)")
     plt.tight_layout()
-    plt.savefig(f"{run_dir}/claude_residuals_{s}.png", dpi=150, bbox_inches='tight')
+    plt.savefig(f"{run_dir}/spectra_residuals_{s}.png", dpi=150, bbox_inches='tight')
     plt.close()
 
 def plot_blue_residuals(set, fit, colours, s, run_dir):
     all_residuals = []
+    n = len(set)
     fig, ax = plt.subplots(figsize=(13, 7))
     for spec_idx, (spectra, frequencies, res_freq) in enumerate(set):
         residuals = spectra - fit
@@ -594,7 +581,7 @@ def plot_blue_residuals(set, fit, colours, s, run_dir):
     ax.set_ylabel("Residuals  [V²/Hz]")
     ax.set_title(f"Residuals — set {s} (Blue's clipping method)")
     plt.tight_layout()
-    plt.savefig(f"{run_dir}/blue_residuals_{s}.png", dpi=150, bbox_inches='tight')
+    plt.savefig(f"{run_dir}/spectra_residuals_{s}.png", dpi=150, bbox_inches='tight')
     plt.close()
 
     return all_residuals
@@ -603,7 +590,7 @@ def plot_combination(rf, combined, run_dir):
     plt.figure(figsize=(13, 7))
     plt.plot(rf/1e9, combined, lw=0.8, color="black", label="combined")
     plt.title("Combined spectrum (baseline-removed)")
-    plt.xlabel("Frequency [GHz]"); plt.ylabel("Excess power [arb]"); plt.grid(alpha=0.3)
+    plt.xlabel("Frequency [GHz]"); plt.ylabel("Excess Power Residuals [Dimensionless]"); plt.grid(alpha=0.3)
     plt.tight_layout(); plt.savefig(run_dir/"combined.png", dpi=150); plt.close()
 
 def plot_grand_spectrum(freqs_r, z, run_dir):
@@ -686,3 +673,165 @@ def plot_data_cleaning(freq, spec,metadata, baseline, threshold, residuals, spec
     
     plt.savefig(run_dir / f"masked_bin_iteration_{iteration}.png", dpi=150, bbox_inches='tight')
     plt.close()
+
+def plot_filtered_data(metadata, invalid_files, mode, run_dir):
+
+    # Plot histogram of data againist time
+    valid_files_df = pd.DataFrame(zip(metadata["file_name"] , metadata["date"]))
+    valid_files_df[1] = pd.to_datetime(valid_files_df[1], format="%Y-%m-%d %H:%M:%S")
+
+    if len(invalid_files) != 0:
+        invalid_files_df = pd.DataFrame(invalid_files)
+        invalid_files_df[2] = pd.to_datetime(invalid_files_df[2], format="%Y-%m-%d %H:%M:%S")
+        invalid_metadata = invalid_files_df[invalid_files_df[1] == "metadata is missing"]
+        invalid_high_power = invalid_files_df[invalid_files_df[1] == "power is too high"]
+        invalid_high_noise = invalid_files_df[invalid_files_df[1] == "too noisy"]
+        invalid_power_zeros = invalid_files_df[invalid_files_df[1] == "power spectra is zeros"]
+        invalid_bandwidth = invalid_files_df[invalid_files_df[1] == "bandwidth is too small"]
+        invalid_res_freq_zeros = invalid_files_df[invalid_files_df[1] == "res_freq data is zeros"]
+        invalid_cw_freq_zeros = invalid_files_df[invalid_files_df[1] == "cw_freq data is zeros"]
+        
+
+        start_date = min( valid_files_df[1].min(), invalid_files_df[2].min())
+        end_date = max( valid_files_df[1].max(), invalid_files_df[2].max())
+        time_interval = pd.Timedelta(hours=24)
+        bin_num = int( (end_date - start_date) / time_interval)
+
+        data = [valid_files_df[1], invalid_metadata[2], invalid_high_power[2], invalid_high_noise[2],
+                invalid_power_zeros[2], invalid_bandwidth[2], invalid_res_freq_zeros[2]]
+        labels = [f"valid files (n = {len(valid_files_df[1])})", f"missing metadata (n = {len(invalid_metadata[2])})",
+                  f"power too high (n = {len(invalid_high_power[2])})", f"too noisy (n = {len(invalid_high_noise[2])})",
+                  f"power is zeros (n = {len(invalid_power_zeros[2])})", f"bandwidth is too small (n = {len(invalid_bandwidth[2])})",
+                  f"res freq is zeros (n = {len(invalid_res_freq_zeros[2])})"]
+
+        vs_time_hist(data, bin_num, (start_date, end_date), labels, "Number of files",
+                     f"Spectra files per day (before timestamp filter) n = {len(valid_files_df[0] + invalid_files_df[0])}", run_dir/"spectra_hist.png")
+
+
+    else:
+        start_date = valid_files_df[1].min()
+        end_date = valid_files_df[1].max()
+        time_interval = pd.Timedelta(hours=0.1)
+        bin_num = int( (end_date - start_date) / time_interval)
+
+        vs_time_hist(valid_files_df[1], bin_num, (start_date, end_date), f"valid files (n = {len(valid_files_df[1])})", "Number of files", 
+                     "Spectra files per day (before timestamp filter)", run_dir/"spectra_hist.png")
+
+
+    if len(invalid_files) != 0:
+        invalid_files_df = invalid_files_df.sort_values(by=[2])
+        count_invalid = list(range(1, len(invalid_files_df[2]) + 1))
+        all_files_df = pd.concat([valid_files_df[1], invalid_files_df[2]])
+        all_files_df = all_files_df.sort_values()
+        overall_end = max(valid_files_df[1].max(), invalid_files_df[2].max())
+
+        invalid_dates = list(invalid_files_df[2])
+        if invalid_dates[-1] < overall_end:
+            invalid_dates.append(overall_end)
+            count_invalid.append(count_invalid[-1])
+
+    else:
+        all_files_df = valid_files_df[1]
+        all_files_df = all_files_df.sort_values()
+
+    valid_files_df = valid_files_df.sort_values(by=[1])
+    count_valid = list(range(1, len(valid_files_df[1]) + 1))
+    count_all = list(range(1, len(all_files_df) + 1))
+
+    overall_end = max(valid_files_df[1].max(), all_files_df.max())
+
+    valid_dates = list(valid_files_df[1])
+    if valid_dates[-1] < overall_end:
+        valid_dates.append(overall_end)
+        count_valid.append(count_valid[-1])
+
+    all_dates = list(all_files_df)
+    if all_dates[-1] < overall_end:
+        all_dates.append(overall_end)
+        count_all.append(count_all[-1])
+
+    plot_events_against_time(invalid_dates, valid_dates, all_dates, count_invalid, 
+                             count_valid, count_all, "Evolution of number of events w.r.t. time", "events_against_time_pre_cut.png", run_dir)
+
+
+def plot_filtered_data2(metadata, invalid_files, mode, run_dir):
+    # Plot histogram of data againist time (post time filter)
+    invalid_files = metadata["invalid_files"]
+    invalid_files_df = pd.DataFrame(invalid_files)
+    valid_files_df = pd.DataFrame(zip(metadata["file_name"] , metadata["date"]))
+    valid_files_df[1] = pd.to_datetime(valid_files_df[1], format="%Y-%m-%d %H:%M:%S")
+
+    if len(invalid_files) != 0:
+        invalid_files_df = pd.DataFrame(invalid_files)
+        invalid_files_df[2] = pd.to_datetime(invalid_files_df[2], format="%Y-%m-%d %H:%M:%S")
+        invalid_metadata = invalid_files_df[invalid_files_df[1] == "metadata is missing"]
+        invalid_high_power = invalid_files_df[invalid_files_df[1] == "power is too high"]
+        invalid_high_noise = invalid_files_df[invalid_files_df[1] == "too noisy"]
+        invalid_power_zeros = invalid_files_df[invalid_files_df[1] == "power spectra is zeros"]
+        invalid_bandwidth = invalid_files_df[invalid_files_df[1] == "bandwidth is too small"]
+        invalid_res_freq_zeros = invalid_files_df[invalid_files_df[1] == "res_freq data is zeros"]
+        invalid_time = invalid_files_df[invalid_files_df[1] == "not in good time range"]
+
+        start_date = min( valid_files_df[1].min(), invalid_files_df[2].min())
+        end_date = max( valid_files_df[1].max(), invalid_files_df[2].max())
+        time_interval = pd.Timedelta(hours=24)
+        bin_num = int( (end_date - start_date) / time_interval)
+
+
+        data = (valid_files_df[1], invalid_metadata[2], invalid_high_power[2], invalid_high_noise[2],
+                invalid_power_zeros[2], invalid_bandwidth[2], invalid_res_freq_zeros[2], invalid_time[2])
+        labels = [f"valid files (n = {len(valid_files_df[1])})", f"missing metadata (n = {len(invalid_metadata[2])})",
+                  f"power too high (n = {len(invalid_high_power[2])})", f"too noisy (n = {len(invalid_high_noise[2])})",
+                  f"power is zeros (n = {len(invalid_power_zeros[2])})", f"bandwidth is too small (n = {len(invalid_bandwidth[2])})",
+                  f"res freq is zeros (n = {len(invalid_res_freq_zeros[2])})", f"invalid time filter (n = {len(invalid_time)})"]
+        vs_time_hist(data, bin_num, (start_date, end_date), labels, "Number of files",
+                      f"Spectra files per day (post timestamp filter) n = {len(invalid_files_df[0] + valid_files_df[0])}",
+                        run_dir/"spectra_hist_time_cut.png")
+
+    else:
+        start_date = valid_files_df[1].min()
+        end_date = valid_files_df[1].max()
+        time_interval = pd.Timedelta(hours=0.1)
+        bin_num = int( (end_date - start_date) / time_interval)
+
+        vs_time_hist(valid_files_df[1], bin_num, (start_date, end_date),
+                     f"valid files (n = {len(valid_files_df[1])})", "Number of files",
+                     f"Spectra files per day (post timestamp filter) n = {len(valid_files_df[0])}",
+                       run_dir/"spectra_hist_time_cut.png")
+
+
+    # Plot of total number of events againist time (post time filter)
+    if len(invalid_files) != 0:
+        invalid_files_df = invalid_files_df.sort_values(by=[2])
+        count_invalid = list(range(1, len(invalid_files_df[2]) + 1))
+        all_files_df = pd.concat([valid_files_df[1], invalid_files_df[2]])
+        all_files_df = all_files_df.sort_values()
+        overall_end = max(valid_files_df[1].max(), invalid_files_df[2].max())
+
+        invalid_dates = list(invalid_files_df[2])
+        if invalid_dates[-1] < overall_end:
+            invalid_dates.append(overall_end)
+            count_invalid.append(count_invalid[-1])
+
+    else:
+        all_files_df = valid_files_df[1]
+        all_files_df = all_files_df.sort_values()
+
+    valid_files_df = valid_files_df.sort_values(by=[1])
+    count_valid = list(range(1, len(valid_files_df[1]) + 1))
+    count_all = list(range(1, len(all_files_df) + 1))
+
+    overall_end = max(valid_files_df[1].max(), all_files_df.max())
+
+    valid_dates = list(valid_files_df[1])
+    if valid_dates[-1] < overall_end:
+        valid_dates.append(overall_end)
+        count_valid.append(count_valid[-1])
+
+    all_dates = list(all_files_df)
+    if all_dates[-1] < overall_end:
+        all_dates.append(overall_end)
+        count_all.append(count_all[-1])
+
+    plot_events_against_time(invalid_dates, valid_dates, all_dates, count_invalid, 
+                             count_valid, count_all, "Evolution of number of events w.r.t. time", "events_against_time_post_cut.png", run_dir)

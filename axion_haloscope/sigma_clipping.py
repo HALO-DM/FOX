@@ -38,29 +38,30 @@ def _interpolate_nans(y):
 
 def finalise_specs(mode, group_avg_spectra, groups, group_sg_fits):
     specs, fper = [], []
-    if mode == "Claude":
+    if mode == "claude":
         for g, group in enumerate(groups):
             avg = group_avg_spectra[g]
             fit = group_sg_fits[g]
-            continue
+            if avg is None or fit is None:
+                continue
 
-        f_grid = avg[0]
-        baseline_interp = interp1d(
-            f_grid, fit,
-            bounds_error=False,
-            fill_value=(fit[0], fit[-1]),
-        )
+            f_grid = avg[0]
+            baseline_interp = interp1d(
+                f_grid, fit,
+                bounds_error=False,
+                fill_value=(fit[0], fit[-1]),
+            )
 
-        for item in group:
-            f_i   = np.asarray(item[1], dtype=float)
-            psd_i = np.asarray(item[0], dtype=float)
+            for item in group:
+                f_i   = np.asarray(item[1], dtype=float)
+                psd_i = np.asarray(item[0], dtype=float)
 
-            bl      = baseline_interp(f_i)
-            bl_safe = np.where(np.abs(bl) > 1e-40, bl, np.nanmean(psd_i))
-            specs.append(psd_i / bl_safe)
-            fper.append(f_i)
+                bl      = baseline_interp(f_i)
+                bl_safe = np.where(np.abs(bl) > 1e-40, bl, np.nanmean(psd_i))
+                specs.append(psd_i / bl_safe)
+                fper.append(f_i)
 
-    elif mode == "Blue":
+    elif mode == "blue":
         for group, baseline in zip(groups, group_sg_fits):
             if baseline is None:
                 continue
@@ -124,10 +125,10 @@ def claude_clipping(group_avg_spectra, group_masks, group_sg_fits,
         new_group_masks[g]   = new_mask
         new_group_sg_fits[g] = new_fit
 
-        print(f"    Group {g:3d}: sigma={sigma:.4g}  "
-            f"newly masked={n_new:4d}  "
-            f"total masked={int(np.count_nonzero(new_mask)):4d}/{len(f)}")
-    print(f"  Total newly masked this iteration: {total_new}")
+    #    print(f"    Group {g:3d}: sigma={sigma:.4g}  "
+    #        f"newly masked={n_new:4d}  "
+    #        f"total masked={int(np.count_nonzero(new_mask)):4d}/{len(f)}")
+    # print(f"  Total newly masked this iteration: {total_new}")
     return new_group_masks, new_group_sg_fits
 
 
@@ -202,10 +203,10 @@ def blue_clipping(
         total_new += n_new
         n_bins   = sum(len(m) for m in current_masks)
         n_masked = sum(int(np.count_nonzero(m)) for m in current_masks)
-        print(f"    Group {g+1:3d}: newly masked={n_new:4d}  "
-              f"total masked={n_masked:4d}/{n_bins}")
+        #print(f"    Group {g+1:3d}: newly masked={n_new:4d}  "
+        #      f"total masked={n_masked:4d}/{n_bins}")
 
-    print(f"  Total newly masked this iteration: {total_new}")
+    #print(f"  Total newly masked this iteration: {total_new}")
     return new_group_masks, new_group_sg_fits
 
 def general_clipping(

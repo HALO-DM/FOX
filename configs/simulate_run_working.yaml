@@ -1,40 +1,24 @@
-simulation:
-  n_spectra: 100
-  n_bins: 20000  # Elena's eyeballed estimation from Ben's thesis
-  bin_width_hz: 100.0
-  f_start_hz: 5.7161e9
-  tune_step_bins: 100
-  rng_seed: 1234
-  noise_sigma: 1.0
-
 input:
-  read_input: true
-  directory: "output/qshs_to_FOX/run_22.07.2026_10.24.24"
+  input_mode: "convert_data" # "read_data", "convert_data", or "simulation". Note if Simulation, please make sure simulation information is filled out.
+  directory: "input/Jan"
   input_file_name: "converted_spectra.h5"
 
-injection:
-  enabled: true
-  # f_axion_hz: 5.725e9   # optional; if omitted, placed at mid-span
-  sigma_hz: 2500.0
-  total_power: 20.0
-
 quality:
-  max_power_filter: true            # filter the spectra for max mean power 
-  p_max: 1e-8                       # max power allowed
-  noise_filter: true                # filter the spectra for noise
-  rms_max: 3.0                  # max RMS allowed
-  nan_fail: true                    # drop spectra with NaNs/inf
-  robust: false                     # use median+MAD instead of mean+std
-  small_bandwidth_filter: true      #filter the spectra for small bandwidths
-  bw_min: 0.00027                   # min bandwidth allowed (same as QSHS)
-  bandwidth_zeros_filter: true      # filter the spectra for bandwdith data being arrays of zeros
-  res_freq_zeros_filter: true       # filter the spectra for res_freq data being arrays of zeros
-  cw_freq_zeros_filter: true        # filter the spectra for cw_freq data being arrays of zeros
-  bad_time_filter: true            # filter spectra within a known bad time frame
+  max_power_filter: true              # filter the spectra for max mean power 
+  p_max: 1e-8                         # max power allowed
+  noise_filter: true                  # filter the spectra for noise
+  rms_max: 3.0                        # max RMS allowed
+  nan_fail: true                      # drop spectra with NaNs/inf
+  robust: false                       # use median+MAD instead of mean+std
+  small_bandwidth_filter: true        # filter the spectra for small bandwidths
+  bw_min: 0.00027                     # min bandwidth allowed (same as QSHS)
+  bandwidth_zeros_filter: true        # filter the spectra for bandwdith data being arrays of zeros
+  res_freq_zeros_filter: true         # filter the spectra for res_freq data being arrays of zeros
+  cw_freq_zeros_filter: true          # filter the spectra for cw_freq data being arrays of zeros
+  bad_time_filter: true               # filter spectra within a known bad time frame
   start_time: ["2026-01-31 09:55:41"] # List of start times of the known bad data in format YYYY-MM-DD HH:MM:SS
-  end_time: ["2026-02-01 00:10:58"] # List of end times of the known bad data in format YYYY-MM-DD HH:MM:SS
-  data_cleaning: true
-
+  end_time: ["2026-02-01 00:10:58"]   # List of end times of the known bad data in format YYYY-MM-DD HH:MM:SS
+  data_cleaning: false
 
 baseline:
   sg_window_warm: 351
@@ -43,7 +27,7 @@ baseline:
   sg_poly_cold: 4
   spacing_minutes: 30
   sigma_cut: 3.5
-  clipping_mode: "Claude"    # "Claude" or "Blue"
+  clipping_mode: "Blue"    # "Claude" or "Blue"
   n_iterations: 3
 
 rebin:
@@ -57,14 +41,19 @@ detection:
   g0: 1.0
 
 output:
-  save_data: false      # save per-spectrum PNGs + spectra.npz
-  combined_plot: true  # save combined PNG of all spectra
-  offset_combined_plot: true # save combined PNG of all spectra with offset
-  injection_distribution: true   # save injected freqency distribution
-  set_average_diagnostics: true # save all groups set averaging diagnostic plots
-  clipping_residuals: true   # save all groups post clipping residuals
-  varying_group_size: true   # complete investigation into how changing the group size for averaging impacts results
+  save_data: false      # *.hdf5 + spectra.npz
   plots_step: 1         # plot every Nth spectrum
   # max_plots: 100      # optional cap
   root: "output"        # base output folder
   subdir_prefix: "run"  # subfolder prefix: run_<timestamp>
+
+diagnostic:
+  run_diagnostics: false
+  save_raw_plots: false           # save per-spectrum PNGs
+  combined_plot: true             # save combined PNG of all spectra
+  offset_combined_plot: true      # save combined PNG of all spectra with offset
+  injection_distribution: true    # save injected freqency distribution
+  set_average_diagnostics: true   # save all groups set averaging diagnostic plots
+  clipping_residuals: true        # save all groups post clipping residuals
+  varying_group_size: true        # complete investigation into how changing the group size for averaging impacts results
+

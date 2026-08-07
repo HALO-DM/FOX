@@ -77,7 +77,7 @@ def main():
     # Initialising
     # ===================
 
-    input_dir = "input/Feb/All"
+    input_dir = "input/Jan"
 
     pattern = "*.hdf5"
     save_fox_h5 = True
@@ -86,7 +86,7 @@ def main():
     plot_slow_controls = False
     save_slow_controls = False
 
-    out_root = "output/qshs_to_FOX"
+    out_root = "output/converted_from_qshs"
     os.makedirs(out_root, exist_ok=True)
 
     timestamp = datetime.datetime.now().strftime("%d.%m.%Y_%H.%M.%S")
