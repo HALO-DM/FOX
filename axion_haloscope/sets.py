@@ -11,7 +11,7 @@ def group_sets(dts, spacing_minutes, specs, fper, metadata):
         j = i + 1
         while j < n and (dts[j] - dts[i]).total_seconds() < threshold:
             j += 1
-        sets.append([(specs[k], fper[k], metadata["res_freq"][k]) for k in range(i, j)])
+        sets.append([(specs[k], fper[k], metadata.res_freqs[k]) for k in range(i, j)])
         i = j
     return sets
 

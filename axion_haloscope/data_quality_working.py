@@ -78,7 +78,7 @@ def small_bandwidth(
         bool
         
     """
-    bw = md["bandwidth"][i]
+    bw = md.bandwidths[i]
 
     return bw < bw_min
 
@@ -93,7 +93,7 @@ def metadata_is_zeros(
     item: str,
 ) -> bool:
     """
-    Flag a spectrum as bad if its minimium bandwidth is below the threshold.
+    Flag a spectrum as bad if an attribute (specified by item) is full of zeros.
 
     Parameters
     ----------
@@ -113,7 +113,8 @@ def metadata_is_zeros(
         bool
         
     """
-    return np.all(md[item] == 0)
+    value = getattr(md, item)
+    return bool(np.all(value[i] == 0))
 
 
 
@@ -148,7 +149,7 @@ def time_filter(
         bool
         
     """
-    date = md["date"][i]
+    date = md.dates[i]
 
     if isinstance(date, str):
         date = datetime.fromisoformat(date)
@@ -249,7 +250,16 @@ def identify_bad_spectra(sset: SpectrumSet,
             bad.append(i)
     return bad
 
-
+def _index_metadata(metadata: SpectrumMetadata, idx: List[int]) -> SpectrumMetadata:
+    fields = vars(metadata)
+    new_fields = {
+        key: (
+            value if key == "invalid_files"
+            else (value[idx] if isinstance(value, np.ndarray) else [value[i] for i in idx])
+        )
+        for key, value in fields.items()
+    }
+    return SpectrumMetadata(**new_fields)
 
 def filter_spectrum_set(
     sset: SpectrumSet,
@@ -278,22 +288,14 @@ def filter_spectrum_set(
         freqs_per_spec=[sset.freqs_per_spec[i] for i in keep],
         rf_grid=sset.rf_grid,
         rf_index_map=[sset.rf_index_map[i] for i in keep],
-        metadata={key: (
-                    value if key == "invalid_files"
-                    else (value[keep] if isinstance(value, np.ndarray) else [value[i] for i in keep]))
-                 for key, value in sset.metadata.items()
-                 }
+        metadata=_index_metadata(sset.metadata, keep),
     )
     removed = SpectrumSet(
         spectra=[sset.spectra[i] for i in bad],
         freqs_per_spec=[sset.freqs_per_spec[i] for i in bad],
         rf_grid=sset.rf_grid,
         rf_index_map=[sset.rf_index_map[i] for i in bad],
-        metadata={key: (
-            value if key == "invalid_files"
-            else (value[bad] if isinstance(value, np.ndarray) else [value[i] for i in bad]))
-            for key, value in sset.metadata.items()
-        }
+        metadata=_index_metadata(sset.metadata, bad),
     )
     return filtered, removed, keep, bad
 

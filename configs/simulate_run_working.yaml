@@ -1,6 +1,7 @@
 input:
   input_mode: "convert_data" # "read_data", "convert_data", or "simulation". Note if Simulation, please make sure simulation information is filled out.
   directory: "input/Jan"
+  # directory: "C:/Users/barna/OneDrive/Documents/Code/FOX/output/data_analysis/run_07.08.2026_11.03.44/data"
   input_file_name: "converted_spectra.h5"
 
 quality:
@@ -41,7 +42,7 @@ detection:
   g0: 1.0
 
 output:
-  save_data: false      # *.hdf5 + spectra.npz
+  save_data: true      # *.hdf5 + spectra.npz
   plots_step: 1         # plot every Nth spectrum
   # max_plots: 100      # optional cap
   root: "output"        # base output folder

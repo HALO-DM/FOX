@@ -1,9 +1,8 @@
 import numpy as np
-from axion_haloscope.io_working import SpectrumSet
+from axion_haloscope.io_working import SpectrumSet, SpectrumMetadata
 from datetime import datetime
-from axion_haloscope.io_working import SpectrumSet
 
-def cut_by_datetime(data, start, end, key="date"):
+def cut_by_datetime(data, start, end):
     '''
     Filters data by a predetermined time range
     '''
@@ -12,7 +11,7 @@ def cut_by_datetime(data, start, end, key="date"):
 
     dt = np.array([
         datetime.strptime(str(x), "%Y-%m-%d %H:%M:%S") if x is not None else None
-        for x in metadata[key]
+        for x in metadata.dates
     ])
 
     start_dt = datetime.strptime(start, "%Y-%m-%d %H:%M:%S")
@@ -20,20 +19,25 @@ def cut_by_datetime(data, start, end, key="date"):
 
     mask = np.array([(d is not None) and (start_dt <= d <= end_dt) for d in dt])
 
-    spectra  = [b for a, b in zip(mask, specs) if a]
-    freqs_per_spec  = [b for a, b in zip(mask, fper) if a]
-    rf_index_map  = [b for a, b in zip(mask, rf_map) if a]
+    spectra        = [b for a, b in zip(mask, specs) if a]
+    freqs_per_spec = [b for a, b in zip(mask, fper) if a]
+    rf_index_map   = [b for a, b in zip(mask, rf_map) if a]
 
-    removed = [[metadata["file_name"][i], "not in good time range", metadata[key][i]]
+    removed = [[metadata.file_names[i], "not in good time range", metadata.dates[i]]
         for i, keep in enumerate(mask) if not keep]
 
-    invalid = list(metadata.get("invalid_files", []))
+    invalid = list(metadata.invalid_files)
     invalid_all = invalid + removed
 
-    spec_metadata = {
-        k: (invalid_all if k == "invalid_files" else [val for keep, val in zip(mask, v) if keep])
-        for k, v in metadata.items()
+    fields = vars(metadata)  # or dataclasses.asdict(metadata) if it's a dataclass
+    new_fields = {
+        k: (
+            invalid_all if k == "invalid_files"
+            else (v[mask] if isinstance(v, np.ndarray) else [val for keep, val in zip(mask, v) if keep])
+        )
+        for k, v in fields.items()
     }
+    spec_metadata = SpectrumMetadata(**new_fields)
 
     return SpectrumSet(
         spectra=spectra,
@@ -41,7 +45,7 @@ def cut_by_datetime(data, start, end, key="date"):
         rf_grid=rf,
         rf_index_map=rf_index_map,
         metadata=spec_metadata
-    ) 
+    )
 
 def cut_by_values(sset, cut_min_val, cut_max_val):
 

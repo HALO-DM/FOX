@@ -41,7 +41,7 @@ from axion_haloscope.graphs import (plot_spectrum, vs_time_hist, plot_hist, plot
                                    plot_spectra_in_set, plot_set_average_errors, 
                                    plot_zoom_set_average_errors, plot_std_against_freq, plot_claude_residuals,
                                    plot_blue_residuals, plot_combination, plot_grand_spectrum, plot_candidates,
-                                   plot_data_cleaning, plot_filtered_data,plot_filtered_data2)
+                                   plot_data_cleaning, plot_filtered_data, plot_filtered_data2)
 from axion_haloscope.sets import set_creation, group_sets
 from axion_haloscope.diagnostics import evaluate_set_spacing, vary_set_size_plots
 from axion_haloscope.data_cuts import cut_by_values, cut_by_datetime
@@ -84,7 +84,8 @@ def main():
         diagnostic_mode = True
         diag_run_dir = run_dir / "diagnostics"
         diag_run_dir.mkdir(parents=True, exist_ok=True)
-    diagnostic_mode = False
+    else:
+        diagnostic_mode = False
 
 
     # Timestamped copies of the config
@@ -135,6 +136,7 @@ def main():
                 run_dir=run_dir,
             )
         specs, fper, rf, rf_map, metadata = sset.spectra, sset.freqs_per_spec, sset.rf_grid, sset.rf_index_map, sset.metadata
+        initial_specs = specs
         if out["save_data"]:
             out_h5 = f"{data_dir}/converted_spectra.h5"
             write_hdf5(sset, out_h5)
@@ -156,7 +158,6 @@ def main():
         raise ValueError(f"Input Mode '{inp["input_mode"]}' not recognised. Pleaese make sure you have selected 'read_data', 'convert_data', or 'simulation'."
                           "Note: if you have selected 'simualtion', please make sure that the simulation information is filled out.")
 
-
     # =======================================================================
     # Quality Control
     # =======================================================================
@@ -169,7 +170,9 @@ def main():
         qc_run_dir = diag_run_dir / 'quality_control'
         qc_run_dir.mkdir(parents=True, exist_ok=True)
 
-    invalid_files = sset.metadata["invalid_files"]
+    invalid_files = sset.metadata.invalid_files
+
+
     bad_zero_power = []
     bad_no_metadata = []
 
@@ -191,7 +194,7 @@ def main():
             predicate=lambda s, f, md, i: power_too_high(s, f, md, i, p_max=qc["p_max"]))
         
         for idx, s in enumerate(bad_power):
-            invalid_files.append([sset_power.metadata["file_name"][idx], "power is too high", sset_power.metadata["date"][idx]])
+            invalid_files.append([sset_power.metadata.file_names[idx], "power is too high", sset_power.metadata.dates[idx]])
         # Seperate invalid power spectra to plot
         specs_invalid_power, fper_invalid_power = sset_power.spectra, sset_power.freqs_per_spec
         if len(specs_invalid_power) != 0 and diagnostic_mode:
@@ -209,7 +212,7 @@ def main():
             predicate=lambda s, f, md, i: too_noisy(s, f, md, i, rms_max=qc["rms_max"]))
         
         for idx, s in enumerate(bad_noise):
-            invalid_files.append([sset_noise.metadata["file_name"][idx], "too noisy", sset_noise.metadata["date"][idx]])
+            invalid_files.append([sset_noise.metadata.file_names[idx], "too noisy", sset_noise.metadata.dates[idx]])
         # Seperate invalid noise spectra to plot
         specs_invalid_noise, fper_invalid_noise = sset_noise.spectra, sset_noise.freqs_per_spec
         if len(specs_invalid_noise) != 0 and diagnostic_mode:
@@ -236,19 +239,25 @@ def main():
                 predicate=lambda s, f, md, i: time_filter(s, f, md, i, start_time = qc["start_time"][t], end_time = qc["end_time"][t]))
             total_bad_time_filter += len(bad_time_filter)
             for idx, s in enumerate(bad_time_filter):
-                invalid_files.append([sset_time_filtered.metadata["file_name"][idx], 
-                                      f"known bad data ({qc['start_time'][t]}-{qc['end_time'][t]})" , sset_time_filtered.metadata["date"][idx]])
+                invalid_files.append([sset_time_filtered.metadata.file_names[idx], 
+                                      f"known bad data ({qc['start_time'][t]}-{qc['end_time'][t]})" , sset_time_filtered.metadata.dates[idx]])
             
             specs_invalid_time, fper_invalid_time = sset_time_filtered.spectra, sset_time_filtered.freqs_per_spec
             if len(specs_invalid_time) != 0 and diagnostic_mode:
                 
+                def safe_fname(s: str) -> str:
+                    return 
+
+                start_safe = str(safe_fname(qc['start_time'][t])).replace(":", "-").replace(" ", "_")
+                end_safe = str(safe_fname(qc['end_time'][t])).replace(":", "-").replace(" ", "_")
+
                 plot_spectrum(fper_invalid_time[0]/1e9, specs_invalid_time[0],
                             f"Example invalid raw spectrum (invalid time {qc['start_time'][t]}-{qc['end_time'][t]})",
-                            qc_run_dir/f"invalid_time_raw_spectrum_first_{qc['start_time'][t]}-{qc['end_time'][t]}.png")
+                            qc_run_dir/f"invalid_time_raw_spectrum_first_{start_safe}-{end_safe}.png")
 
                 plot_spectrum(fper_invalid_time[-1]/1e9, specs_invalid_time[-1],
                             f"Example invalid raw spectrum (invalid time {qc['start_time'][t]}-{qc['end_time'][t]})",
-                            qc_run_dir/f"invalid_time_raw_spectrum_last_{qc['start_time'][t]}-{qc['end_time'][t]}.png")
+                            qc_run_dir/f"invalid_time_raw_spectrum_last_{start_safe}-{end_safe}.png")
 
                 step = max(1, int(out["plots_step"]))
                 max_plots = None if out["max_plots"] is None else int(out["max_plots"])
@@ -262,7 +271,7 @@ def main():
             predicate=lambda s, f, md, i: small_bandwidth(s, f, md, i, bw_min=qc["bw_min"]))
         
         for idx, s in enumerate(bad_bandwidth):
-            invalid_files.append([sset_bandwidth.metadata["file_name"][idx], "bandwidth is too small", sset_bandwidth.metadata["date"][idx]])
+            invalid_files.append([sset_bandwidth.metadata.file_names[idx], "bandwidth is too small", sset_bandwidth.metadata.dates[idx]])
         # Seperate invalid bandwidth spectra to plot
         specs_invalid_bandwidth, fper_invalid_bandwidth = sset_bandwidth.spectra, sset_bandwidth.freqs_per_spec
         if len(specs_invalid_bandwidth) != 0 and diagnostic_mode:
@@ -279,11 +288,11 @@ def main():
             
 
             # Plot bandwidth againist date to show which are below the threshold
-            good_bandwidths = np.array(sset.metadata["bandwidth"])
-            good_dates = pd.to_datetime(sset.metadata["date"])
+            good_bandwidths = np.array(sset.metadata.bandwidths)
+            good_dates = pd.to_datetime(sset.metadata.dates)
             good_order = np.argsort(good_dates)
-            bad_bandwidths = np.array(sset_bandwidth.metadata["bandwidth"])
-            bad_dates = pd.to_datetime(sset_bandwidth.metadata["date"])
+            bad_bandwidths = np.array(sset_bandwidth.metadata.bandwidths)
+            bad_dates = pd.to_datetime(sset_bandwidth.metadata.dates)
 
             order = np.argsort(bad_dates)
             bad_dates_sorted = bad_dates[order]
@@ -295,9 +304,9 @@ def main():
     # QC: Cut spectra that have a res_freq value of zero
     if qc["res_freq_zeros_filter"]:
         sset, sset_zeros_res_freq, kept, bad_zeros_res_freq = filter_spectrum_set(sset,
-            predicate=lambda s, f, md, i: metadata_is_zeros(s, f, md, i, item = "res_freq"))
+            predicate=lambda s, f, md, i: metadata_is_zeros(s, f, md, i, item = "res_freqs"))
         for idx, s in enumerate(bad_zeros_res_freq):
-            invalid_files.append([sset_zeros_res_freq.metadata["file_name"][idx], "res_freq data is zeros", sset_zeros_res_freq.metadata["date"][idx]])
+            invalid_files.append([sset_zeros_res_freq.metadata.file_names[idx], "res_freq data is zeros", sset_zeros_res_freq.metadata.dates[idx]])
         if len(bad_zeros_res_freq) != 0 and diagnostic_mode:
             print(f"[QC]: {len(bad_zeros_res_freq)} spectra were removed as given res_freq is zero.")
 
@@ -306,9 +315,9 @@ def main():
     if qc["cw_freq_zeros_filter"]:
         no_inj_files = []
         sset, sset_zeros_cw_freq, kept, bad_zeros_cw_freq = filter_spectrum_set(sset,
-            predicate=lambda s, f, md, i: metadata_is_zeros(s, f, md, i, item = "cw_freq"))
+            predicate=lambda s, f, md, i: metadata_is_zeros(s, f, md, i, item = "cw_freqs"))
         for idx, s in enumerate(bad_zeros_cw_freq):
-            no_inj_files.append([sset_zeros_cw_freq.metadata["file_name"][idx], sset_zeros_cw_freq.metadata["date"][idx]])
+            no_inj_files.append([sset_zeros_cw_freq.metadata.file_names[idx], sset_zeros_cw_freq.metadata.dates[idx]])
         if len(bad_zeros_cw_freq) != 0 and diagnostic_mode:
             print(f"[QC]: {len(bad_zeros_cw_freq)} spectra have no injected axion (cw_freq = 0)")
 
@@ -327,8 +336,10 @@ def main():
 
     # Plot histogram of data againist time
     if diagnostic_mode:
-        plot_filtered_data(metadata, invalid_files, "pre_time_cut", run_dir)
-        plot_rms_against_time(sset, qc_run_dir)
+        time_cut_dir = diag_run_dir / "time_cuts"
+        time_cut_dir.mkdir(parents=True, exist_ok=True)
+        plot_filtered_data(metadata, invalid_files, "pre_time_cut", time_cut_dir)
+        plot_rms_against_time(sset, time_cut_dir)
 
     
     # Export the spectrum set of all valid files
@@ -363,14 +374,14 @@ def main():
         print("Applying Time Cuts")
         print("-" * 60)
         print("[TF]:", TIME_ARR[TIME_IND][0], "-->", TIME_ARR[TIME_IND][1])
-    print(f"[TF]: {len(sset.metadata['file_name'])} files kept after time filter "
-       f"(removed {len(metadata["file_name"]) - len(sset.metadata['file_name'])})")
+    print(f"[TF]: {len(sset.metadata.file_names)} files kept after time filter "
+       f"(removed {len(metadata.file_names) - len(sset.metadata.file_names)})")
     
     # replace arrays with filtered ones for the rest of the chain
     specs, fper, rf, rf_map, metadata = sset.spectra, sset.freqs_per_spec, sset.rf_grid, sset.rf_index_map, sset.metadata
 
-    cw_freqs = np.array(metadata["cw_freq"])
-    res_freqs = np.array(metadata["res_freq"])
+    cw_freqs = np.array(metadata.cw_freqs)
+    res_freqs = np.array(metadata.res_freqs)
 
     out_h5 = f"{data_dir}/final_converted_spectra.h5"
     write_hdf5(sset, out_h5)
@@ -380,7 +391,7 @@ def main():
     # Plotting of time cut data
     # ----------------------------
     if diagnostic_mode:
-        plot_filtered_data(metadata, invalid_files, "post_time_cut", run_dir)
+        plot_filtered_data2(metadata, invalid_files, "post_time_cut", time_cut_dir)
    
     # =============================================================
     # Spectra Plotting
@@ -391,7 +402,7 @@ def main():
     plot_count = 0
     if out["save_data"]:
         # Optional: spectra.npz for valid data
-        np.savez(run_dir/"spectra.npz", spectra=np.array(specs), freqs=fper, rf_grid=rf)
+        np.savez(data_dir/"spectra.npz", spectra=np.array(specs), freqs=fper, rf_grid=rf)
 
     if diagnostic_mode:
         if diag["save_raw_plots"]:
@@ -434,7 +445,7 @@ def main():
         # Plot injected frequency distrubtion (frequency againist time)
         if diag["injection_distribution"]:
             colour_vals = (cw_freqs - res_freqs*1e9) / 1e9  # Hz -> GHz
-            metadata_dates = pd.to_datetime(metadata["date"], format="%Y-%m-%d %H:%M:%S")
+            metadata_dates = pd.to_datetime(metadata.dates, format="%Y-%m-%d %H:%M:%S")
             plot_evo_of_freq(colour_vals, metadata_dates, r"$|f_{\rm CW} - f_{\rm res}|$  [GHz]", raw_run_dir)
 
     t0 = time.time()
@@ -531,11 +542,11 @@ def main():
     # Initialisation
     # -----------------------------------------------------------------------
     if diagnostic_mode:
-        warm_run_dir = run_dir /'warm_baseline'
+        warm_run_dir = diag_run_dir /'warm_baseline'
         warm_run_dir.mkdir(parents=True, exist_ok=True)
 
     spacing_minutes = base["spacing_minutes"]
-    dts = metadata["date"]
+    dts = metadata.dates
     date_times=[]
     for dt in dts:
         try:
@@ -636,7 +647,7 @@ def main():
             plot_std_against_freq(set, s, set_mean_res, std_vs_freq_dir)
 
     if diagnostic_mode:
-        plot_sets("sg_fit", fper, specs, set_mean_res, "Mean Cavity Resonance", run_dir,
+        plot_sets("sg_fit", fper, specs, set_mean_res, "Mean Cavity Resonance", warm_run_dir,
                 "Set-averaged spectra with initial SG fits  (dashed = fit)", "set_averaged_spectra_with_sg_fits.png",
                 cmap=plt.cm.viridis, set_avg_spectra=set_avg_spectra,set_sg_fits=set_sg_fits)
 
@@ -819,7 +830,7 @@ def main():
     Dr, sr, _ = rebin_ml(combined, sigma_c, C=C)
     freqs_r = rf[:len(Dr)*C:C] + (C//2)* (fper[0][1] - fper[0][0])
     f0 = freqs_r[len(freqs_r)//2]
-    f0 = np.average(metadata["res_freq"]) * 1e9
+    f0 = np.average(metadata.res_freqs) * 1e9
 
     Lq = shm_maxwell_template(K=K, bin_width_hz=C*(fper[0][1] - fper[0][0]), f0_hz=f0)
     Dg, sg = grand_spectrum_ml(Dr, sr, Lq)
@@ -846,12 +857,12 @@ def main():
     t1     = time.time()
     total0 = round(t1-t0, 2)
     totals = round(t0-t_sim0, 2)
-    if inp["read_input"]:
-        print (f"Data Loading Time : {totals} s for {len(metadata['file_name'])} spectra of {len(initial_specs[0])} bins")
-    else:
+    if inp["input_mode"] == "simulation":
         nbins    = sim["n_bins"]
         nspectra = sim["n_spectra"]
         print (f"Simulation Time : {totals} s for {nspectra} spectra of {nbins} bins")
+    else:
+        print (f"Data Loading Time : {totals} s for {len(metadata.file_names)} spectra of {len(initial_specs[0])} bins")
     print (f"Time from QC to Candidates: {total0} s")
 
     # =======================================================================

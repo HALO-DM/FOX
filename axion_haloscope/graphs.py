@@ -140,7 +140,8 @@ def plot_spectrum(x: np.array,
     plt.plot(x, y, lw=0.6, label = label)
     plt.xlabel("Frequency[GHz]"); plt.ylabel("PSD  [V²/Hz]")
     plt.title(title); plt.grid(alpha=0.3); plt.tight_layout()
-    plt.legend()
+    if label:
+        plt.legend()
     plt.savefig(output_loc, dpi=150); plt.close()
 
 
@@ -284,7 +285,7 @@ def plot_events_against_time(invalid_dates, valid_dates, all_dates, count_invali
 def plot_rms_against_time(sset, run_dir):
     # Plot rms evolution with time - data
     rms_vals = []
-    dates = sset.metadata["date"]
+    dates = sset.metadata.dates
     dates = pd.to_datetime(dates)
 
     for s in sset.spectra:
@@ -324,7 +325,7 @@ def plot_exclusion(freqs_r_hz, gmin, outfile=None, title="95% CL Exclusion (toy)
         plt.tight_layout(); plt.savefig(outfile, dpi=160)
     return plt.gca()
 
-def plot_scatter(res_freq_diff, raw_rurun_dirn_dir):
+def plot_scatter(res_freq_diff, run_dir):
     plt.figure(figsize=(13, 7))
     plt.scatter(range(len(res_freq_diff)),res_freq_diff)
     plt.xlabel("Spectrum Index"); plt.ylabel("Resonance Frequency Offset [Hz]")
@@ -625,7 +626,7 @@ def plot_candidates(freqs_r, zvals, theta, cands, run_dir):
 
 def plot_data_cleaning(freq, spec,metadata, baseline, threshold, residuals, spec_idx, masked_this_iteration, masked_previously, mask, unmasked, base, iteration, run_dir):
 
-    res_freq_array = np.asarray(metadata["res_freq"], dtype=float)
+    res_freq_array = np.asarray(metadata.res_freq, dtype=float)
 
     colouriser, norm =make_colouriser(res_freq_array, cmap=plt.cm.viridis, vmin=None, vmax=None)
     color = colouriser(spec_idx)
@@ -677,7 +678,7 @@ def plot_data_cleaning(freq, spec,metadata, baseline, threshold, residuals, spec
 def plot_filtered_data(metadata, invalid_files, mode, run_dir):
 
     # Plot histogram of data againist time
-    valid_files_df = pd.DataFrame(zip(metadata["file_name"] , metadata["date"]))
+    valid_files_df = pd.DataFrame(zip(metadata.file_names, metadata.dates))
     valid_files_df[1] = pd.to_datetime(valid_files_df[1], format="%Y-%m-%d %H:%M:%S")
 
     if len(invalid_files) != 0:
@@ -756,9 +757,9 @@ def plot_filtered_data(metadata, invalid_files, mode, run_dir):
 
 def plot_filtered_data2(metadata, invalid_files, mode, run_dir):
     # Plot histogram of data againist time (post time filter)
-    invalid_files = metadata["invalid_files"]
+    invalid_files = metadata.invalid_files
     invalid_files_df = pd.DataFrame(invalid_files)
-    valid_files_df = pd.DataFrame(zip(metadata["file_name"] , metadata["date"]))
+    valid_files_df = pd.DataFrame(zip(metadata.file_names, metadata.dates))
     valid_files_df[1] = pd.to_datetime(valid_files_df[1], format="%Y-%m-%d %H:%M:%S")
 
     if len(invalid_files) != 0:
