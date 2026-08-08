@@ -23,7 +23,7 @@ def power_too_high(
     p_max: float = 1e-8,
 ) -> bool:
     """
-    Flag a spectrum as bad if its mean power exceeds the max power limit p_max.
+    Flag a spectrum as bad if its average power exceeds the max power limit p_max.
     
     Parameters
     ----------
@@ -43,9 +43,9 @@ def power_too_high(
         bool
             
         """
-    max_power = np.max(s)
+    average_power = np.average(s)
 
-    return max_power > p_max
+    return average_power > p_max
 
 
 
