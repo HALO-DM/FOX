@@ -409,11 +409,11 @@ def main():
             for i, (freq, spec) in enumerate(zip(fper, specs)):
                 if i % step != 0:
                     continue
-                if max_plots is not None and count >= max_plots:
+                if max_plots is not None and plot_count >= max_plots:
                     break
 
                 plot_spectrum(freq/1e9, spec, f"Spectrum {i:03d}", raw_run_dir / f"spectrum_{i:03d}.png")
-                count += 1
+                plot_count += 1
 
         # Always save one valid example raw spectrum
         plot_spectrum(fper[0]/1e9, specs[0], f"Example valid raw spectrum", qc_run_dir/f"valid_raw_spectrum_first.png")
@@ -502,7 +502,7 @@ def main():
     # =======================================================================
     # Data Cleaning
     # =======================================================================
-    if qc["data_cleaning"]:
+    if qc["data_cleaning"] and diagnostic_mode:
         data_clean_dir = diag_run_dir / 'data_cleaning'
         data_clean_dir.mkdir(parents=True, exist_ok=True)
 
@@ -522,10 +522,10 @@ def main():
                 new_spec = spec.copy()
                 new_spec[~unmasked] = baseline[~unmasked]
                    
-                if diagnostic_mode and diag["save_raw_plots"] and masked_this_iteration.any():
+                if diagnostic_mode and masked_this_iteration.any():
                     plot_data_cleaning(freq, spec, metadata, baseline, threshold, 
                                     residuals, spec_idx, masked_this_iteration, 
-                                    masked_previously, mask, unmasked, iteration=iteration, base=base, run_dir=diag_run_dir)
+                                    masked_previously, mask, unmasked, iteration=iteration, base=base, run_dir=data_clean_dir)
             new_specs.append(new_spec)
         specs = new_specs
 
