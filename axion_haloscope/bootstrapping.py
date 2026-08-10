@@ -1,3 +1,7 @@
+"""
+Code is Potentially Redundant - used exclusivly for a few plots for Blue's 1st Semester Report, no functions are used currently in analysis
+"""
+
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
