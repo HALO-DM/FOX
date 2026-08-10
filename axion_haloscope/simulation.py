@@ -7,7 +7,7 @@ import datetime
 from collections import defaultdict
 
 from axion_haloscope.noise import external_noise
-from axion_haloscope.io_working import SpectrumMetadata
+from axion_haloscope.io_working import SpectrumMetadata, SpectrumSet
 from axion_haloscope.width_fq   import width_from_fq
 
 @dataclass
@@ -211,7 +211,7 @@ def simulate_spectra(
             meta_lists[k].append(v)
 
     metadata = SpectrumMetadata(**{k: np.array(v) for k, v in meta_lists.items()})
-    return spectra, freqs_per_spec, rf_grid, rf_index_map, metadata
+    return SpectrumSet(spectra, freqs_per_spec, rf_grid, rf_index_map, metadata)
 
 # --- Minimal demo (optional) ---
 if __name__ == "__main__":

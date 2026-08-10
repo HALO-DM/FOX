@@ -411,7 +411,6 @@ def read_qshs_hdf5_dir(
     center_frequency_hz: float | None = None,
     sort_frequency: bool = True,
     bin_width: float | None = None,
-    run_dir: str | Path | None = None,
 ) -> SpectrumSet:
     """
     Read a directory of QSHS HDF5 files.

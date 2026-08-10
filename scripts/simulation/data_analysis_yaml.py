@@ -9,7 +9,6 @@ Outputs to: ./output/run_DD.MM.YYYY_HH.MM.SS
 from __future__ import annotations
 import argparse, datetime, pathlib, sys
 import numpy as np
-import yaml
 import matplotlib
 matplotlib.use("Agg")
 import matplotlib as mpl
@@ -17,35 +16,26 @@ import matplotlib.pyplot as plt
 import time
 import pandas as pd
 import shutil
-import matplotlib.dates as mdates
 import matplotlib.cm as cm
-import matplotlib.colors as mcolors
-from matplotlib.cm import ScalarMappable
-from matplotlib.colors import Normalize
 from tqdm import tqdm
 
 
-from axion_haloscope.simulation import simulate_spectra, AxionParams
-from axion_haloscope.baseline   import remove_baseline
-from axion_haloscope.combine    import combine_ml
-from axion_haloscope.rebin      import rebin_ml, grand_spectrum_ml
-from axion_haloscope.lineshape  import shm_maxwell_template
-from axion_haloscope.detection  import threshold_for_detection, find_candidates
-from axion_haloscope.limit      import compute_local_snr_template, coupling_limit
+from axion_haloscope                      import graphs
+from axion_haloscope.baseline             import remove_baseline
+from axion_haloscope.combine              import combine_ml
+from axion_haloscope.data_cuts            import cut_by_values, cut_by_datetime
 from axion_haloscope.data_quality_working import filter_spectrum_set, too_noisy, power_too_high, metadata_is_zeros, time_filter, small_bandwidth
-from axion_haloscope.io_working import SpectrumSet, read_hdf5, write_hdf5, read_qshs_hdf5_dir
-from axion_haloscope.sigma_clipping import claude_clipping, blue_clipping, finalise_specs, general_clipping
-from axion_haloscope.graphs import (plot_spectrum, vs_time_hist, plot_hist, plot_bandwidth, plot_events_against_time, 
-                                   plot_rms_against_time, plot_spectra, plot_exclusion, plot_scatter, plot_evo_of_freq,
-                                   plot_sets,plot_iteritive_clipping,plot_3x3, plot_std_freq, plot_std_set_num, 
-                                   plot_spectra_in_set, plot_set_average_errors, 
-                                   plot_zoom_set_average_errors, plot_std_against_freq, plot_claude_residuals,
-                                   plot_blue_residuals, plot_combination, plot_grand_spectrum, plot_candidates,
-                                   plot_data_cleaning, plot_filtered_data, plot_filtered_data2)
-from axion_haloscope.sets import set_creation, group_sets
-from axion_haloscope.diagnostics import evaluate_set_spacing, vary_set_size_plots
-from axion_haloscope.data_cuts import cut_by_values, cut_by_datetime
-from axion_haloscope.utils import find_project_root, load_yaml_config
+from axion_haloscope.detection            import threshold_for_detection, find_candidates
+from axion_haloscope.diagnostics          import evaluate_set_spacing, vary_set_size_plots
+from axion_haloscope.io_working           import read_hdf5, write_hdf5, read_qshs_hdf5_dir
+from axion_haloscope.limit                import compute_local_snr_template, coupling_limit
+from axion_haloscope.lineshape            import shm_maxwell_template
+from axion_haloscope.load_data            import load_data
+from axion_haloscope.rebin                import rebin_ml, grand_spectrum_ml
+from axion_haloscope.sets                 import set_creation, group_sets
+from axion_haloscope.sigma_clipping       import claude_clipping, blue_clipping, finalise_specs, general_clipping
+from axion_haloscope.simulation           import simulate_spectra
+from axion_haloscope.utils                import create_directory, find_project_root, load_yaml_config
 
 mpl.rcParams.update({
     "font.family": "serif",
@@ -70,34 +60,43 @@ def main():
     cfg = load_yaml_config(cfg_path)
     inp, sim, inj, qc, alg, base, rb, det, out, diag = (cfg[k] for k in ("input","simulation","injection","quality",
                                                                          "alignment","baseline","rebin","detection","output","diagnostic"))
+    # ----------------------------
+    # Initialising Variables
+    # ----------------------------
+
+    '''
+    Can replace all cfg["Settings"] with a global variable here
+    '''
+
+
+    # ----------------------------
+    # Set Up Paths
+    # ----------------------------
 
     # Output folder
     project_root = find_project_root(pathlib.Path(__file__).resolve())
 
     out_root = project_root / out["root"] / "data_analysis"
     timestamp = datetime.datetime.now().strftime("%d.%m.%Y_%H.%M.%S")
-    run_dir = out_root / f'{out["subdir_prefix"]}_{timestamp}'
-    run_dir.mkdir(parents=True, exist_ok=True)
+    run_dir = create_directory(out_root, f'{out["subdir_prefix"]}_{timestamp}')
+    main_plots_dir = create_directory(run_dir, "main_plots")
+    data_dir = create_directory(run_dir, "data")
 
     if diag["run_diagnostics"]:
         print("Diagnostic Mode On")
         diagnostic_mode = True
-        diag_run_dir = run_dir / "diagnostics"
-        diag_run_dir.mkdir(parents=True, exist_ok=True)
+        diag_run_dir = create_directory(run_dir, "diagnostic_plots")
     else:
         diagnostic_mode = False
 
+    # ----------------------------
+    # Save YAML
+    # ----------------------------
 
     # Timestamped copies of the config
     cfg_stamp = datetime.datetime.now().strftime("%d.%m.%Y_%H.%M.%S")
-
-    main_plots_dir = run_dir / "main_plots"
-    main_plots_dir.mkdir(parents=True, exist_ok=True)
-
-    # Save exact input YAML as provided
-    data_dir = run_dir / "data"
-    data_dir.mkdir(parents=True, exist_ok=True)
     try:
+        # Save exact input YAML as provided
         stamped_name = f"{cfg_path.stem}_{cfg_stamp}{cfg_path.suffix}"
         shutil.copy(cfg_path, run_dir / stamped_name)
     except Exception as e:
@@ -106,57 +105,13 @@ def main():
     t_sim0 = time.time()
     
     
+    
     # =======================================================================
     # Data input
     # =======================================================================
-
-    if inp["input_mode"] == "read_data":
-        if diagnostic_mode:
-            print("=" * 60) 
-            print("Data Reading")
-            print("=" * 60)
-        # 1) Read in Data
-        directory = inp["directory"]
-        input_file_name = inp["input_file_name"]
-        sset = read_hdf5(f"{directory}/{input_file_name}")
-        specs, fper, rf, rf_map, metadata = sset.spectra, sset.freqs_per_spec, sset.rf_grid, sset.rf_index_map, sset.metadata
-        initial_specs = specs
-
-    elif inp["input_mode"] == "convert_data":
-        if diagnostic_mode:
-            print("=" * 60) 
-            print("Converting Data")
-            print("=" * 60)
-        # 1) Convert QSHS data to FOX
-        sset = read_qshs_hdf5_dir(
-                inp["directory"],
-                pattern="*.hdf5",
-                use_shifted_frequency=True,
-                sort_frequency=True,
-                run_dir=run_dir,
-            )
-        specs, fper, rf, rf_map, metadata = sset.spectra, sset.freqs_per_spec, sset.rf_grid, sset.rf_index_map, sset.metadata
-        initial_specs = specs
-        if out["save_data"]:
-            out_h5 = f"{data_dir}/converted_spectra.h5"
-            write_hdf5(sset, out_h5)
-            print(f"[QSHS] Saved FOX-native HDF5: {out_h5}")
-
-    elif inp["input_mode"] == "simulation":
-        if diagnostic_mode:
-            print("=" * 60) 
-            print("Running Simulation")
-            print("=" * 60)
-        # 1) Simulate
-        specs, fper, rf, rf_map, metadata = simulate_spectra(
-        n_spectra=sim["n_spectra"], n_bins=sim["n_bins"],
-        bin_width_hz=sim["bin_width_hz"], f_start_hz=sim["f_start_hz"],
-        tune_step_bins=sim["tune_step_bins"], rng_seed=sim["rng_seed"],
-        noise_sigma=sim["noise_sigma"], injected_axion=inj
-        )
-    else:
-        raise ValueError(f"Input Mode '{inp["input_mode"]}' not recognised. Pleaese make sure you have selected 'read_data', 'convert_data', or 'simulation'."
-                          "Note: if you have selected 'simualtion', please make sure that the simulation information is filled out.")
+    sset = load_data(inp["input_mode"], diagnostic_mode, inp["directory"], inp["input_file_name"], data_dir, sim, inj, out)
+    specs, fper, rf, rf_map, metadata = sset.spectra, sset.freqs_per_spec, sset.rf_grid, sset.rf_index_map, sset.metadata
+    initial_specs = specs
 
     # =======================================================================
     # Quality Control
@@ -167,8 +122,7 @@ def main():
         print("Quality Control")
         print("=" * 60)
 
-        qc_run_dir = diag_run_dir / 'quality_control'
-        qc_run_dir.mkdir(parents=True, exist_ok=True)
+        qc_run_dir = create_directory(diag_run_dir, "quality_control")
 
     invalid_files = sset.metadata.invalid_files
 
@@ -199,10 +153,10 @@ def main():
         specs_invalid_power, fper_invalid_power = sset_power.spectra, sset_power.freqs_per_spec
         if len(specs_invalid_power) != 0 and diagnostic_mode:
             print(f"[QC]: {len(bad_power)} spectra were removed as power is too high.")
-            plot_spectrum(fper_invalid_power[0]/1e9, specs_invalid_power[0],
+            graphs.plot_spectrum(fper_invalid_power[0]/1e9, specs_invalid_power[0],
                         "Example invalid raw spectrum (high power)", qc_run_dir/"invalid_power_raw_spectrum_first.png")
 
-            plot_spectrum(fper_invalid_power[-1]/1e9, specs_invalid_power[-1],
+            graphs.plot_spectrum(fper_invalid_power[-1]/1e9, specs_invalid_power[-1],
                         "Example invalid raw spectrum (high power)", qc_run_dir/"invalid_power_raw_spectrum_last.png")
 
 
@@ -218,10 +172,10 @@ def main():
         if len(specs_invalid_noise) != 0 and diagnostic_mode:
             print(f"[QC]: {len(bad_noise)} spectra were removed as too noisy.")
             
-            plot_spectrum(fper_invalid_noise[0]/1e9, specs_invalid_noise[0],
+            graphs.plot_spectrum(fper_invalid_noise[0]/1e9, specs_invalid_noise[0],
                         "Example invalid raw spectrum (too noisey)", qc_run_dir/"invalid_noise_raw_spectrum_first.png")
 
-            plot_spectrum(fper_invalid_noise[-1]/1e9, specs_invalid_noise[-1],
+            graphs.plot_spectrum(fper_invalid_noise[-1]/1e9, specs_invalid_noise[-1],
                         "Example invalid raw spectrum (too noisey)", qc_run_dir/"invalid_noise_raw_spectrum_last.png")
 
             step = max(1, int(out["plots_step"]))
@@ -245,17 +199,14 @@ def main():
             specs_invalid_time, fper_invalid_time = sset_time_filtered.spectra, sset_time_filtered.freqs_per_spec
             if len(specs_invalid_time) != 0 and diagnostic_mode:
                 
-                def safe_fname(s: str) -> str:
-                    return 
+                start_safe = str(qc['start_time'][t]).replace(":", "-").replace(" ", "_")
+                end_safe = str(qc['end_time'][t]).replace(":", "-").replace(" ", "_")
 
-                start_safe = str(safe_fname(qc['start_time'][t])).replace(":", "-").replace(" ", "_")
-                end_safe = str(safe_fname(qc['end_time'][t])).replace(":", "-").replace(" ", "_")
-
-                plot_spectrum(fper_invalid_time[0]/1e9, specs_invalid_time[0],
+                graphs.plot_spectrum(fper_invalid_time[0]/1e9, specs_invalid_time[0],
                             f"Example invalid raw spectrum (invalid time {qc['start_time'][t]}-{qc['end_time'][t]})",
                             qc_run_dir/f"invalid_time_raw_spectrum_first_{start_safe}-{end_safe}.png")
 
-                plot_spectrum(fper_invalid_time[-1]/1e9, specs_invalid_time[-1],
+                graphs.plot_spectrum(fper_invalid_time[-1]/1e9, specs_invalid_time[-1],
                             f"Example invalid raw spectrum (invalid time {qc['start_time'][t]}-{qc['end_time'][t]})",
                             qc_run_dir/f"invalid_time_raw_spectrum_last_{start_safe}-{end_safe}.png")
 
@@ -277,10 +228,10 @@ def main():
         if len(specs_invalid_bandwidth) != 0 and diagnostic_mode:
             print(f"[QC]: {len(bad_bandwidth)} spectra were removed as bandwidth is too small.")
             
-            plot_spectrum(fper_invalid_bandwidth[0]/1e9, specs_invalid_bandwidth[0],
+            graphs.plot_spectrum(fper_invalid_bandwidth[0]/1e9, specs_invalid_bandwidth[0],
                         f"Example invalid raw spectrum (invalid bandwidth)", qc_run_dir/f"invalid_bandwidth_spectrum_first.png")
 
-            plot_spectrum(fper_invalid_bandwidth[-1]/1e9, specs_invalid_bandwidth[-1],
+            graphs.plot_spectrum(fper_invalid_bandwidth[-1]/1e9, specs_invalid_bandwidth[-1],
                                     f"Example invalid raw spectrum (invalid bandwidth)", qc_run_dir/f"invalid_bandwidth_spectrum_last.png")
 
             step = max(1, int(out["plots_step"]))
@@ -298,7 +249,7 @@ def main():
             bad_dates_sorted = bad_dates[order]
             bad_bandwidths_sorted = bad_bandwidths[order]
 
-            plot_bandwidth(bad_dates_sorted, bad_bandwidths_sorted, good_dates, good_bandwidths, good_order, qc_run_dir, qc)
+            graphs.plot_bandwidth(bad_dates_sorted, bad_bandwidths_sorted, good_dates, good_bandwidths, good_order, qc_run_dir, qc)
 
 
     # QC: Cut spectra that have a res_freq value of zero
@@ -311,7 +262,7 @@ def main():
             print(f"[QC]: {len(bad_zeros_res_freq)} spectra were removed as given res_freq is zero.")
 
 
-    # QC: Flag spectra that have no injected axion (cw_freq = 0)
+    # QC: Cut spectra that have no injected axion (cw_freq = 0)
     if qc["cw_freq_zeros_filter"]:
         no_inj_files = []
         sset, sset_zeros_cw_freq, kept, bad_zeros_cw_freq = filter_spectrum_set(sset,
@@ -327,8 +278,7 @@ def main():
     specs, fper, rf, rf_map, metadata = sset.spectra, sset.freqs_per_spec, sset.rf_grid, sset.rf_index_map, sset.metadata
 
     if diagnostic_mode:
-        raw_run_dir = diag_run_dir/ 'raw_spectra_plots'
-        raw_run_dir.mkdir(parents=True, exist_ok=True)
+        raw_run_dir = create_directory(diag_run_dir, "raw_spectra_plots")
 
     # ----------------------------
     # Plotting of filtered data
@@ -336,10 +286,9 @@ def main():
 
     # Plot histogram of data againist time
     if diagnostic_mode:
-        time_cut_dir = diag_run_dir / "time_cuts"
-        time_cut_dir.mkdir(parents=True, exist_ok=True)
-        plot_filtered_data(metadata, invalid_files, "pre_time_cut", time_cut_dir)
-        plot_rms_against_time(sset, time_cut_dir)
+        time_cut_dir = create_directory(diag_run_dir, "time_cuts")
+        graphs.plot_filtered_data(metadata, invalid_files, "pre_time_cut", time_cut_dir)
+        graphs.plot_rms_against_time(sset, time_cut_dir)
 
     
     # Export the spectrum set of all valid files
@@ -391,7 +340,7 @@ def main():
     # Plotting of time cut data
     # ----------------------------
     if diagnostic_mode:
-        plot_filtered_data2(metadata, invalid_files, "post_time_cut", time_cut_dir)
+        graphs.plot_filtered_data2(metadata, invalid_files, "post_time_cut", time_cut_dir)
    
     # =============================================================
     # Spectra Plotting
@@ -413,20 +362,20 @@ def main():
                 if max_plots is not None and plot_count >= max_plots:
                     break
 
-                plot_spectrum(freq/1e9, spec, f"Spectrum {i:03d}", raw_run_dir / f"spectrum_{i:03d}.png")
+                graphs.plot_spectrum(freq/1e9, spec, f"Spectrum {i:03d}", raw_run_dir / f"spectrum_{i:03d}.png")
                 plot_count += 1
             print(f"[DIAG]: Saved raw plots to: {raw_run_dir}")
 
         # Always save one valid example raw spectrum
-        plot_spectrum(fper[0]/1e9, specs[0], f"Example valid raw spectrum", qc_run_dir/f"valid_raw_spectrum_first.png")
-        plot_spectrum(fper[-1]/1e9, specs[-1], f"Example valid raw spectrum", qc_run_dir/f"valid_raw_spectrum_last.png")
+        graphs.plot_spectrum(fper[0]/1e9, specs[0], f"Example valid raw spectrum", qc_run_dir/f"valid_raw_spectrum_first.png")
+        graphs.plot_spectrum(fper[-1]/1e9, specs[-1], f"Example valid raw spectrum", qc_run_dir/f"valid_raw_spectrum_last.png")
 
         # Optional: plot all valid/invalid raw spectra in one figure
         if diag["combined_plot"]:
-            plot_spectra(fper, specs, plot_count, max_plots, raw_run_dir, step, "All valid raw spectra", "raw_valid_spectrum_all.png")
+            graphs.plot_spectra(fper, specs, plot_count, max_plots, raw_run_dir, step, "All valid raw spectra", "raw_valid_spectrum_all.png")
 
             if len(specs_invalid_power) != 0:
-                plot_spectra(fper_invalid_power, specs_invalid_power, plot_count, max_plots,
+                graphs.plot_spectra(fper_invalid_power, specs_invalid_power, plot_count, max_plots,
                             raw_run_dir, step, "All invalid raw spectra", "raw_invalid_spectrum_all.png")
 
 
@@ -438,17 +387,17 @@ def main():
                 difference = f - res_freqs[0]
                 res_freq_diff.append(difference)
             # Plot the resonance frequency offset againist the spectrum index
-            plot_scatter(res_freq_diff, raw_run_dir)
+            graphs.plot_scatter(res_freq_diff, raw_run_dir)
 
             # Combine the offset spectra into one figure
-            plot_spectra(fper, specs, plot_count, max_plots, raw_run_dir, step, "All valid spectra offset", "raw_spectrum_all_valid_offset.png", offset=res_freq_diff)
+            graphs.plot_spectra(fper, specs, plot_count, max_plots, raw_run_dir, step, "All valid spectra offset", "raw_spectrum_all_valid_offset.png", offset=res_freq_diff)
 
 
         # Plot injected frequency distrubtion (frequency againist time)
         if diag["injection_distribution"]:
             colour_vals = (cw_freqs - res_freqs*1e9) / 1e9  # Hz -> GHz
             metadata_dates = pd.to_datetime(metadata.dates, format="%Y-%m-%d %H:%M:%S")
-            plot_evo_of_freq(colour_vals, metadata_dates, r"$|f_{\rm CW} - f_{\rm res}|$  [GHz]", raw_run_dir)
+            graphs.plot_evo_of_freq(colour_vals, metadata_dates, r"$|f_{\rm CW} - f_{\rm res}|$  [GHz]", raw_run_dir)
 
     t0 = time.time()
 
@@ -461,14 +410,13 @@ def main():
     specs, fper, rf, rf_map, metadata = sset.spectra, sset.freqs_per_spec, sset.rf_grid, sset.rf_index_map, sset.metadata
 
     if diagnostic_mode:
-        cut_run_dir = diag_run_dir / 'cut_spectra'
-        cut_run_dir.mkdir(parents=True, exist_ok=True)
+        cut_run_dir = create_directory(diag_run_dir, "cut_spectra")
 
 
         # Plot example trimmed spectra
-        plot_spectrum(fper[0]/1e9, specs[0], "Example Spectrum (First) - Trimmed and Validated",
+        graphs.plot_spectrum(fper[0]/1e9, specs[0], "Example Spectrum (First) - Trimmed and Validated",
                     cut_run_dir/"trimmed_spectrum_first.png", label = "Trimmed Spectrum")
-        plot_spectrum(fper[-1]/1e9, specs[-1], "Example Spectrum (Last) - Trimmed and Validated",
+        graphs.plot_spectrum(fper[-1]/1e9, specs[-1], "Example Spectrum (Last) - Trimmed and Validated",
                     cut_run_dir/"trimmed_spectrum_last.png", label = "Trimmed Spectrum")
 
 
@@ -505,8 +453,7 @@ def main():
     # Data Cleaning
     # =======================================================================
     if qc["data_cleaning"] and diagnostic_mode:
-        data_clean_dir = diag_run_dir / 'data_cleaning'
-        data_clean_dir.mkdir(parents=True, exist_ok=True)
+        data_clean_dir = create_directory(diag_run_dir, 'data_cleaning')
 
         n_iter = base["n_iterations"]
         new_specs = []
@@ -525,7 +472,7 @@ def main():
                 new_spec[~unmasked] = baseline[~unmasked]
                    
                 if diagnostic_mode and masked_this_iteration.any():
-                    plot_data_cleaning(freq, spec, metadata, baseline, threshold, 
+                    graphs.plot_data_cleaning(freq, spec, metadata, baseline, threshold, 
                                     residuals, spec_idx, masked_this_iteration, 
                                     masked_previously, mask, unmasked, iteration=iteration, base=base, run_dir=data_clean_dir)
             new_specs.append(new_spec)
@@ -544,8 +491,7 @@ def main():
     # Initialisation
     # -----------------------------------------------------------------------
     if diagnostic_mode:
-        warm_run_dir = diag_run_dir /'warm_baseline'
-        warm_run_dir.mkdir(parents=True, exist_ok=True)
+        warm_run_dir = create_directory(diag_run_dir, 'warm_baseline')
 
     spacing_minutes = base["spacing_minutes"]
     dts = metadata.dates
@@ -573,43 +519,37 @@ def main():
     ])
  
     if diag["set_average_diagnostics"] and diagnostic_mode:
-        set_av_spec_dir = warm_run_dir / "set_averaged_spectra"
-        set_av_spec_dir.mkdir(parents=True, exist_ok=True)
+        set_av_spec_dir = create_directory(warm_run_dir, "set_averaged_spectra")
 
-        set_and_av_dir = warm_run_dir / "set_and_average_spectra"
-        set_and_av_dir.mkdir(parents=True, exist_ok=True)
+        set_and_av_dir = create_directory(warm_run_dir, "set_and_average_spectra")
 
-        std_vs_freq_dir = warm_run_dir/"std_vs_freq"
-        std_vs_freq_dir.mkdir(parents=True, exist_ok=True)
+        std_vs_freq_dir = create_directory(warm_run_dir, "std_vs_freq")
 
-        set_av_spec_errors_dir = set_av_spec_dir / "errors"
-        set_av_spec_errors_dir.mkdir(parents=True, exist_ok=True)
+        set_av_spec_errors_dir = create_directory(set_av_spec_dir, "errors")
 
-        set_av_spec_errors_zoom_dir = set_av_spec_dir / "errors_zoom"
-        set_av_spec_errors_zoom_dir.mkdir(parents=True, exist_ok=True)
+        set_av_spec_errors_zoom_dir = create_directory(set_av_spec_dir, "errors_zoom")
 
-        set_hist_psd_dir = warm_run_dir /"histogram_of_set_psd"
-        set_hist_psd_dir.mkdir(parents=True, exist_ok=True)
+        set_hist_psd_dir = create_directory(warm_run_dir, "histogram_of_set_psd")
 
         # Plot set averaged spectra for all sets on one axis
-        plot_sets("sets", fper, specs, set_mean_res, "Mean Cavity Resonance", warm_run_dir, f"Set-averaged spectra — all sets (n = {len(sets)})",
+        graphs.plot_sets("sets", fper, specs, set_mean_res, "Mean Cavity Resonance", warm_run_dir, f"Set-averaged spectra — all sets (n = {len(sets)})",
                   "set_averaged_spectra_all.png", plt.cm.viridis, set_avg_spectra = set_avg_spectra, set_sg_fits=None, sets=sets)
 
         # Plot set average spectra for all sets 3x3
-        plot_3x3("mean", sets, set_mean_res, "IF frequency  [MHz]", "PSD  [V²/Hz]", 
+        graphs.plot_3x3("mean", sets, set_mean_res, "IF frequency  [MHz]", "PSD  [V²/Hz]", 
                  f"Set-averaged spectra — all sets (n = {len(sets)})", "set_averaged_spectra_all_3x3.png", warm_run_dir)
 
         # Plot standard deviation of averaged sets againist frequency for all sets 3x3
-        plot_3x3("std", sets, set_mean_res, "Standard Deviation  [V²/Hz]", "IF frequency  [MHz]", 
+        graphs.plot_3x3("std", sets, set_mean_res, "Standard Deviation  [V²/Hz]", "IF frequency  [MHz]", 
                  f"Standard deviation of averaged spectra against frequency - all sets (n = {len(sets)})",
                  "std_vs_freq_all_3x3.png", warm_run_dir) 
 
         # Plot standard deviation of averaged sets againist frequency for all sets
-        plot_std_freq(sets, set_mean_res, warm_run_dir)
+        graphs.plot_std_freq(sets, set_mean_res, warm_run_dir)
     
         # Plot a histogram of standard deviation of averaged sets for all sets
         n = len(sets)
-        plot_hist(data=[np.std([x[0] for x in set], axis=0) for set in sets],
+        graphs.plot_hist(data=[np.std([x[0] for x in set], axis=0) for set in sets],
                 vline=None, n=n, bins=50, xlabel="Standard Deviation of average  [V²/Hz]", vlabel=None, 
                 title=f"Histogram of standard deviation of averaged sets - all sets (n = {len(sets)})",
                 cb_label="Mean cavity resonance [GHz]", output_loc=f"{warm_run_dir}/std_hist_all" )
@@ -620,36 +560,36 @@ def main():
         for s, set in enumerate(sets):
             std = np.std([x[0] for x in set], axis=0)
             av_stds.append(np.mean(std))
-        plot_std_set_num(av_stds, warm_run_dir)
+        graphs.plot_std_set_num(av_stds, warm_run_dir)
 
 
         for s, set in enumerate(tqdm(sets, desc="[DIAG]: Set averaging diagnostic plots")):
         # for g, (freqs, specs) in enumerate(set_avg_spectra):
 
             # Plot set averaged spectra + the sets spectra per set
-            plot_spectra_in_set(set, s, set_and_av_dir)
+            graphs.plot_spectra_in_set(set, s, set_and_av_dir)
 
             # Plot set averaged spectra with errors per set
-            plot_set_average_errors(set, s, set_av_spec_errors_dir)
+            graphs.plot_set_average_errors(set, s, set_av_spec_errors_dir)
 
 
             # Plot zoomed set averaged spectra with errors zoomed in per set
-            plot_zoom_set_average_errors(set, s, set_av_spec_errors_zoom_dir)
+            graphs.plot_zoom_set_average_errors(set, s, set_av_spec_errors_zoom_dir)
         
 
             # Plot histogram of each set averaged spectra per set
             mean_val = np.mean([x[0] for x in set])
             med_val = np.median([x[0] for x in set])
-            plot_hist(data=np.mean([x[0] for x in set], axis=0), vline=[mean_val, med_val],
+            graphs.plot_hist(data=np.mean([x[0] for x in set], axis=0), vline=[mean_val, med_val],
                     n=1, bins=100, xlabel="PSD  [V²/Hz]", vlabel=["mean value", "median value"],
                     title=f"Histogram of set averaged set {s}", cb_label=None, output_loc=f"{set_hist_psd_dir}/histogram_{s}")
 
 
             # Plot standard deviation of each set average againist frequency per set
-            plot_std_against_freq(set, s, set_mean_res, std_vs_freq_dir)
+            graphs.plot_std_against_freq(set, s, set_mean_res, std_vs_freq_dir)
 
     if diagnostic_mode:
-        plot_sets("sg_fit", fper, specs, set_mean_res, "Mean Cavity Resonance", warm_run_dir,
+        graphs.plot_sets("sg_fit", fper, specs, set_mean_res, "Mean Cavity Resonance", warm_run_dir,
                 "Set-averaged spectra with initial SG fits  (dashed = fit)", "set_averaged_spectra_with_sg_fits.png",
                 cmap=plt.cm.viridis, set_avg_spectra=set_avg_spectra,set_sg_fits=set_sg_fits)
 
@@ -696,7 +636,7 @@ def main():
             plotting_set_masks = set_masks
 
         if diagnostic_mode:
-            plot_iteritive_clipping(set_avg_spectra, plotting_set_masks, set_sg_fits,iteration, warm_run_dir, set_mean_res)
+            graphs.plot_iteritive_clipping(set_avg_spectra, plotting_set_masks, set_sg_fits,iteration, warm_run_dir, set_mean_res)
 
 
     # --------------------
@@ -705,14 +645,11 @@ def main():
 
     if diag["clipping_residuals"] and diagnostic_mode:
 
-        clip_run_dir = diag_run_dir/f'clipping_plots_{base["clipping_mode"].lower()}'
-        clip_run_dir.mkdir(parents=True, exist_ok=True)
+        clip_run_dir = create_directory(diag_run_dir, f'clipping_plots_{base["clipping_mode"].lower()}')
 
-        clip_hist_run_dir = clip_run_dir / f'{base["clipping_mode"].lower()}_histogram_of_residuals'
-        clip_hist_run_dir.mkdir(parents=True, exist_ok=True)
+        clip_hist_run_dir = create_directory(clip_run_dir, f'{base["clipping_mode"].lower()}_histogram_of_residuals')
 
-        clip_residuial_run_dir = clip_run_dir / f'{base["clipping_mode"].lower()}_residuals_from_clipping'
-        clip_residuial_run_dir.mkdir(parents=True, exist_ok=True)
+        clip_residuial_run_dir = create_directory(clip_run_dir, f'{base["clipping_mode"].lower()}_residuals_from_clipping')
         
 
         for s, fit in enumerate(tqdm(set_sg_fits, desc="[DIAG]: Clipping residuals plots")):
@@ -726,10 +663,10 @@ def main():
                 residuals = specs - fit
 
                 # Plot residuals againist frequency
-                plot_claude_residuals(freqs, residuals, s, clip_residuial_run_dir)
+                graphs.plot_claude_residuals(freqs, residuals, s, clip_residuial_run_dir)
 
                 # Plot histogram of residuals
-                plot_hist(data=residuals[np.isfinite(residuals)], vline=None, n=1, bins=50, xlabel="IF frequency  [MHz]",
+                graphs.plot_hist(data=residuals[np.isfinite(residuals)], vline=None, n=1, bins=50, xlabel="IF frequency  [MHz]",
                         vlabel=None, title=f"Residuals - set {s} (Claude's clipping method)", cb_label=None, 
                         output_loc=f"{clip_hist_run_dir}/histogram_{s}.png")
         
@@ -743,11 +680,11 @@ def main():
 
                 
                 # Plot residuals againist frequnecy for each set
-                all_residuals = plot_blue_residuals(set, fit, cm.viridis(np.linspace(0, 1, len(set))), s, clip_residuial_run_dir)
+                all_residuals = graphs.plot_blue_residuals(set, fit, cm.viridis(np.linspace(0, 1, len(set))), s, clip_residuial_run_dir)
 
 
                 # Plot stacked histogram of residuals in each set
-                plot_hist(data=[r[np.isfinite(r)] for r in all_residuals],
+                graphs.plot_hist(data=[r[np.isfinite(r)] for r in all_residuals],
                         vline=None, n=len(set), bins=50, xlabel="Residuals  [V²/Hz]", vlabel=None,
                         title=f"Residuals histogram (stacked) — set {s} (Blue's clipping method)", cb_label="Spectrum index in set", 
                         output_loc=f"{clip_hist_run_dir}/histogram_{s}.png")
@@ -759,8 +696,7 @@ def main():
 
     if diag["varying_set_size"] and diagnostic_mode:
         specs_set = shifted_spectra
-        var_dir = diag_run_dir / 'varying_set_size'
-        var_dir.mkdir(parents=True, exist_ok=True)
+        var_dir = create_directory(diag_run_dir, 'varying_set_size')
 
         spacings_config = [5, 10, 15, 30, 60, 90, 120, 150, 180, 210, 240]  # minutes
         sets_by_spacing = {sp: group_sets(date_times, sp, specs_set, fper, metadata) for sp in spacings_config}
@@ -788,7 +724,7 @@ def main():
     colour_vals = np.abs(cw_freqs - res_freqs*1e9) / 1e9  # Hz -> GHz
 
 
-    plot_sets("baseline_removal", fper, specs, colour_vals, r"$|f_{\rm CW} - f_{\rm res}|$  [GHz]", 
+    graphs.plot_sets("baseline_removal", fper, specs, colour_vals, r"$|f_{\rm CW} - f_{\rm res}|$  [GHz]", 
                     main_plots_dir, "Set-averaged spectra with initial SG fits  (dashed = fit)",
                     "warm_baseline_removal.png", cmap=plt.cm.inferno)
 
@@ -828,7 +764,7 @@ def main():
     # Combination
     # =======================================================================
     combined, sigma_c, counts = combine_ml(proc, rf_map_new, total_rf_bins=len(rf))
-    plot_combination(rf, combined, main_plots_dir)
+    graphs.plot_combination(rf, combined, main_plots_dir)
 
     # =======================================================================
     # Rebin + Grand Spectrum (SHM template)
@@ -844,7 +780,7 @@ def main():
     Dg, sg = Dr, sr
 
     z = np.zeros_like(Dg); m = np.isfinite(sg) & (sg>0); z[m] = Dg[m]/sg[m]
-    plot_grand_spectrum(freqs_r, z, main_plots_dir)
+    graphs.plot_grand_spectrum(freqs_r, z, main_plots_dir)
 
     # =======================================================================
     # Candidates
@@ -858,7 +794,7 @@ def main():
     if diagnostic_mode:
         print(f"[DETECT] Found {len(cands)} candidate(s) above threshold")
     
-    plot_candidates(freqs_r, z, theta, cands, main_plots_dir)
+    graphs.plot_candidates(freqs_r, z, theta, cands, main_plots_dir)
 
 
     t1     = time.time()
@@ -884,7 +820,7 @@ def main():
         if finite_g.size:
             print(f"[EXCLUSION] g_min (rel. to g0) stats: best={np.min(finite_g):.4g}, "
                     f"worst={np.max(finite_g):.4g}")
-    plot_exclusion(freqs_r, gmin, outfile=main_plots_dir/"exclusion.png", title="95% CL Exclusion (SHM)")
+    graphs.plot_exclusion(freqs_r, gmin, outfile=main_plots_dir/"exclusion.png", title="95% CL Exclusion (SHM)")
     with (data_dir/"exclusion.csv").open("w") as fh:
         fh.write("freq_Hz,g_min_rel_to_g0\n")
         for f,g in zip(freqs_r, gmin):

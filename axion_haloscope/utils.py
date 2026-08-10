@@ -7,6 +7,13 @@ def find_project_root(start: Path) -> Path:
             return path
     raise RuntimeError("Could not find project root")
 
+def create_directory(parent, directory_name):
+
+    new_directory = parent / directory_name
+    new_directory.mkdir(parents=True, exist_ok=True)
+
+    return new_directory
+
 def _get(d, key, default):
     v = d.get(key, default)
     return default if v is None else v
