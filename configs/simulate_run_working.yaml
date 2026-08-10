@@ -1,8 +1,9 @@
 input:
-  input_mode: "convert_data" # "read_data", "convert_data", or "simulation". Note if Simulation, please make sure simulation information is filled out.
-  directory: "input/Jan"
-  # directory: "C:/Users/barna/OneDrive/Documents/Code/FOX/output/data_analysis/run_07.08.2026_11.03.44/data"
-  input_file_name: "converted_spectra.h5"
+  input_mode: "read_data"                 # "read_data", "convert_data", or "simulation"
+                                          # note if "simulation", please make sure simulation information is filled out
+  directory: "output/data_analysis/run_10.08.2026_12.34.19/data"                  # location of either raw data (for input_mode = "convert_data"), 
+                                          # or location of file to be read (for input_mode = "read_data")
+  input_file_name: "converted_spectra.h5" # name of file to be read. Only used on "read_data" input_mode
 
 quality:
   max_power_filter: true              # filter the spectra for max mean power 
@@ -17,19 +18,19 @@ quality:
   res_freq_zeros_filter: true         # filter the spectra for res_freq data being arrays of zeros
   cw_freq_zeros_filter: true          # filter the spectra for cw_freq data being arrays of zeros
   bad_time_filter: true               # filter spectra within a known bad time frame
-  start_time: ["2026-01-31 09:55:41"] # List of start times of the known bad data in format YYYY-MM-DD HH:MM:SS
-  end_time: ["2026-02-01 00:10:58"]   # List of end times of the known bad data in format YYYY-MM-DD HH:MM:SS
-  data_cleaning: false
+  start_time: ["2026-01-31 09:55:41"] # list of start times of the known bad data in format YYYY-MM-DD HH:MM:SS
+  end_time: ["2026-02-01 00:10:58"]   # list of end times of the known bad data in format YYYY-MM-DD HH:MM:SS
+  data_cleaning: true                # check if early data cleaning should be completed 
 
 baseline:
-  sg_window_warm: 351
-  sg_poly_warm: 4
-  sg_window_cold: 351
-  sg_poly_cold: 4
-  spacing_minutes: 30
-  sigma_cut: 3.5
-  clipping_mode: "Blue"    # "Claude" or "Blue"
-  n_iterations: 3
+  sg_window_warm: 351     # total window length for warm SG filter
+  sg_poly_warm: 4         # polynomial order for warm SG filter
+  sg_window_cold: 351     # total window length for cold SG filter
+  sg_poly_cold: 4         # polynomial order for cold SG filter
+  spacing_minutes: 30     # set spacing in which to group different sets (minutes)
+  sigma_cut: 4.5          # sigma threshold coefficient
+  clipping_mode: "Blue"   # "Claude" or "Blue" - look in sigma_clipping.py for more information
+  n_iterations: 3         # number of iterations for iterative sigma clipping
 
 rebin:
   C: 10
@@ -42,15 +43,15 @@ detection:
   g0: 1.0
 
 output:
-  save_data: true      # *.hdf5 + spectra.npz
+  save_data: true       # *.hdf5 + spectra.npz
   plots_step: 1         # plot every Nth spectrum
   # max_plots: 100      # optional cap
   root: "output"        # base output folder
   subdir_prefix: "run"  # subfolder prefix: run_<timestamp>
 
 diagnostic:
-  run_diagnostics: false
-  save_raw_plots: false           # save per-spectrum PNGs
+  run_diagnostics: true          # switch to turn on diagnostics
+  save_raw_plots: true           # save per-spectrum PNGs
   combined_plot: true             # save combined PNG of all spectra
   offset_combined_plot: true      # save combined PNG of all spectra with offset
   injection_distribution: true    # save injected freqency distribution

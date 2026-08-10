@@ -401,12 +401,13 @@ def main():
 
     plot_count = 0
     if out["save_data"]:
+        print(f"[OUT]: valid spectra.npz saved to: {data_dir}/spectra.npz")
         # Optional: spectra.npz for valid data
         np.savez(data_dir/"spectra.npz", spectra=np.array(specs), freqs=fper, rf_grid=rf)
 
     if diagnostic_mode:
         if diag["save_raw_plots"]:
-            for i, (freq, spec) in enumerate(zip(fper, specs)):
+            for i, (freq, spec) in tqdm(enumerate(zip(fper, specs)), total=len(fper), desc="[DIAG]: Generating Raw Plots"):
                 if i % step != 0:
                     continue
                 if max_plots is not None and plot_count >= max_plots:
@@ -414,6 +415,7 @@ def main():
 
                 plot_spectrum(freq/1e9, spec, f"Spectrum {i:03d}", raw_run_dir / f"spectrum_{i:03d}.png")
                 plot_count += 1
+            print(f"[DIAG]: Saved raw plots to: {raw_run_dir}")
 
         # Always save one valid example raw spectrum
         plot_spectrum(fper[0]/1e9, specs[0], f"Example valid raw spectrum", qc_run_dir/f"valid_raw_spectrum_first.png")
@@ -621,7 +623,7 @@ def main():
         plot_std_set_num(av_stds, warm_run_dir)
 
 
-        for s, set in enumerate(tqdm(sets, desc="Set averaging diagnostic plots")):
+        for s, set in enumerate(tqdm(sets, desc="[DIAG]: Set averaging diagnostic plots")):
         # for g, (freqs, specs) in enumerate(set_avg_spectra):
 
             # Plot set averaged spectra + the sets spectra per set
@@ -713,7 +715,7 @@ def main():
         clip_residuial_run_dir.mkdir(parents=True, exist_ok=True)
         
 
-        for s, fit in enumerate(tqdm(set_sg_fits, desc="Clipping residuals plots")):
+        for s, fit in enumerate(tqdm(set_sg_fits, desc="[DIAG]: Clipping residuals plots")):
 
             if base["clipping_mode"].lower() == "claude":
 
@@ -795,6 +797,11 @@ def main():
     # "Cold" Baseline Removal
     # =======================================================================
 
+    if diagnostic_mode:
+        print("=" * 60)
+        print("Cold Baseline Removal")
+        print("=" * 60)
+
     _= remove_baseline(
     spectrum=specs[0],
     window_length=base["sg_window_cold"],
@@ -860,21 +867,19 @@ def main():
     if inp["input_mode"] == "simulation":
         nbins    = sim["n_bins"]
         nspectra = sim["n_spectra"]
-        print (f"Simulation Time : {totals} s for {nspectra} spectra of {nbins} bins")
+        print (f"[FOX]: Simulation Time : {totals} s for {nspectra} spectra of {nbins} bins")
     else:
-        print (f"Data Loading Time : {totals} s for {len(metadata.file_names)} spectra of {len(initial_specs[0])} bins")
-    print (f"Time from QC to Candidates: {total0} s")
+        print (f"[FOX]: Data Loading Time : {totals} s for {len(metadata.file_names)} spectra of {len(initial_specs[0])} bins")
+    print (f"[FOX]: Time from QC to Candidates: {total0} s")
 
     # =======================================================================
     # Exclusion
     # =======================================================================
 
-    if diagnostic_mode:
-        print(f"[EXCLUSION] Computing local SNR template and coupling limit "
-                f"(target_snr={det['target_snr']}, g0={det['g0']}, snr_eff={det['snr_eff']})")
     Rloc = compute_local_snr_template(sr, Lq)
     gmin = coupling_limit(Rloc, target_snr=det["target_snr"], g0=det["g0"], snr_efficiency=det["snr_eff"])
     if diagnostic_mode:
+        print(f"[EXCLUSION] Computing local SNR template and coupling limit (target_snr={det['target_snr']}, g0={det['g0']}, snr_eff={det['snr_eff']})")
         finite_g = gmin[np.isfinite(gmin)]
         if finite_g.size:
             print(f"[EXCLUSION] g_min (rel. to g0) stats: best={np.min(finite_g):.4g}, "
@@ -888,7 +893,7 @@ def main():
         print(f"[OUT]: Exclusion CSV saved to: {data_dir/'exclusion.csv'}")
 
     print(f"[OUT]: Run dir: {run_dir}")
-    print(f"Candidates flagged: {len(cands)}  (threshold = {theta:.2f}σ)")
+    print(f"[FOX]: Candidates flagged: {len(cands)}  (threshold = {theta:.2f}σ)")
 
 
 if __name__ == "__main__":

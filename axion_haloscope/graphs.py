@@ -626,7 +626,7 @@ def plot_candidates(freqs_r, zvals, theta, cands, run_dir):
 
 def plot_data_cleaning(freq, spec,metadata, baseline, threshold, residuals, spec_idx, masked_this_iteration, masked_previously, mask, unmasked, base, iteration, run_dir):
 
-    res_freq_array = np.asarray(metadata.res_freq, dtype=float)
+    res_freq_array = np.asarray(metadata.res_freqs, dtype=float)
 
     colouriser, norm =make_colouriser(res_freq_array, cmap=plt.cm.viridis, vmin=None, vmax=None)
     color = colouriser(spec_idx)

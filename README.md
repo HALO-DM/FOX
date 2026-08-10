@@ -331,10 +331,23 @@ The current axion_haloscope/io.py supports a common I/O interface for simulated 
 
 ```
 SpectrumSet(
-    spectra=[...],                 # list of raw power spectra
-    freqs_per_spec=[...],   # frequency axis for each spectrum
-    rf_grid=...,                    # common global RF grid
-    rf_index_map=[...]      # maps each spectrum onto rf_grid
+    spectra=[...],              # list of raw power spectra
+    freqs_per_spec=[...],       # frequency axis for each spectrum
+    rf_grid=...,                # common global RF grid
+    rf_index_map=[...],         # maps each spectrum onto rf_grid
+    metadata=SpectrumMetadata   # class for metadata of spectra
+)
+
+SpectrumMetadata(
+    dates=[...],            # date spectra was made 
+    file_names=[...],       # original file name of spectra
+    invalid_files=[...],    # list of invalid files, along with why they are invalid
+    b_vals=[...],           # magnetic field values
+    temps=[...],            # temperatures of []
+    q_factors=[...],        # q_factor of cavity
+    res_freqs=[...],        # resonant frequency of cavity
+    cw_freqs=[...],         # frequency of injected axion (continuous wave)
+    bandwidths=[...],       # bandwidths of []
 )
 ```
 
