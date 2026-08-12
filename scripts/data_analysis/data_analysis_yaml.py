@@ -694,6 +694,7 @@ def main():
     # Varying Set Size
     # --------------------
 
+
     if diag["varying_set_size"] and diagnostic_mode:
         specs_set = shifted_spectra
         var_dir = create_directory(diag_run_dir, 'varying_set_size')
@@ -705,6 +706,9 @@ def main():
             evaluate_set_spacing(sp, sets_by_spacing[sp], base, sigma_cut, n_iterations)
             for sp in spacings_config
         ]
+
+        print(type(var_results), type(spacings_config), type(sets_by_spacing), type(var_dir), type(base))
+
 
         vary_set_size_plots(var_results, spacings_config, sets_by_spacing, var_dir, base)
 

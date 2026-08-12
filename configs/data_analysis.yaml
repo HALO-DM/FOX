@@ -20,7 +20,7 @@ quality:
   bad_time_filter: true               # filter spectra within a known bad time frame
   start_time: ["2026-01-31 09:55:41"] # list of start times of the known bad data in format YYYY-MM-DD HH:MM:SS
   end_time: ["2026-02-01 00:10:58"]   # list of end times of the known bad data in format YYYY-MM-DD HH:MM:SS
-  data_cleaning: true                # check if early data cleaning should be completed 
+  data_cleaning: false                # check if early data cleaning should be completed 
 
 baseline:
   sg_window_warm: 351     # total window length for warm SG filter
@@ -29,7 +29,7 @@ baseline:
   sg_poly_cold: 4         # polynomial order for cold SG filter
   spacing_minutes: 30     # set spacing in which to group different sets (minutes)
   sigma_cut: 4.5          # sigma threshold coefficient
-  clipping_mode: "Blue"   # "Claude" or "Blue" - look in sigma_clipping.py for more information
+  clipping_mode: "Claude"   # "Claude" or "Blue" - look in sigma_clipping.py for more information
   n_iterations: 3         # number of iterations for iterative sigma clipping
 
 rebin:
@@ -43,19 +43,19 @@ detection:
   g0: 1.0
 
 output:
-  save_data: true       # *.hdf5 + spectra.npz
+  save_data: false       # *.hdf5 + spectra.npz
   plots_step: 1         # plot every Nth spectrum
   # max_plots: 100      # optional cap
   root: "output"        # base output folder
   subdir_prefix: "run"  # subfolder prefix: run_<timestamp>
 
 diagnostic:
-  run_diagnostics: true          # switch to turn on diagnostics
-  save_raw_plots: true           # save per-spectrum PNGs
-  combined_plot: true             # save combined PNG of all spectra
-  offset_combined_plot: true      # save combined PNG of all spectra with offset
-  injection_distribution: true    # save injected freqency distribution
-  set_average_diagnostics: true   # save all groups set averaging diagnostic plots
-  clipping_residuals: true        # save all groups post clipping residuals
-  varying_group_size: true        # complete investigation into how changing the group size for averaging impacts results
+  run_diagnostics: true           # switch to turn on diagnostics
+  save_raw_plots: false           # save per-spectrum PNGs
+  combined_plot: false            # save combined PNG of all spectra
+  offset_combined_plot: false     # save combined PNG of all spectra with offset
+  injection_distribution: false   # save injected freqency distribution
+  set_average_diagnostics: false  # save all groups set averaging diagnostic plots
+  clipping_residuals: false       # save all groups post clipping residuals
+  varying_set_size: true        # complete investigation into how changing the group size for averaging impacts results
 

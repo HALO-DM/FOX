@@ -2,7 +2,7 @@
 from axion_haloscope.io_working import read_qshs_hdf5_dir, read_hdf5, write_hdf5
 from axion_haloscope.simulation import simulate_spectra
 
-def load_data(input_mode, diagnostic_mode, directory, file_name, input_dir, data_dir, sim, inj, out): 
+def load_data(input_mode, diagnostic_mode, directory, file_name, data_dir, sim, inj, out): 
     if input_mode == "read_data":
         if diagnostic_mode:
             print("=" * 60) 

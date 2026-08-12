@@ -1,24 +1,118 @@
 from pathlib import Path
 import yaml
+from typing import Optional, List, Dict, Any
 
-def find_project_root(start: Path) -> Path:
+def find_project_root(
+    start: Path,
+) -> Path:
+    """
+    Find the project root directory to ensure all outputs are pu in the correct place
+
+    Parameters
+    ----------
+    Parameter_name: type, units:
+        Description of parameter
+
+    Returns
+    -------
+    Parameter_name: type, units:
+        Description of parameter
+
+    Raises
+    ------
+    ErrorType
+        Reason for raise
+
+    See Also
+    --------
+    other_function/class: why see
+
+    Notes
+    -----
+   Any extra information about the function, any helpful comments for future users
+
+
+    Examples
+    --------
+    >>> snippet of code to demonstrate it
+    """
     for path in [start, *start.parents]:
         if (path / ".git").exists():      # or pyproject.toml
             return path
     raise RuntimeError("Could not find project root")
 
-def create_directory(parent, directory_name):
+def create_directory(
+    parent: Path,
+    directory_name: str,
+) -> Path:
+    """
+    Creates a new directory inside the specified parent directory, with a 
+    specific name to help identify the contents
 
+    Parameters
+    ----------
+    parent: Path
+        Path of parent directory
+    directory_name: string
+        Name of new directory
+
+    Returns
+    -------
+    new_directory: Path:
+        Full directory of new directory
+
+    See Also
+    --------
+    find_project_root: Function to find the root, make sure this is 
+    outputting correct else this function will create directories in the wrong place
+    """
     new_directory = parent / directory_name
     new_directory.mkdir(parents=True, exist_ok=True)
-
     return new_directory
 
-def _get(d, key, default):
+def _get(
+    d: Dict,
+    key: str, 
+    default: Any,
+) -> Optional[Any]:
+    """Basic getter for a certain variable from the YAML file"""
+
+    print(type(d))
+    import sys
+    sys.exit()
     v = d.get(key, default)
     return default if v is None else v
 
-def load_yaml_config(path: Path) -> dict:
+def load_yaml_config(
+    path: Path
+) -> dict:
+    """
+    Description
+
+    Parameters
+    ----------
+    Parameter_name: type, units:
+        Description of parameter
+
+    Returns
+    -------
+    Parameter_name: type, units:
+        Description of parameter
+
+    Raises
+    ------
+    ErrorType
+        Reason for raise
+
+    See Also
+    --------
+    other_function/class: why see
+
+    Notes
+    -----
+   Any extra information about the function, any helpful comments for future users
+
+    """
     with path.open("r", encoding="utf-8") as fh:
         raw = yaml.safe_load(fh) or {}
     inp  = raw.get("input",      {}) or {}

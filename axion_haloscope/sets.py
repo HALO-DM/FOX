@@ -15,9 +15,6 @@ def group_sets(dts, spacing_minutes, specs, fper, metadata):
         i = j
     return sets
 
-# -----------------------------------------------------------------------
-# Set Averaging
-# -----------------------------------------------------------------------
 def set_averaging(sets):
     set_avg_spectra = []
     for s, set in enumerate(sets):
@@ -25,13 +22,10 @@ def set_averaging(sets):
             set_avg_spectra.append(None)
             continue
         
-        set_avg_spectra.append((np.mean([x[1] for x in set], axis=0), np.mean([x[0] for x in set], axis=0)))
+        set_avg_spectra.append((np.mean([x[1] for x in set], axis=0), 
+                                np.mean([x[0] for x in set], axis=0)))
     return set_avg_spectra
 
-
-# -----------------------------------------------------------------------
-# Set Average Baseline Fitting
-# -----------------------------------------------------------------------
 def set_average_baseline_fitting(set_avg_spectra, base):
     set_sg_fits = []
     for _, spec_avg in set_avg_spectra:
