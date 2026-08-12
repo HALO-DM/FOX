@@ -1,13 +1,47 @@
-import numpy as np
-from axion_haloscope.io_working import SpectrumSet, SpectrumMetadata
+"""
+data_cuts
+=========
+
+Performs cuts on the data, either w.r.t time or frequency
+
+"""
 from datetime import datetime
 
-def cut_by_datetime(data, start, end):
-    '''
-    Filters data by a predetermined time range
-    '''
+import numpy as np
 
-    specs, fper, rf, rf_map, metadata = data.spectra, data.freqs_per_spec, data.rf_grid, data.rf_index_map, data.metadata
+from axion_haloscope.io_working import SpectrumSet, SpectrumMetadata
+
+def cut_by_datetime(data, start, end):
+    """
+    Filter a SpectrumSet down to spectra taken within a datetime range.
+
+    Parses `data.metadata.dates` and keeps only the spectra whose timestamp falls within
+    `[start, end]` inclusive. Excluded spectra are logged into the returned metadata's
+    `invalid_files` list rather than silently dropped.
+
+    Parameters
+    ----------
+    data : SpectrumSet
+        Input spectrum set, with `spectra`, `freqs_per_spec`, `rf_grid`, `rf_index_map`,
+        and `metadata` attributes.
+    start : str
+        Start of the datetime range to keep, inclusive.
+    end : str
+        End of the datetime range to keep, inclusive.
+
+    Returns
+    -------
+    SpectrumSet
+        A new `SpectrumSet` containing only the spectra (and matching `freqs_per_spec`,
+        `rf_index_map`, and per-spectrum metadata fields) whose date falls within
+        `[start, end]`. `rf_grid` is carried over unchanged. The metadata's `invalid_files`
+        is extended with an entry for each spectrum dropped by this call, each of the form 
+        `[file_name, "not in good time range", date]`.
+
+    """
+
+    specs, fper, rf, rf_map, metadata = (data.spectra, data.freqs_per_spec, data.rf_grid,
+                                         data.rf_index_map, data.metadata)
 
     dt = np.array([
         datetime.strptime(str(x), "%Y-%m-%d %H:%M:%S") if x is not None else None
@@ -29,11 +63,12 @@ def cut_by_datetime(data, start, end):
     invalid = list(metadata.invalid_files)
     invalid_all = invalid + removed
 
-    fields = vars(metadata)  # or dataclasses.asdict(metadata) if it's a dataclass
+    fields = vars(metadata)
     new_fields = {
         k: (
             invalid_all if k == "invalid_files"
-            else (v[mask] if isinstance(v, np.ndarray) else [val for keep, val in zip(mask, v) if keep])
+            else (v[mask] if isinstance(v, np.ndarray) else [val for keep,
+                                                             val in zip(mask, v) if keep])
         )
         for k, v in fields.items()
     }
@@ -47,12 +82,51 @@ def cut_by_datetime(data, start, end):
         metadata=spec_metadata
     )
 
-def cut_by_values(sset, cut_min_val, cut_max_val):
+def cut_by_values(
+    sset: SpectrumSet,
+    cut_min_val: float=-0.3e6,
+    cut_max_val: float=2.3e6,
+) -> SpectrumSet:
+    """
+    Trim each spectrum in a SpectrumSet to a fixed frequency window,
+    after patching over any zero-frequency (DC) bins.
 
-    specs, fper, rf, rf_map, metadata = sset.spectra, sset.freqs_per_spec, sset.rf_grid, sset.rf_index_map, sset.metadata
+    Only to be 
 
-    cut_min_val = -0.3e6
-    cut_max_val = 2.3e6
+    For each spectrum, any bin whose frequency is exactly 0 (e.g. a DC spike or LO leakage
+    artifact) is patched by copying values from its immediate neighbors, then the spectrum,
+    its frequency axis, and its RF index map are all truncated to the same index range.
+
+    Parameters
+    ----------
+    sset : SpectrumSet
+        Input spectrum set, with `spectra`, `freqs_per_spec`, `rf_grid`,
+        `rf_index_map`, and `metadata` attributes.
+    cut_min_val : float
+        Lower bound of the frequency window to keep. 
+    cut_max_val : float
+        Upper bound of the frequency window to keep.
+
+    Returns
+    -------
+    SpectrumSet
+        A new `SpectrumSet` with each spectrum's data, frequency axis, and RF index map truncated
+        to the cut window, and `rf_grid` truncated to match. `metadata` is carried over unchanged.
+
+    Notes
+    -----
+    Cut indices are found once, from spectrum 0's frequency axis (`fper[0]`), via nearest-value
+    lookup, and then applied identically to every spectrum in the set — this assumes all spectra
+    share the same frequency axis.
+
+    The DC-bin patch replaces each zero-frequency bin and its two neighbors on either side 
+    (5 bins total per occurrence: the found index plus 2 bins on each side) with the value 
+    immediately outside that window, propagating inward.
+    """
+
+    specs, fper, rf, rf_map, metadata = (sset.spectra, sset.freqs_per_spec, sset.rf_grid,
+                                         sset.rf_index_map, sset.metadata)
+
     cut_min_idx = np.abs(fper[0] - cut_min_val).argmin()
     cut_max_idx = np.abs(fper[0] - cut_max_val).argmin()
 
@@ -70,7 +144,7 @@ def cut_by_values(sset, cut_min_val, cut_max_val):
         spec = spec[cut_min_idx:cut_max_idx]
         freq = freq[cut_min_idx:cut_max_idx]
         rf_vals = rf_vals[cut_min_idx:cut_max_idx]
-        
+
 
         new_specs.append(spec)
         new_freqs.append(freq)
@@ -81,4 +155,10 @@ def cut_by_values(sset, cut_min_val, cut_max_val):
     rf = rf[cut_min_idx:cut_max_idx]
     rf_map = new_rf_map
 
-    return SpectrumSet(specs, fper, rf, rf_map, metadata)
+    return SpectrumSet(
+        spectra=specs,
+        freqs_per_spec=fper,
+        rf_grid=rf,
+        rf_index_map=rf_map,
+        metadata=metadata
+    )

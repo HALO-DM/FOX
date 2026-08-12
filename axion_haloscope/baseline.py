@@ -1,6 +1,25 @@
 # axion_haloscope/baseline.py
 """
-Main Baseline Functions 
+Baseline removal
+========
+
+Baseline removal, spectrum alignment, and bin masking utilities for axion haloscope spectra.
+
+This module provides the core pre-processing steps used before downstream analysis: removing
+slowly-varying baseline structure from a spectrum (Savitzky-Golay fit), aligning and averaging
+multiple spectra that may sit on different or irregularly-sampled x-axes, and masking out
+known-bad bins (e.g. RFI) by index or frequency range.
+
+Functions
+---------
+remove_baseline
+    Savitzky-Golay baseline removal from a single spectrum, with
+    optional diagnostic plotting.
+align_and_average_spectra
+    Align multiple (x, y) spectra onto a common x-axis and compute
+    their NaN-aware average.
+mask_bins
+    Mask spectrum bins by explicit index or by frequency range.
 """
 from __future__ import annotations
 from typing import Optional, Union, Dict, Tuple, List, Iterable
@@ -14,7 +33,7 @@ def remove_baseline(
     window_length: int = 401,
     polyorder: int = 4,
     mode: str = "multiplicative",
-    subtract_one: bool = False,
+    subtract_one: Optional[bool] = False,
     add_one: Optional[bool] = None,
     diagnostic: Optional[Union[bool, Dict]] = None,
     freqs_hz: Optional[np.ndarray] = None,
@@ -26,31 +45,69 @@ def remove_baseline(
 
     Parameters
     ----------
-    Parameter_name: type, units:
-        Description of parameter
+    spectrum : 1D ndarray
+        Spectrum to remove the baseline from.
+    window_length : int, optional
+        Length of the SG filter window. Default is 401.
+    polyorder : int, optional
+        Order of the polynomial used in the SG fit. Default is 4.
+    mode : {"multiplicative", "additive"}, optional
+        Baseline removal mode. Default is "multiplicative".
+    subtract_one : bool, optional
+        If True, subtracts 1 from the residuals after baseline removal (shifts down by 1).
+        Default is False.
+    add_one : bool, optional
+        If True, adds 1 to the residuals after baseline removal (shifts up by 1). Default is
+        None no shift).
+    diagnostic : bool or dict, optional
+        If True, also return a diagnostic figure. If a dict, controls diagnostic behavior via
+        optional keys:
+
+        - "title" : str, custom plot title
+        - "outfile" : str, path to save the figure to disk; if given, the figure is saved and
+          closed rather than returned
+        - "show" : bool, if True the figure is displayed rather than returned (default False)
+
+        Default is None (no diagnostic).
+    freqs_hz : ndarray, optional
+        Frequency axis in Hz, used for diagnostic plot x-axis labeling. If omitted, bin index
+        is used instead.
+    baseline : ndarray, optional
+        Precomputed baseline to use instead of recomputing via SG.
 
     Returns
     -------
-    processed: ndarray
-        residuals from baseline removal
-    baseline: ndarray
-        baseline produced from SG algorithm
-    fig: Optional[?]
-        ?
-    
-    Returns:
-          (processed, baseline)            when diagnostic is false or diagnostic={"outfile": ...}
-          (processed, baseline, figure)    when diagnostic is True or dict without 'outfile'
+    processed : ndarray
+        Residuals from baseline removal.
+    baseline : ndarray
+        Baseline produced from the SG algorithm.
+    fig : matplotlib.figure.Figure, optional
+        Diagnostic plot showing the spectrum and baseline, plus the residuals below. 
+        Only returned when `diagnostic` is True, or a dict with neither "outfile" nor "show" set.
 
     Raises
     ------
     ValueError
-        If neither additive or multiplicative is chosen, then the user needs to define
+        If `mode` is not one of "additive" or "multiplicative".
 
     Notes
     -----
-   Any extra information about the function, any helpful comments for future users
+    Runs `savgol_filter` internally (mode="interp") to compute the baseline, unless `baseline`
+    is supplied directly.
 
+    Return arity depends on `diagnostic`:
+
+        (processed, baseline)        diagnostic falsy, or dict with "outfile" or "show"=True
+        (processed, baseline, fig)   diagnostic is True, or dict without "outfile"/"show"
+
+    Caution: when `diagnostic` is a dict with "show": True and no
+    "outfile", the figure is currently neither returned nor closed —
+    it stays open. Callers using this option should call `plt.close()`
+    on their own figures if this matters.
+
+    See Also
+    --------
+    scipy.signal.savgol_filter : for more details on the actual smoothing algorithm
     """
     # --- compute baseline & processed
     if baseline is None:
@@ -82,12 +139,15 @@ def remove_baseline(
         ax1.plot(x, baseline, lw=1.0, color="tab:red", label="baseline (SG)")
         ax1.set_ylabel("Power [arb]")
         ax1.set_title(cfg.get("title", "Baseline removal diagnostic"))
-        ax1.grid(alpha=0.3); ax1.legend()
+        ax1.grid(alpha=0.3)
+        ax1.legend()
 
         # bottom: processed (green)
         ax2.plot(x, processed, lw=0.7, color="tab:green", label="processed")
-        ax2.set_xlabel(xlab); ax2.set_ylabel("Processed")
-        ax2.grid(alpha=0.3); ax2.legend()
+        ax2.set_xlabel(xlab)
+        ax2.set_ylabel("Processed")
+        ax2.grid(alpha=0.3)
+        ax2.legend()
 
         fig.tight_layout()
 
@@ -115,9 +175,66 @@ def align_and_average_spectra(
     Align a list of (x, y) spectra onto a common x-axis and return
     (common_x, padded_y, average_y, baseline_averages).
 
-    baseline_averages is a list of arrays: baseline_averages[i] has the same
-    length/order as xs_list[i] and contains the global average evaluated at
-    those x positions.
+    Each spectrum's x-values are merged into a single sorted (or
+    first-seen-ordered) common axis. Each spectrum's y-values are then
+    scattered into a common-length array at the positions matching their
+    x-values, with NaN filling any positions a given spectrum doesn't
+    cover. The average is taken across spectra, ignoring NaNs.
+
+    Parameters
+    ----------
+    xs_list : list of 1D arrays
+        List of 1D x-axis arrays, one per spectrum. Must be the same
+        length as `ys_list`, with matching shapes element-wise.
+    ys_list : list of 1D arrays
+        List of 1D y-axis arrays, one per spectrum, paired with `xs_list`.
+    round_decimals : int, optional
+        If given, round all x-values to this many decimal places before
+        aligning. Useful when spectra should share x-values but differ by
+        floating-point noise. Default is None (no rounding).
+    preserve_first_seen : bool, optional
+        If True, order `common_x` by the order in which each unique x-value
+        was first encountered (scanning `xs_list` in order), rather than
+        numerically sorting it. Default is False (numerically sorted, via
+        `np.unique`'s default behavior).
+
+    Returns
+    -------
+    common_x : 1D array
+        1D array of the union of all x-values across `xs_list`, either
+        sorted (default) or ordered by first appearance (if
+        `preserve_first_seen` is True).
+    padded : 2D array of shape (n_spectra, len(common_x))
+        Row `i` holds spectrum `i`'s y-values placed at the columns matching their
+        x-position in `common_x`, with NaN elsewhere.
+    average : 1D array
+        1D array of length `len(common_x)`, the NaN-ignoring mean of
+        `padded` across spectra (columns with no data from any spectrum
+        are NaN).
+    baseline_averages : list of 1D arrays
+        One array per input spectrum, same length and x-order as the
+        corresponding entry in `xs_list`, giving `average` evaluated at
+        that spectrum's original x positions.
+
+    Raises
+    ------
+    ValueError
+        If `xs_list` and `ys_list` have different lengths, or if any
+        corresponding pair `xs_list[i]`, `ys_list[i]` have mismatched
+        shapes.
+
+    Notes
+    -----
+    Duplicate x-values within a single spectrum are not summed or
+    averaged against each other — each occurrence maps to its own
+    position via `inv`, so `padded` can have multiple rows contributing
+    to the same column index only across *different* spectra, not within
+    one.
+
+    A manual NaN-mean fallback is included for environments where
+    `np.nanmean` is unavailable; columns with zero valid entries are
+    explicitly set to NaN to avoid a divide-by-zero warning surfacing
+    as anything other than NaN.
     """
     xs_list = [np.asarray(x) for x in xs_list]
     ys_list = [np.asarray(y) for y in ys_list]

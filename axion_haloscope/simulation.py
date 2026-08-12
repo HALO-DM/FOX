@@ -1,18 +1,38 @@
 # axion_haloscope/simulation.py
+"""
+simulation
+==========
+"""
 from __future__ import annotations
-import numpy as np
-from dataclasses import dataclass
-from typing import List, Tuple, Optional
-import datetime
 from collections import defaultdict
+from dataclasses import dataclass
+import datetime
+from typing import List, Tuple, Optional
 
+import numpy as np
 from axion_haloscope.noise import external_noise
 from axion_haloscope.io_working import SpectrumMetadata, SpectrumSet
 from axion_haloscope.width_fq   import width_from_fq
 
 @dataclass
 class AxionParams:
-    """Parameters for an injected axion-like signal."""
+    """
+    Parameters describing an injected axion-like signal.
+
+    Used to configure a synthetic narrow-band signal added to simulated spectra, approximating
+    the expected lineshape of an axion-photon conversion signal (e.g. under the Standard Halo
+    Model) as a Gaussian centered at a given frequency.
+
+    Attributes
+    ----------
+    f_axion_hz : float
+        Central frequency of the injected signal, in Hz.
+    sigma_hz : float
+        Spectral width (1-sigma) of the injected signal, in Hz.
+    total_power : float
+        Total integrated power of the injected signal, in the same (arbitrary) power units as
+        the simulated spectra.
+    """
     f_axion_hz : float     # central frequency [Hz]
     sigma_hz   : float     # spectral width (1-sigma) [Hz]
     total_power: float     # integrated power in spectrum units (arb.)
@@ -27,14 +47,33 @@ def make_frequency_axes(
     """
     Build per-spectrum RF axes on a common global RF grid.
 
+    Parameters
+    ----------
+    n_spectra : int
+        Number of spectra (tuning steps) in the scan.
+    n_bins : int
+        Number of frequency bins per individual spectrum.
+    bin_width_hz : float
+        Width of each frequency bin, in Hz.
+    f_start_hz : float
+        Starting frequency of the first spectrum (and of `rf_grid`), in Hz.
+    tune_step_bins : int
+        Number of bins the tuning window shifts by between consecutive spectra.
+
     Returns
     -------
-    freqs_per_spec : (n_spectra, n_bins) float array
-        RF frequency of each bin for each spectrum.
-    rf_grid : (N_total,) float array
-        Global RF axis covering the whole scan.
-    rf_index_map : list of length n_spectra
-        rf_index_map[i] are integer indices into rf_grid for spectrum i.
+    freqs_per_spec : 1D array of shape (n_spectra, n_bins)
+        RF frequency of each bin, for each spectrum.
+    rf_grid : 1D array of shape (N_total,)
+        Global RF axis covering the whole scan
+    rf_index_map : list of 1D array
+        `rf_index_map[i]` gives the integer indices into `rf_grid` corresponding to spectrum 
+        `i`'s bins.
+
+    Notes
+    -----
+    If `tune_step_bins >= n_bins`, consecutive spectra don't overlap at all on `rf_grid`.
+    Note for non-tunable cavities, `tune_step_bins` should be set to 0
     """
     total_bins = n_bins + (n_spectra - 1) * tune_step_bins
     rf_grid = f_start_hz + np.arange(total_bins, dtype=float) * bin_width_hz
@@ -59,10 +98,20 @@ def simulate_baseline(
 
     Parameters
     ----------
+    n_bins: int
+        Number of bins 
+    rng: np.random.Generator
+        Random number generator used to generate gaussian noise
     amplitude : float
         RMS amplitude of baseline undulations (fractional).
     corr_bins : int
         Correlation length in bins (larger -> smoother).
+
+    Returns
+    -------
+    baseline or 1e-6: 1D array
+        Generated baseline, or a non-zero float to ensure non-failure later
+    
     """
     # White noise -> smooth via Hann kernel
     pad = 8 * corr_bins
@@ -78,19 +127,21 @@ def simulate_baseline(
     return np.maximum(1e-6, baseline)
 
 def axion_lineshape_gaussian(
-    freqs_hz: np.ndarray, f_axion_hz: float, sigma_hz: float
+    freqs_hz: np.ndarray,
+    f_axion_hz: float,
+    sigma_hz: float
 ) -> np.ndarray:
     """
     Gaussian lineshape (unit *area* w.r.t. discrete bins).
     Suitable as a simple SHM proxy; replace later with a Maxwellian if desired.
     """
     x = (freqs_hz - f_axion_hz) / (sigma_hz + 1e-30)
-    L = np.exp(-0.5 * x * x)
+    l = np.exp(-0.5 * x * x)
     # Normalize to unit sum over bins
-    Lsum = L.sum()
-    if Lsum <= 0:
-        return np.zeros_like(L)
-    return L / Lsum
+    l_sum = l.sum()
+    if l_sum <= 0:
+        return np.zeros_like(l)
+    return l / l_sum
 
 def injected_axion_power(
     rf_grid_hz: np.ndarray, f_axion_hz: float, sigma_hz: float, total_power: float
@@ -99,8 +150,8 @@ def injected_axion_power(
     Distribute 'total_power' across rf_grid_hz with a Gaussian lineshape.
     Returns a per-bin power array aligned with rf_grid_hz.
     """
-    Lb = axion_lineshape_gaussian(rf_grid_hz, f_axion_hz, sigma_hz)
-    return total_power * Lb
+    lb = axion_lineshape_gaussian(rf_grid_hz, f_axion_hz, sigma_hz)
+    return total_power * lb
 
 def _simulate_one_spectrum(
     i: int,
@@ -125,7 +176,7 @@ def _simulate_one_spectrum(
     baseline = simulate_baseline(n_bins, rng, amplitude=baseline_amp, corr_bins=baseline_corr_bins)
     white_noise = rng.normal(0.0, noise_sigma, size=n_bins)
     external = external_noise(freqs, f_start_hz, f_range, baseline_key)
-    raw = external + white_noise
+    raw = external + white_noise * baseline
 
     if axion is not None:
         raw = raw + axion_power_global[rf_index_map[i]]
@@ -153,7 +204,7 @@ def simulate_spectra(
     tune_step_bins: int = 60,
     noise_sigma: float = 1.0,
     rng_seed: int | None = 1234,
-    injected_axion: AxionParams | None = None,
+    injected_axion: dict | None = None,
     baseline_amp: float = 0.05,
     baseline_corr_bins: int = 400,
     baseline_key: Optional[np.ndarray] = None,
@@ -187,7 +238,8 @@ def simulate_spectra(
         if f_ax is None:
             f_ax = f_start_hz + 0.5 * total_bins * bin_width_hz
         s_ax = width_from_fq(f_ax)
-        axion = AxionParams(f_axion_hz=float(f_ax), sigma_hz=s_ax, total_power=injected_axion["total_power"])
+        axion = AxionParams(f_axion_hz=float(f_ax), sigma_hz=s_ax,
+                            total_power=injected_axion["total_power"])
 
     # Optional axion power on the global RF grid
     axion_power_global = (
@@ -215,10 +267,16 @@ def simulate_spectra(
 
 # --- Minimal demo (optional) ---
 if __name__ == "__main__":
-    ax = AxionParams(f_axion_hz=5.705e9, sigma_hz=2500.0, total_power=20.0)
-    specs, f_per, rf, idx_map, ax_power_dist = simulate_spectra(
+    ax = {
+    "enabled": True,
+    "f_axion_hz": 5.705e9,  # can be None; simulate_spectra fills default
+    "total_power": 20.0,
+    }
+    sset = simulate_spectra(
         n_spectra=10, n_bins=4000, bin_width_hz=100.0,
         f_start_hz=5.70e9, tune_step_bins=80,
-        noise_sigma=1.0, rng_seed=1, axion=ax
+        noise_sigma=1.0, rng_seed=1, injected_axion=ax
     )
+    specs, f_per, rf, idx_map, ax_power_dist = (sset.spectra, sset.freqs_per_spec, sset.rf_grid,
+                                                sset.rf_index_map, sset.metadata)
     print(f"{len(specs)} spectra; RF span = {rf[0]/1e9:.6f}–{rf[-1]/1e9:.6f} GHz")

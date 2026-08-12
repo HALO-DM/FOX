@@ -1,8 +1,28 @@
-import numpy as np
-from scipy.stats import norm
-from numpy import random
+"""
+Width from Frequency
+====================
 
-def width_from_fq(fq_range):
+Calculates the width of the axion just from the frequency based on results from cosmology
+"""
+
+
+def width_from_fq(
+    freq: float
+) -> float:
+    """
+    Calculates the width of the axion
+
+    Parameters
+    ----------
+    freq: float
+        axion frequency
+        
+    Returns
+    -------
+    width: float
+        width of axion
+        
+    """
     width_fq_ratio = 1e-6
-    width = float(fq_range) * width_fq_ratio
+    width = float(freq) * width_fq_ratio
     return width

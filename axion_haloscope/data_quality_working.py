@@ -4,9 +4,6 @@ from typing import Callable, Iterable, List, Tuple
 import numpy as np
 from datetime import datetime
 from .io_working import SpectrumSet, SpectrumMetadata
-
-import sys
-
 BadPredicate = Callable[[np.ndarray, np.ndarray, SpectrumMetadata, int], bool]
 
 def placeholder_bad_predicate(s: np.ndarray, f: np.ndarray, md: SpectrumMetadata, i: int) -> bool:
@@ -240,7 +237,7 @@ def identify_bad_spectra(sset: SpectrumSet,
 
         
     """
-    pred = predicate or placeholder_bad_predicate
+    pred = predicate
     bad: List[int] = []
     for i, (s, f) in enumerate(zip(sset.spectra, sset.freqs_per_spec)):
         try:

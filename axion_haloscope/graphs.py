@@ -411,7 +411,7 @@ def plot_iteritive_clipping(set_avg_spectra, plotting_set_masks, set_sg_fits, it
 
     ax.set_xlabel("IF frequency  [MHz]")
     ax.set_ylabel("PSD  [V²/Hz]")
-    ax.set_title("Set-averaged spectra with initial SG fits  (dashed = fit)")
+    ax.set_title("Masked Iteration")
     plt.tight_layout()
     plt.savefig(f"{run_dir}/masked_bin_iteration_{iteration}.png", dpi=150, bbox_inches='tight')
     plt.close()

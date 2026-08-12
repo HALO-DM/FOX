@@ -7,13 +7,15 @@ Simulate a haloscope scan from a YAML config:
 Outputs to: ./output/run_DD.MM.YYYY_HH.MM.SS
 """
 from __future__ import annotations
-import argparse, datetime, pathlib, sys
+import argparse
+import datetime
+import pathlib
+import sys
+import time
 import numpy as np
-import matplotlib
 matplotlib.use("Agg")
 import matplotlib as mpl
 import matplotlib.pyplot as plt
-import time
 import pandas as pd
 import shutil
 import matplotlib.cm as cm

@@ -1,7 +1,6 @@
 # axion_haloscope/limit.py
 from __future__ import annotations
 import numpy as np
-import matplotlib.pyplot as plt
 
 def compute_local_snr_template(sr: np.ndarray, Lq: np.ndarray) -> np.ndarray:
     """

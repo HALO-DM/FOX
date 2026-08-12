@@ -1,16 +1,49 @@
 """
-Code is Potentially Redundant - used exclusivly for a few plots for Blue's 1st Semester Report, no functions are used currently in analysis
+Please note: Code is Potentially Redundant - used exclusivly for a few plots for Blue's 
+1st Semester Report, no functions are used currently in analysis
 """
+from pathlib import Path
+from typing import Tuple, Dict
 
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
 from matplotlib import gridspec
-import time
 
-def find_threshold_from_curve(powers, y_perc, threshold=95.0):
-    """Find first crossing x where y_perc >= threshold using linear interpolation.
-       Returns np.nan if no crossing exists.
+def _find_threshold_from_curve(
+    powers: np.ndarray,
+    y_perc: np.ndarray,
+    threshold: float=95.0,
+) -> float:
+    """
+    Find the first x-value where a curve crosses a given threshold.
+
+    Scans `y_perc` for the first index where it is at or above `threshold`, then linearly
+    interpolates between that point and the preceding one to estimate the crossing location
+    in `powers`.
+
+    Parameters
+    ----------
+    powers : 1D array
+        x-values corresponding to `y_perc`, assumed sorted ascending.
+    y_perc : 1D array
+        y-values (e.g. cumulative percentage) to search for a threshold
+        crossing, same length as `powers`.
+    threshold : float
+        Value that `y_perc` must reach or exceed. Default is 95.0.
+
+    Returns
+    -------
+    crossing : float
+        Interpolated x-value in `powers` where `y_perc` first reaches `threshold`. If the very
+        first point already meets the threshold, that point's x-value is returned directly (no
+        interpolation, since there is no preceding point). Returns `np.nan` if `y_perc` never 
+        reaches `threshold`.
+
+    Notes
+    -----
+    If the two points bracketing the crossing have equal y-values (`y1 == y0`), interpolation
+    would divide by zero; in that case the later point's x-value is returned directly instead.
     """
     powers = np.asarray(powers, dtype=float)
     y = np.asarray(y_perc, dtype=float)
@@ -28,19 +61,76 @@ def find_threshold_from_curve(powers, y_perc, threshold=95.0):
     return x0 + t * (x1 - x0)
 
 def bootstrap_thresholds_from_csv(
-        csv_path,
-        n_boot=1000,
-        threshold=95.0,
-        default_n_trials=250,
-        random_seed=1234,
-    ):
+    csv_path: Path,
+    n_boot: int=1000,
+    threshold: float=95.0,
+    default_n_trials: int=250,
+    random_seed: int=1234,
+) -> Dict:
     """
-    csv_path: path to CSV with columns 'power','success' and optional 'n_trials'.
-              'success' is integer number of successes at that power (0..n_trials)
-    n_boot: number of bootstrap samples
-    threshold: percentage threshold (95.0)
-    default_n_trials: used when CSV has no 'n_trials' column
-    Returns: dict with bootstrap thresholds array and summary stats
+    Bootstrap the threshold crossing point from binomial trial data in a CSV.
+
+    Reads per-power success counts from a CSV, reconstructs the underlying 0/1 trial outcomes
+    at each power, and repeatedly resamples (with replacement) to build a distribution of
+    threshold crossing points via `_find_threshold_from_curve`. Summary statistics over the
+    bootstrap distribution are returned.
+
+    Parameters
+    ----------
+    csv_path : Path
+        Path to a CSV file with columns "power" and "success", and optionally "n_trials".
+        "success" is the integer number of successes observed at that power (between 0 and
+        `n_trials` inclusive).
+    n_boot : int
+        Number of bootstrap resamples to draw. Default is 1000.
+    threshold : float
+        Percentage threshold passed to `_find_threshold_from_curve` for each bootstrap sample.
+        Default is 95.0.
+    default_n_trials : int
+        Number of trials to assume per row when the CSV has no "n_trials" column. Default is 250.
+    random_seed : int
+        Seed for the random number generator, for reproducibility. Default is 1234.
+
+    Returns
+    -------
+    stats : dict
+        Summary of the bootstrap distribution, with keys:
+        - "n_boot" : int, number of bootstrap samples requested.
+        - "n_valid" : int, number of samples that produced a valid threshold crossing
+        (i.e. not NaN).
+        - "median" : float, median of the valid bootstrap thresholds.
+        - "mean" : float, mean of the valid bootstrap thresholds.
+        - "std" : float, sample standard deviation (ddof=1) of the valid bootstrap thresholds.
+        - "p16", "p84" : float, 16th and 84th percentiles (~1-sigma band for a normal 
+        distribution).
+        - "p2p5", "p97p5" : float, 2.5th and 97.5th percentiles (~95% interval).
+        - "all_thresholds" : ndarray, the valid bootstrap threshold values themselves (NaN
+        entries removed).
+
+    Raises
+    ------
+    ValueError
+        If the CSV is missing a "power" or "success" column, or if any row's "success" value is
+        negative or exceeds that row's "n_trials".
+    RuntimeError
+        If every bootstrap sample fails to produce a threshold crossing (all NaN), typically
+        meaning the power range doesn't reach `threshold` or `threshold` is set too high.
+
+    Notes
+    -----
+    Each CSV row is expanded into an explicit vector of `n_trials` zeros and ones
+    (success/failure), which is then resampled with replacement per bootstrap
+    iteration — this is a standard nonparametric bootstrap over binomial trial data rather
+    than a parametric (e.g. beta-binomial) resampling.
+
+    Monotonicity of the resampled percentage curve is not enforced by default (an optional
+    `np.maximum.accumulate` step is present but commented out in the implementation), so
+    `_find_threshold_from_curve` may pick up a spurious early crossing if the underlying data
+    is noisy and non-monotonic.
+
+    See Also
+    --------
+    _find_threshold_from_curve : threshold crossing search used per bootstrap sample.
     """
     df = pd.read_csv(csv_path)
     if "power" not in df.columns or "success" not in df.columns:
@@ -57,7 +147,8 @@ def bootstrap_thresholds_from_csv(
     for succ, ntr in zip(df["success"].astype(int).values, n_trials_arr):
         if succ < 0 or succ > ntr:
             raise ValueError("success must be between 0 and n_trials")
-        vec = np.concatenate([np.ones(succ, dtype=np.uint8), np.zeros(ntr - succ, dtype=np.uint8)])
+        vec = np.concatenate([np.ones(succ, dtype=np.uint8),
+                              np.zeros(ntr - succ, dtype=np.uint8)])
         trial_vectors.append(vec)
 
     rng = np.random.default_rng(random_seed)
@@ -74,7 +165,7 @@ def bootstrap_thresholds_from_csv(
             y_perc.append(frac)
         # (optionally enforce monotonicity: makes interpolation stable)
         # y_perc = np.maximum.accumulate(y_perc)   # uncomment to force non-decreasing
-        boot_thresh[b] = find_threshold_from_curve(powers, y_perc, threshold=threshold)
+        boot_thresh[b] = _find_threshold_from_curve(powers, y_perc, threshold=threshold)
 
     # drop nan (cases where no crossing occurred in a bootstrap sample)
     valid = ~np.isnan(boot_thresh)
@@ -99,23 +190,52 @@ def bootstrap_thresholds_from_csv(
     }
     return stats
 
-# Example: run and plot
-
-
 def plot_pretty_bootstrap_hist(
-        thresholds,
-        original_value=None,
-        n_boot=None,
-        n_valid=None,
-        outfile="bootstrap_threshold_hist_pretty.png",
-        bins=80,
-        figsize=(8,5),
-        title="Bootstrap distribution of 95% recovery threshold",
-):
+    thresholds: np.ndarray,
+    outfile: str="bootstrap_threshold_hist_pretty.png",
+    bins: int=80,
+    figsize: Tuple=(8,5),
+    title: str ="Bootstrap distribution of 95% recovery threshold",
+) -> Dict:
     """
-    thresholds: 1D array-like of valid bootstrap thresholds (NaNs already removed)
-    original_value: optional original point estimate to mark (e.g. 21.6)
-    n_boot, n_valid: optional ints to annotate (n_valid <= n_boot)
+    Plot a styled histogram of bootstrap threshold values and save to file.
+
+    Draws a density histogram of `thresholds` with a smoothed (Gaussian-convolved) density curve
+    overlaid, shaded 68% and 95% confidence bands, and vertical lines marking the median and mean.
+    The figure is saved to `outfile` and closed; summary statistics are returned to the caller.
+
+    Parameters
+    ----------
+    thresholds : 1D array
+        Array-like of valid bootstrap threshold values (NaNs should already be removed, e.g. via
+        the "all_thresholds" entry from `bootstrap_thresholds_from_csv`).
+    outfile : str, optional
+        Path to save the figure to. Default is "bootstrap_threshold_hist_pretty.png".
+    bins : int, optional
+        Number of histogram bins. Default is 80.
+    figsize : tuple, optional
+        Figure size in inches, passed to `plt.figure`. Default is (8, 5).
+    title : str, optional
+        Plot title. Default is "Bootstrap distribution of 95% recovery threshold".
+
+    Returns
+    -------
+    stats : dict
+        Summary statistics of `thresholds`, with keys:
+        - "median" : float, median value.
+        - "mean" : float, mean value.
+        - "std" : float, sample standard deviation (ddof=1); 0.0 if `thresholds` has fewer
+        than 2 elements.
+        - "p16", "p84" : float, 16th and 84th percentiles (68% CI bounds, shaded on the plot).
+        - "p2p5", "p97p5" : float, 2.5th and 97.5th percentiles (95% CI bounds, shaded on the
+        plot).
+        - "n_valid" : int, number of values in `thresholds`.
+
+    Raises
+    ------
+    ValueError
+        If `thresholds` is empty.
+
     """
     th = np.asarray(thresholds, dtype=float)
     if th.size == 0:
@@ -147,12 +267,12 @@ def plot_pretty_bootstrap_hist(
     smooth_density = np.convolve(counts, kernel, mode="same")
 
     # Shaded percentile bands
-    ylim = ax.get_ylim()
     ax.fill_betweenx([0, 3], p16, p84, color='C1', alpha=0.20, label='68% CI')
     ax.fill_betweenx([0, 3], p2p5, p97p5, color='C1', alpha=0.12, label='95% CI')
 
     # Plot histogram bars (lighter) and smooth curve (bold)
-    ax.bar(bin_centers, counts, width=(bin_edges[1]-bin_edges[0]), alpha=0.45, edgecolor='k', linewidth=0.4)
+    ax.bar(bin_centers, counts, width=(bin_edges[1]-bin_edges[0]), alpha=0.45, edgecolor='k',
+            linewidth=0.4)
     ax.plot(bin_centers, smooth_density, lw=2.0, label="Smoothed density")
 
 
@@ -183,14 +303,12 @@ def plot_pretty_bootstrap_hist(
     }
 
 if __name__ == "__main__":
-    stats = bootstrap_thresholds_from_csv("power.csv", n_boot=10000, default_n_trials=250)
-    plot_pretty_bootstrap_hist(stats["all_thresholds"], original_value=21.6,
-                           n_boot=1000, n_valid=stats["n_valid"],
-                           outfile="bootstrap_threshold_hist_pretty.png")
+    bootstrap_stats = bootstrap_thresholds_from_csv("power.csv", n_boot=10000, default_n_trials=250)
+    plot_pretty_bootstrap_hist(bootstrap_stats["all_thresholds"],
+                               outfile="bootstrap_threshold_hist_pretty.png")
     print("Bootstrap results (threshold where recovery >=95%):")
-    print(f"  median = {stats['median']:.5f}")
-    print(f"  mean   = {stats['mean']:.5f}")
-    print(f"  std    = {stats['std']:.5f}")
-    print(f"  68% CI ~ [{stats['p16']:.5f}, {stats['p84']:.5f}]")
-    print(f"  95% CI ~ [{stats['p2p5']:.5f}, {stats['p97p5']:.5f}]")
-
+    print(f"  median = {bootstrap_stats['median']:.5f}")
+    print(f"  mean   = {bootstrap_stats['mean']:.5f}")
+    print(f"  std    = {bootstrap_stats['std']:.5f}")
+    print(f"  68% CI ~ [{bootstrap_stats['p16']:.5f}, {bootstrap_stats['p84']:.5f}]")
+    print(f"  95% CI ~ [{bootstrap_stats['p2p5']:.5f}, {bootstrap_stats['p97p5']:.5f}]")
