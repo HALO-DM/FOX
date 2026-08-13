@@ -8,8 +8,8 @@ from typing import Tuple, List
 import warnings
 
 import numpy as np
-from axion_haloscope.baseline import remove_baseline
 from scipy.interpolate import interp1d
+from axion_haloscope.baseline import remove_baseline
 
 def _sg_masked(freqs, psd, mask_bad, window, order):
     """
@@ -32,30 +32,69 @@ def _sg_masked(freqs, psd, mask_bad, window, order):
     return fit_full
 
 def _interpolate_nans(y):
+    """If an array has any nans, interpolate the nans with new datapoints"""
     y = np.asarray(y, dtype=float)
     nans = np.isnan(y)
     if nans.any():
         if nans.all():
-            return np.nan_to_num(y)  
+            return np.nan_to_num(y)
         x = np.arange(len(y))
         y = y.copy()
         y[nans] = np.interp(x[nans], x[~nans], y[~nans])
     return y
 
-def finalise_specs(mode, group_avg_spectra, groups, group_sg_fits):
+def finalise_specs(mode, group_avg_spectra, groups, group_sg_fits, group_masks):
+    """
+    Divide out the fitted baseline from each individual spectrum in a group,
+    excluding sigma-clipped bins and interpolating over them.
+
+    Parameters
+    ----------
+        mode : str
+            "claude" or "blue" — selects the grouping/masking convention.
+        group_avg_spectra : List[Tuple[1D array, 1D array] | None]
+            Per-set (freq, avg_spectrum) tuples (claude mode only).
+        groups : List[List[Tuple[1D array, 1D array, float]]]
+            Per-set lists of individual (spectrum, freq, res_freq) tuples.
+        group_sg_fits : List[1D array | None]
+            Per-set baseline fits.
+        group_masks : List[1D array | None] | List[List[1D array]]
+            claude mode: one mask per set, aligned with
+            `group_avg_spectra[g][0]` (0 = good, nonzero = masked at that
+            iteration).
+            blue mode: one list of per-spectrum masks per set, aligned
+            with `groups[g]`.
+
+    Returns
+    -------
+        specs : List[1D array]
+            Baseline-divided spectra with masked bins interpolated over.
+        fper : List[1D array]
+            Frequency axis for each entry in `specs`.
+    """
     specs, fper = [], []
+
     if mode == "claude":
         for g, group in enumerate(groups):
             avg = group_avg_spectra[g]
             fit = group_sg_fits[g]
+            mask = group_masks[g]
             if avg is None or fit is None:
                 continue
 
-            f_grid = avg[0]
+            f_grid = np.asarray(avg[0], dtype=float)
+            fit = np.asarray(fit, dtype=float)
+
+            good = np.ones(len(f_grid), dtype=bool) if mask is None else (mask == 0)
+            if good.sum() < 2:
+                # Not enough clean points to build an interpolant from —
+                # fall back to using every point rather than crashing/garbage.
+                good = np.ones(len(f_grid), dtype=bool)
+
             baseline_interp = interp1d(
-                f_grid, fit,
+                f_grid[good], fit[good],
                 bounds_error=False,
-                fill_value=(fit[0], fit[-1]),
+                fill_value=(fit[good][0], fit[good][-1]),
             )
 
             for item in group:
@@ -68,33 +107,41 @@ def finalise_specs(mode, group_avg_spectra, groups, group_sg_fits):
                 fper.append(f_i)
 
     elif mode == "blue":
-        for group, baseline in zip(groups, group_sg_fits):
+        for group, baseline, masks in zip(groups, group_sg_fits, group_masks):
             if baseline is None:
                 continue
             group_spectra, group_freqs, _ = map(np.array, zip(*group))
-            specs.extend(group_spectra / baseline)
+
+            cleaned = group_spectra.astype(float).copy()
+            for i, mask in enumerate(masks):
+                bad = mask != 0
+                if bad.any():
+                    cleaned[i, bad] = np.nan
+                    cleaned[i] = _interpolate_nans(cleaned[i])
+
+            specs.extend(cleaned / baseline)
             fper.extend(group_freqs)
+
     return specs, fper
 
-def claude_clipping(group_avg_spectra, group_masks, group_sg_fits, 
+def claude_clipping(group_avg_spectra, group_masks, group_sg_fits,
                 sigma_cut, sg_window, sg_order, iteration):
     """
     Impliments Claude's Clipping Algorithm. Cleans each set average by performing 
     an SG fit to find a baseline, finding the residuals of that baseline and
     masking any bins that are above/below +-sigma_cut * std. Tracks the 
     iteration this clipping algorithm is happening in, and masks bins 
-    accordingly. Mofidied Version of QSHS iterative clipping algorithm:
-    https://github.com/QuantumSensorsfortheHiddenSector/DataAnalysis/blob/CM_QSHS_analysis_pipeline/step2_baselineremoval_warmhaystac.py
+    accordingly. Mofidied Version of QSHS iterative clipping algorithm.
 
     Parameters
     ----------
-        group_avg_spectra : List[Tuple[ndarray, ndarray]]]
+        group_avg_spectra : List[Tuple[1D array, 1D array]]]
             A grand group that contains all set averages. Each Tuple has 
             X and Y values of 1 set average.
-        group_masks : List[ndarray]
+        group_masks : List[1D array]
             A grand group that contains all set averaged masks.
             Follows same pattern as group_avg_spectra.
-        group_sg_fits : List[ndarray]
+        group_sg_fits : List[1D array]
             A grand group that contains Savitsky Golay fits on set averaged
             spectra.
         sigma_cut : float
@@ -107,9 +154,9 @@ def claude_clipping(group_avg_spectra, group_masks, group_sg_fits,
             Iteration number
     Returns
     -------
-        new_group_masks : List[List[ndarray]]
+        new_group_masks : List[List[1D array]]
             Updated group_masks with new masks from this algorithm
-        new_group_sg_fits : List[ndarray]
+        new_group_sg_fits : List[1D array]
             Updated group_sg_fits with new fits from this algorithm       
     """
     total_new = 0
@@ -123,7 +170,10 @@ def claude_clipping(group_avg_spectra, group_masks, group_sg_fits,
         prev_fit     = group_sg_fits[g].copy()
         if prev_fit is None:
             continue
-        new_mask, new_fit, _, _, sigma = general_clipping(p, sg_window, sg_order, sigma_cut, freqs=f, baseline=prev_fit, current_mask=current_mask, iteration=iteration)
+        new_mask, new_fit, *_ = general_clipping(p, sg_window, sg_order, sigma_cut,
+                                                freqs=f, baseline=prev_fit,
+                                                current_mask=current_mask,
+                                                iteration=iteration)
 
         n_new     = int(np.count_nonzero(new_mask == iteration))
         total_new += n_new
@@ -143,8 +193,8 @@ def blue_clipping(
         group_masks: List[List[np.ndarray]],
         group_sg_fits: List[np.ndarray],
         sigma_cut: float,
-        sg_window: int, 
-        sg_order: int, 
+        sg_window: int,
+        sg_order: int,
         iteration: int,
 ) -> Tuple[List[List[np.ndarray]], List[np.ndarray]]:
     """
@@ -156,13 +206,13 @@ def blue_clipping(
 
     Parameters
     ----------
-        groups        : List[List[Tuple[ndarray, ndarray, float]]]
+        groups        : List[List[Tuple[1D array, 1D array, float]]]
             A grand group that contains all sets, each set containing some 
             tuples. Each Tuple has information on 1 spectra.
-        group_masks   : List[List[ndarray]]
+        group_masks   : List[List[1D array]]
             A grand group that contains all spectra masks, grouped into sets.
             Follows same pattern as groups
-        group_sg_fits : List[ndarray]
+        group_sg_fits : List[1D array]
             A grand group that contains Savitsky Golay fits on set averaged
             spectra.
         sigma_cut     : float
@@ -175,9 +225,9 @@ def blue_clipping(
             Iteration number
     Returns
     -------
-        new_group_masks : List[List[ndarray]]
+        new_group_masks : List[List[1D array]]
             Updated group_masks with new masks from this algorithm
-        new_group_sg_fits : List[ndarray]
+        new_group_sg_fits : List[1D array]
             Updated group_sg_fits with new fits from this algorithm       
     """
     total_new = 0
@@ -189,7 +239,9 @@ def blue_clipping(
         n_new = 0
         for spec_idx, (spectra, frequencies, _) in enumerate(group):
             current_mask = current_masks[spec_idx]
-            mask, *_ = general_clipping(spectra, sg_window, sg_order, sigma_cut, freqs=frequencies, current_mask=current_mask, iteration=iteration)
+            mask, *_ = general_clipping(spectra, sg_window, sg_order, sigma_cut,
+                                        freqs=frequencies, current_mask=current_mask,
+                                        iteration=iteration)
             n_new += int(np.count_nonzero(mask == iteration))
             current_masks[spec_idx] = mask
 
@@ -207,9 +259,9 @@ def blue_clipping(
         new_group_sg_fits[g] = new_baseline
 
         total_new += n_new
-        n_bins   = sum(len(m) for m in current_masks)
-        n_masked = sum(int(np.count_nonzero(m)) for m in current_masks)
-        #print(f"    Group {g+1:3d}: newly masked={n_new:4d}  "
+        # n_bins   = sum(len(m) for m in current_masks)
+        # n_masked = sum(int(np.count_nonzero(m)) for m in current_masks)
+        # print(f"    Group {g+1:3d}: newly masked={n_new:4d}  "
         #      f"total masked={n_masked:4d}/{n_bins}")
 
     #print(f"  Total newly masked this iteration: {total_new}")
@@ -234,7 +286,7 @@ def general_clipping(
 
     Parameters
     ----------
-        spectrum      : ndarray, shape (nbins,)
+        spectrum      : 1D array, shape (nbins,)
             A single spectrum's Y values
         sg_window    : int
             Window length of Savitsky Golay filter
@@ -242,25 +294,25 @@ def general_clipping(
             Polynomial Order of Savitsky Golay Filter
         sigma_cut    : float
             The threshold coefficient
-        freqs        : ndarray | None, shape (n_bins,)
+        freqs        : 1D array | None, shape (n_bins,)
             A single spectrum's X values. If not provided, defaults to
             'np.arange(len(spectrum))'.
-        baseline     : ndarray | None
+        baseline     : 1D array | None
             Pre-Computed specta baseline. If not provided, new SG baseline
             is computed.
-        current_mask : ndarray | None
+        current_mask : 1D array | None
             Pre-Computed mask. If not provided, creates new mask full of 0s 
             with shape (nbins,)
         iteration    : int | None
             Iteration number. If not provided, set to '1'
     Returns
     -------
-        mask: ndarray
+        mask: 1D array
             Iteration Mapping Mask which keeps track of which iteration an 
             element was masked in (same convention as "current mask")
-        baseline: ndarray
+        baseline: 1D array
             SG baseline that was used to calculate residuals
-        residual: ndarray
+        residual: 1D array
             Residuals of spectrum - baseline
         threshold: float
             The threshold to mask or not mask a bin
@@ -285,7 +337,6 @@ def general_clipping(
         baseline = _sg_masked(freqs, spectrum, current_mask, sg_window, sg_order)
 
     residual = spectrum - baseline
-    
 
     std = np.std(residual[current_mask == 0])
     threshold = sigma_cut * std

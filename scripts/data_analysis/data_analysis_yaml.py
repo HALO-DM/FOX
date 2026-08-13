@@ -28,14 +28,13 @@ from axion_haloscope.data_cuts            import cut_by_values, cut_by_datetime
 from axion_haloscope.data_quality_working import filter_spectrum_set, too_noisy, power_too_high, metadata_is_zeros, time_filter, small_bandwidth
 from axion_haloscope.detection            import threshold_for_detection, find_candidates
 from axion_haloscope.diagnostics          import evaluate_set_spacing, vary_set_size_plots
-from axion_haloscope.io_working           import read_hdf5, write_hdf5, read_qshs_hdf5_dir
+from axion_haloscope.io_working           import write_hdf5
 from axion_haloscope.limit                import compute_local_snr_template, coupling_limit
 from axion_haloscope.lineshape            import shm_maxwell_template
 from axion_haloscope.load_data            import load_data
 from axion_haloscope.rebin                import rebin_ml, grand_spectrum_ml
 from axion_haloscope.sets                 import set_creation, group_sets
 from axion_haloscope.sigma_clipping       import claude_clipping, blue_clipping, finalise_specs, general_clipping
-from axion_haloscope.simulation           import simulate_spectra
 from axion_haloscope.utils                import create_directory, find_project_root, load_yaml_config
 
 mpl.use("Agg")
@@ -305,7 +304,7 @@ def main():
     # =======================================================================
 
     # Imported from Claude's Code
-    TIME_ARR = [
+    time_array = [
     ["2026-01-27 00:00:00", "2026-01-31 09:55:41"], #-10 run, folder is Jan
     ["2026-01-27 14:30:00", "2026-01-28 04:50:00"],
     ['2026-02-01 00:10:58', '2026-02-10 18:10:58'], #-20 run, change to Feb
@@ -313,18 +312,18 @@ def main():
     ['2026-02-05 00:10:58', '2026-02-05 19:10:58'], #full linear section
     ['2026-02-01 00:10:58', '2026-02-04 22:30:58'] #low freq linear section
     ]
-    TIME_IND = 1
+    time_ar = 1
 
     sset = cut_by_datetime(
         sset,
-        TIME_ARR[TIME_IND][0],
-        TIME_ARR[TIME_IND][1],
+        time_array[time_array_index][0],
+        time_array[time_array_index][1],
     )
     if diagnostic_mode:
         print("-" * 60)
         print("Applying Time Cuts")
         print("-" * 60)
-        print("[TF]:", TIME_ARR[TIME_IND][0], "-->", TIME_ARR[TIME_IND][1])
+        print("[TF]:", time_array[time_array_index][0], "-->", time_array[time_array_index][1])
     print(f"[TF]: {len(sset.metadata.file_names)} files kept after time filter "
        f"(removed {len(metadata.file_names) - len(sset.metadata.file_names)})")
     
@@ -784,7 +783,9 @@ def main():
     lineshape_template = shm_maxwell_template(template_width=template_width, bin_width_hz=rebin_width*(fper[0][1] - fper[0][0]), f0_hz=f0)
     grand_spectrum, sigma_gs = grand_spectrum_ml(data_rebinned, sigma_dr, lineshape_template)
 
-    z = np.zeros_like(grand_spectrum); m = np.isfinite(sigma_gs) & (sigma_gs>0); z[m] = grand_spectrum[m]/sigma_gs[m]
+    z = np.zeros_like(grand_spectrum)
+    m = np.isfinite(sigma_gs) & (sigma_gs>0)
+    z[m] = grand_spectrum[m]/sigma_gs[m]
     graphs.plot_grand_spectrum(feqs_rebinned, z, main_plots_dir)
 
     # =======================================================================

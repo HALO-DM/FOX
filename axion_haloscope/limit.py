@@ -1,28 +1,68 @@
 # axion_haloscope/limit.py
+"""
+Limit
+=====
+
+Computes coupling limits and related functions
+"""
 from __future__ import annotations
 import numpy as np
 
-def compute_local_snr_template(sr: np.ndarray, Lq: np.ndarray) -> np.ndarray:
-    """
-    R_local(center) = sqrt( sum_i Lq[i]^2 / sr[i]^2 ) at each valid center (NaN at edges).
-    """
-    n, K = len(sr), len(Lq)
-    R = np.full(n, np.nan)
-    for r in range(n - K + 1):
-        segs = sr[r:r+K]
-        denom = (Lq*Lq / (segs**2 + 1e-18)).sum()
-        if denom > 0:
-            R[r + K//2] = np.sqrt(denom)
-    return R
-
-def coupling_limit(
-    R_local: np.ndarray, target_snr: float = 5.0, g0: float = 1e-13, snr_efficiency: float = 0.90
+def compute_local_snr_template(
+    sigma_r: np.ndarray,
+    lineshape_template: np.ndarray
 ) -> np.ndarray:
     """
-    g_min(f) = g0 * sqrt( target_snr / (snr_efficiency * R_local) ).
-    """
-    out = np.full_like(R_local, np.nan, float)
-    good = np.isfinite(R_local) & (R_local > 0)
-    out[good] = g0 * np.sqrt(target_snr / (snr_efficiency * R_local[good]))
-    return out
+    local_snr(center) = sqrt( sum_i lineshape_template[i]^2 / sigma_r[i]^2 ) at each valid center
+    (NaN at edges).
 
+    Parametes
+    =========
+    sigma_r: 1D array
+        Sigmas of rebinned data
+    lineshape_template: 1D array
+        Axion lineshape
+
+    Returns
+    =======
+    local_snr: 1D array
+        Defined above
+    """
+    n, k = len(sigma_r), len(lineshape_template)
+    local_snr = np.full(n, np.nan)
+    for r in range(n - k + 1):
+        segs = sigma_r[r:r+k]
+        denom = (lineshape_template*lineshape_template / (segs**2 + 1e-18)).sum()
+        if denom > 0:
+            local_snr[r + k//2] = np.sqrt(denom)
+    return local_snr
+
+def coupling_limit(
+    local_snr: np.ndarray,
+    target_snr: float = 5.0,
+    g0: float = 1e-13,
+    snr_efficiency: float = 0.90
+) -> np.ndarray:
+    """
+    g_min(f) = g0 * sqrt( target_snr / (snr_efficiency * local_snr) ).
+
+    Parameters
+    ==========
+    local_snr: 1D array
+        See `compute_local_snr_template`
+    target_snr: float
+        The ideal snr
+    g0: float
+        Relative Coupling constant, used as a reference in exclusion plot
+    snr_efficiency: float
+        Assumed snr efficiency
+
+    Returns
+    =======
+    out: 1D array
+        Coupling constants relative to g0
+    """
+    out = np.full_like(local_snr, np.nan, float)
+    good = np.isfinite(local_snr) & (local_snr > 0)
+    out[good] = g0 * np.sqrt(target_snr / (snr_efficiency * local_snr[good]))
+    return out

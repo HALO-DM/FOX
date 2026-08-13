@@ -247,7 +247,7 @@ def simulate_spectra(
     injected_axion: dict | None = None,
     baseline_amp: float = 0.05,
     baseline_corr_bins: int = 400,
-    baseline_key: Optional[np.ndarray] = None,
+    baseline_key: Optional[int] = None,
 ) -> SpectrumSet[List[np.ndarray], np.ndarray, np.ndarray, List[np.ndarray], SpectrumMetadata]:
     """
     Simulate multiple tuned spectra: slow baseline × (1 + Gaussian noise),
@@ -255,17 +255,17 @@ def simulate_spectra(
 
     Parameters
     ==========
-    n_spectra: int = 60,
-    n_bins: int = 6000,
-    bin_width_hz: float = 100.0,
-    f_start_hz: float = 5.70e9,
-    tune_step_bins: int = 60,
-    noise_sigma: float = 1.0,
-    rng_seed: int | None = 1234,
-    injected_axion: dict | None = None,
-    baseline_amp: float = 0.05,
-    baseline_corr_bins: int = 400,
-    baseline_key: np.ndarray
+    n_spectra: int
+    n_bins: int
+    bin_width_hz: float
+    f_start_hz: float
+    tune_step_bins: int
+    noise_sigma: float
+    rng_seed: int
+    injected_axion: dict, optional
+    baseline_amp: float
+    baseline_corr_bins: int
+    baseline_key: int, optional
 
     Returns
     =======

@@ -57,7 +57,8 @@ def simulation_stages(freq_axion, freq_local_oscillator,fs, freq_downmixed, n_bi
     axes[1, 0].semilogy(freqs/1e6, psd_orig + 1e-30, color='steelblue')
     axes[1, 0].axvline(x=freq_axion/1e6, color='red', linestyle='dotted', alpha=0.7, label=f'{freq_axion/1e6} MHz')
     axes[1, 0].set(xlabel="Frequency (MHz)", ylabel="PSD", title="FFT - Original (0-200 MHz)")
-    axes[1, 0].legend(); axes[1, 0].grid(True, alpha=0.3)
+    axes[1, 0].legend()
+    axes[1, 0].grid(True, alpha=0.3)
 
 
     axes[1, 1].semilogy(freqs/1e6, psd_mixed + 1e-30, color='purple')
@@ -362,8 +363,8 @@ def plot_sets(mode, fper, specs, colour_vals, cbar_label, run_dir, title, file_n
             ax.plot(freqs/1e6, specs,lw=1.0, alpha=0.55, color=colourise(s), label=f"Set {s}")
             ax.plot(freqs/1e6, fit, lw=1.8, alpha=0.95, color=colourise(s), linestyle="--")
     elif mode == "sets":
-        for s, set in enumerate(sets):
-            ax.plot(np.mean([x[1] for x in set], axis=0)/1e6, np.mean([x[0] for x in set], axis=0), alpha=0.8, color=colourise(s), label =f"Set {s}")
+        for s, single_set in enumerate(sets):
+            ax.plot(np.mean([x[1] for x in single_set], axis=0)/1e6, np.mean([x[0] for x in single_set], axis=0), alpha=0.8, color=colourise(s), label =f"Set {s}")
     sm = ScalarMappable(cmap=cmap, norm=norm)
     sm.set_array([])
     fig.colorbar(sm, ax=ax, label=cbar_label)
@@ -462,8 +463,8 @@ def plot_3x3(mode, sets, set_mean_res, xlabel, ylabel, title, file_name, run_dir
 def plot_std_freq(sets, set_mean_res, run_dir):
     colourise, norm = make_colouriser(set_mean_res, cmap=plt.cm.viridis, vmin=None, vmax=None)
     fig, ax = plt.subplots(figsize=(13, 7))
-    for s, set in enumerate(sets):
-        ax.plot(np.mean([x[1] for x in set], axis=0)/1e6, np.std([x[0] for x in set], axis=0), alpha=0.8, color=colourise(s), label =f"Set {s}")
+    for s, single_set in enumerate(sets):
+        ax.plot(np.mean([x[1] for x in single_set], axis=0)/1e6, np.std([x[0] for x in single_set], axis=0), alpha=0.8, color=colourise(s), label =f"Set {s}")
     sm_res = ScalarMappable(cmap=plt.cm.viridis, norm=norm)
     sm_res.set_array([])
     fig.colorbar(sm_res, ax=ax, label="Mean cavity resonance  [GHz]")
@@ -484,28 +485,28 @@ def plot_std_set_num(av_stds, run_dir):
     plt.savefig(f"{run_dir}/std_vs_set_num.png", dpi = 150, bbox_inches='tight')
     plt.close()
 
-def plot_spectra_in_set(set, s, run_dir):
+def plot_spectra_in_set(single_set, s, run_dir):
     fig, ax = plt.subplots(figsize=(13, 7))
-    greys = cm.Greys(np.linspace(0.3, 0.9, len(set)))
-    for i, x in enumerate(set):
+    greys = cm.Greys(np.linspace(0.3, 0.9, len(single_set)))
+    for i, x in enumerate(single_set):
         ax.plot(x[1]/1e6, x[0], color=greys[i])
-    ax.plot(np.mean([x[1] for x in set], axis=0)/1e6, np.mean([x[0] for x in set], axis=0), alpha=0.8, color="red", label="set averaged")
-    norm = mcolors.Normalize(vmin=0, vmax=len(set))
+    ax.plot(np.mean([x[1] for x in single_set], axis=0)/1e6, np.mean([x[0] for x in single_set], axis=0), alpha=0.8, color="red", label="set averaged")
+    norm = mcolors.Normalize(vmin=0, vmax=len(single_set))
     sm = ScalarMappable(cmap=cm.Greys, norm=norm)
     sm.set_array([])
     fig.colorbar(sm, ax=ax, label="Spectrum index in set")
     ax.set_xlabel("IF frequency  [MHz]")
     ax.set_ylabel("PSD  [V²/Hz]")
-    ax.set_title(f"Set-averaged spectra and the individual spectra — set {s} (n={len(set)})")
+    ax.set_title(f"Set-averaged spectra and the individual spectra — set {s} (n={len(single_set)})")
     plt.tight_layout()
     plt.legend()
     plt.savefig(f"{run_dir}/set_{s}.png", dpi = 150, bbox_inches='tight')
     plt.close()
 
-def plot_set_average_errors(set, s, run_dir):
+def plot_set_average_errors(single_set, s, run_dir):
     fig, ax = plt.subplots(figsize=(13, 7))
-    ax.errorbar(np.mean([x[1] for x in set], axis=0)/1e6, np.mean([x[0] for x in set], axis=0), np.std([x[0] for x in set], axis=0), alpha=0.5, ecolor="blue", color="red", label="std of average")
-    ax.plot(np.mean([x[1] for x in set], axis=0)/1e6, np.mean([x[0] for x in set], axis=0), alpha=0.8, color='red', label="set averaged")
+    ax.errorbar(np.mean([x[1] for x in single_set], axis=0)/1e6, np.mean([x[0] for x in single_set], axis=0), np.std([x[0] for x in single_set], axis=0), alpha=0.5, ecolor="blue", color="red", label="std of average")
+    ax.plot(np.mean([x[1] for x in single_set], axis=0)/1e6, np.mean([x[0] for x in single_set], axis=0), alpha=0.8, color='red', label="single_set averaged")
     ax.set_xlabel("IF frequency  [MHz]")
     ax.set_ylabel("PSD  [V²/Hz]")
     ax.set_title(f"Set-averaged spectra with errors — set {s}")
@@ -514,19 +515,19 @@ def plot_set_average_errors(set, s, run_dir):
     plt.savefig(f"{run_dir}/set_{s}.png", dpi = 150, bbox_inches='tight')
     plt.close()
 
-def plot_zoom_set_average_errors(set, s, run_dir):
+def plot_zoom_set_average_errors(single_set, s, run_dir):
     fig, ax = plt.subplots(figsize=(13, 7))
-    ax.errorbar(np.mean([x[1] for x in set], axis=0) / 1e6, np.mean([x[0] for x in set], axis=0), np.std([x[0] for x in set], axis=0), alpha=0.5, ecolor="blue", color="red", label="std of average")
-    ax.plot(np.mean([x[1] for x in set], axis=0)/1e6, np.mean([x[0] for x in set], axis=0), alpha=0.8, color='red', label="set averaged")
+    ax.errorbar(np.mean([x[1] for x in single_set], axis=0) / 1e6, np.mean([x[0] for x in single_set], axis=0), np.std([x[0] for x in single_set], axis=0), alpha=0.5, ecolor="blue", color="red", label="std of average")
+    ax.plot(np.mean([x[1] for x in single_set], axis=0)/1e6, np.mean([x[0] for x in single_set], axis=0), alpha=0.8, color='red', label="single_set averaged")
     ax.set_xlabel("IF frequency  [MHz]")
     ax.set_ylabel("PSD  [V²/Hz]")
     ax.set_title(f"Set-averaged spectra with errors — set {s} (zoomed)")
 
     x_min, x_max = 1.5, 1.75
     ax.set_xlim(x_min, x_max)
-    freqs_avg = np.mean([x[1] for x in set], axis=0) / 1e6
-    spec_avg = np.mean([x[0] for x in set], axis=0)
-    spec_std = np.std([x[0] for x in set], axis=0)
+    freqs_avg = np.mean([x[1] for x in single_set], axis=0) / 1e6
+    spec_avg = np.mean([x[0] for x in single_set], axis=0)
+    spec_std = np.std([x[0] for x in single_set], axis=0)
 
     in_range = (freqs_avg >= x_min) & (freqs_avg <= x_max)
     if in_range.any():
@@ -540,10 +541,10 @@ def plot_zoom_set_average_errors(set, s, run_dir):
     plt.savefig(f"{run_dir}/set_{s}.png", dpi=150, bbox_inches='tight')
     plt.close()
 
-def plot_std_against_freq(set, s, set_mean_res, run_dir):
+def plot_std_against_freq(single_set, s, set_mean_res, run_dir):
     colourise, norm = make_colouriser(set_mean_res, cmap=plt.cm.viridis, vmin=None, vmax=None)
     fig, ax = plt.subplots(figsize=(13, 7))
-    ax.plot(np.mean([x[1] for x in set], axis=0)/1e6, np.std([x[0] for x in set], axis=0), alpha=0.8, color=colourise(s), label =f"Set {s}")
+    ax.plot(np.mean([x[1] for x in single_set], axis=0)/1e6, np.std([x[0] for x in single_set], axis=0), alpha=0.8, color=colourise(s), label =f"Set {s}")
     sm_res = ScalarMappable(cmap=plt.cm.viridis, norm=norm)
     sm_res.set_array([])
     fig.colorbar(sm_res, ax=ax, label="Mean cavity resonance  [GHz]")
@@ -564,11 +565,11 @@ def plot_claude_residuals(freqs, residuals, s, run_dir):
     plt.savefig(f"{run_dir}/spectra_residuals_{s}.png", dpi=150, bbox_inches='tight')
     plt.close()
 
-def plot_blue_residuals(set, fit, colours, s, run_dir):
+def plot_blue_residuals(single_set, fit, colours, s, run_dir):
     all_residuals = []
-    n = len(set)
+    n = len(single_set)
     fig, ax = plt.subplots(figsize=(13, 7))
-    for spec_idx, (spectra, frequencies, res_freq) in enumerate(set):
+    for spec_idx, (spectra, frequencies, res_freq) in enumerate(single_set):
         residuals = spectra - fit
         all_residuals.append(residuals)
         ax.plot(frequencies / 1e6, residuals, lw=0.8, alpha=0.7, color=colours[spec_idx])

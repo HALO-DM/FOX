@@ -1,11 +1,9 @@
 from __future__ import annotations
 import numpy as np
 from dataclasses import dataclass
-import dataclasses
 from pathlib import Path
-from typing import List, Tuple, Optional, Dict
-import h5py, json, sys
-import os
+from typing import List, Tuple, Optional
+import h5py, json
 from tqdm import tqdm
 
 @dataclass
@@ -291,9 +289,9 @@ def read_hdf5(path: str | Path) -> SpectrumSet:
                 rf_index_map=rf_index_map,
                 metadata=metadata,
             )
-    except FileNotFoundError:
-        raise FileNotFoundError(f"HDF5 file not found: {path}. Please run the QSHS conversion "
-                                "script first to generate the necessary HDF5 file.")
+    except FileNotFoundError as exc:
+        raise FileNotFoundError(f'HDF5 file not found: {path}. Please run the QSHS conversion'
+                                'script first to generate the necessary HDF5 file.') from exc
 
 
 def read_qshs_hdf5(
@@ -346,7 +344,7 @@ def read_qshs_hdf5(
         
         for key, value in mode_fit_data.items():
             if key == "res_freq":
-                res_freq_str = (value)
+                res_freq_str = value
             elif key == "bandwidth":
                 bandwidths_str = value
             elif key == "q_loaded":

@@ -1,12 +1,18 @@
-# axion_haloscope/simulation.py
+# axion_haloscope/simulation_working.py
+"""
+Simulation Working
+==================
+New simulation designed by Blue Carn during MPhys project. Basic wavepackets are superimposed
+with noise in he time domain, before being amplified, downmixed and filtered to produce a 
+more physical simulation.
+"""
 from __future__ import annotations
-import numpy as np
 from dataclasses import dataclass
 from typing import List, Tuple
-import numpy as np
-from scipy.interpolate import PchipInterpolator
-import matplotlib.pyplot as plt
 
+import numpy as np
+
+from axion_haloscope.io_working import SpectrumSet, SpectrumMetadata
 from axion_haloscope.filter import pass_filter
 from axion_haloscope.wavepacket import wavepacket_generation
 from axion_haloscope.noise import simulate_baseline
@@ -57,10 +63,12 @@ def simulate_spectra(
     freq_axion: float = 30e9,
     freq_downmixed: float = 6e6,
     samples_per_cycle: float = 125/12,
-    amplitude: float = 1,
     run_dir: str = "",
 ) -> Tuple[List[np.ndarray], np.ndarray, np.ndarray, List[np.ndarray]]:
- 
+    """
+    New simulation
+    """
+
     spectra: List[np.ndarray] = []
 
     freq_local_oscillator = freq_axion - freq_downmixed
@@ -79,10 +87,10 @@ def simulate_spectra(
         freqs=freqs,
         mask_show=mask_show,
     )
-    
-    H_linear, freqs = pass_filter(n_bins, dt, run_dir=run_dir, name="low_pass_filter")
 
-    L_linear, _ = pass_filter(n_bins, dt, x = np.array([
+    h_linear, freqs = pass_filter(n_bins, dt, run_dir=run_dir, file_name="low_pass_filter")
+
+    l_linear, _ = pass_filter(n_bins, dt, x = np.array([
     0.20, 0.21, 0.23, 0.26, 0.29, 0.31, 0.34, 0.38, 0.39,
     0.43, 0.44, 0.46, 0.47, 0.53, 0.57, 0.59, 0.60,
     0.61, 0.64, 0.65, 0.73, 0.78, 0.82, 0.90, 0.99, 1.02,
@@ -92,37 +100,42 @@ def simulate_spectra(
     41.42, 39.58, 32.16, 30.34, 15.79, 6.33, 3.30, 2.52,
     1.91, 1.01, 0.93, 0.50, 0.24, 0.09, 0.00, 0.05, 0.05,
     0.18, 0.33, 0.28, 0.17, 0.08, 0.01, 0.01
-    ]), run_dir=run_dir,name="high_pass_filter")
+    ]), run_dir=run_dir,file_name="high_pass_filter")
 
 
     for i in range(n_spectra):
-        x_raw_signal = wavepacket_generation(freq_axion, bandwidth, amplitude, n=n_bins, samples_per_cycle=samples_per_cycle)
+        x_raw_signal = wavepacket_generation(freq_axion, bandwidth, n=n_bins,
+                                             samples_per_cycle=samples_per_cycle)
         baseline = simulate_baseline(x_raw_signal[:, 0])
 
         x_signal = x_raw_signal[:, 1] + baseline
 
-        x_filtered, x_mixed = downmix_signal(x_signal, t, freq_local_oscillator, H_linear, L_linear)
+        x_filtered, x_mixed = downmix_signal(x_signal, t, freq_local_oscillator, h_linear, l_linear)
 
-        X_filt  = np.fft.rfft(x_filtered, n=n_bins)
-        psd_filt = (np.abs(X_filt)**2) / (n_bins * fs)      
+        x_filt  = np.fft.rfft(x_filtered, n=n_bins)
+        psd_filt = (np.abs(x_filt)**2) / (n_bins * fs)
 
         spectra.append(psd_filt[mask_show].astype(np.float64))
 
         if i == 0:
             # Graphs
-            tag, psd_mixed = simulation_stages(freq_axion, freq_local_oscillator,fs, freq_downmixed, n_bins, x_signal, 
-                                    x_mixed, x_filtered, freqs,psd_filt, mask_show, 
-                                    H_linear, L_linear, run_dir, t)
+            tag, psd_mixed = simulation_stages(freq_axion, freq_local_oscillator,fs,
+                                               freq_downmixed, n_bins, x_signal,
+                                    x_mixed, x_filtered, freqs,psd_filt, mask_show,
+                                    h_linear, l_linear, run_dir, t)
             aliasing(freqs, psd_mixed, freq_downmixed, fs, combined_freq, tag, run_dir)
-
-    return spectra, freqs_per_spec, rf_grid, rf_index_map
+    """
+    Fill in Later
+    """
+    metadata = SpectrumMetadata(None)
+    return SpectrumSet(spectra, freqs_per_spec, rf_grid, rf_index_map, metadata)
 
 # --- Minimal demo (optional) ---
 if __name__ == "__main__":
-    ax = AxionParams(f_axion_hz=5.705e9, sigma_hz=2500.0, total_power=20.0)
-    specs, f_per, rf, idx_map, ax_power_dist = simulate_spectra(
-        n_spectra=10, n_bins=4000, bin_width_hz=100.0,
-        f_start_hz=5.70e9, tune_step_bins=80,
-        noise_sigma=1.0, rng_seed=1, axion=ax
+    sset = simulate_spectra(
+        n_spectra=1, n_bins = 1000000, freq_axion = 30e9,
+        freq_downmixed = 6e6, samples_per_cycle = 125/12, run_dir = "demo",
     )
+    specs, f_per, rf, idx_map, ax_power_dist = (sset.spectra, sset.freqs_per_spec, sset.rf_grid,
+                                                sset.rf_index_map, sset.metadata)
     print(f"{len(specs)} spectra; RF span = {rf[0]/1e9:.6f}–{rf[-1]/1e9:.6f} GHz")
