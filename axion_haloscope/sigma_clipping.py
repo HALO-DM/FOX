@@ -1,9 +1,15 @@
+"""
+Iterative Sigma Clipping
+========================
+All Algoithms used in the sigma clipping part of the warm baseline removal. No clipping takes
+place here, just the passing of masks so that the clipping can occur in the data analysis
+"""
+from typing import Tuple, List
+import warnings
+
 import numpy as np
-import sys
 from axion_haloscope.baseline import remove_baseline
 from scipy.interpolate import interp1d
-from typing import Optional, Tuple, List
-import warnings
 
 def _sg_masked(freqs, psd, mask_bad, window, order):
     """

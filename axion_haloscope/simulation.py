@@ -1,7 +1,10 @@
 # axion_haloscope/simulation.py
 """
-simulation
-==========
+Simulation (basic)
+==================
+
+Runs a basic simualtion that generates a spectra with a baseline, some gaussian noise and an
+injected gaussian signal which represents the axion.
 """
 from __future__ import annotations
 from collections import defaultdict
@@ -127,31 +130,70 @@ def simulate_baseline(
     return np.maximum(1e-6, baseline)
 
 def axion_lineshape_gaussian(
-    freqs_hz: np.ndarray,
+    rf_grid_hz: np.ndarray,
     f_axion_hz: float,
     sigma_hz: float
 ) -> np.ndarray:
     """
     Gaussian lineshape (unit *area* w.r.t. discrete bins).
     Suitable as a simple SHM proxy; replace later with a Maxwellian if desired.
+
+    Parameters
+    ==========
+    rf_grid_hz: 1D array
+        Array containing simulated spectrum's frequencies
+    f_axion_hz: float
+        Frequency of injected axion
+    sigma_hz: float
+        Width of injected axion
+
+
+    Returns
+    =======
+    1D array
+        Normalised axion (gaussian) lineshape 
+
+    See Also
+    ========
+    axion_haloscope.width_fq: Details how sigma_hz is calculated
+
     """
-    x = (freqs_hz - f_axion_hz) / (sigma_hz + 1e-30)
-    l = np.exp(-0.5 * x * x)
+    x = (rf_grid_hz - f_axion_hz) / (sigma_hz + 1e-30)
+    lineshape = np.exp(-0.5 * x * x)
     # Normalize to unit sum over bins
-    l_sum = l.sum()
-    if l_sum <= 0:
-        return np.zeros_like(l)
-    return l / l_sum
+    lineshape_sum = lineshape.sum()
+    if lineshape_sum <= 0:
+        return np.zeros_like(lineshape)
+    return lineshape / lineshape_sum
 
 def injected_axion_power(
-    rf_grid_hz: np.ndarray, f_axion_hz: float, sigma_hz: float, total_power: float
+    rf_grid_hz: np.ndarray,
+    f_axion_hz: float,
+    sigma_hz: float,
+    total_power: float
 ) -> np.ndarray:
     """
     Distribute 'total_power' across rf_grid_hz with a Gaussian lineshape.
     Returns a per-bin power array aligned with rf_grid_hz.
+
+    Parameters
+    ==========
+    rf_grid_hz: 1D array
+        Array containing simulated spectrum's frequencies
+    f_axion_hz: float
+        Frequency of injected axion
+    sigma_hz: float
+        Width of injected axion
+    total_power: float
+        Power used to scale the lineshape
+    
+    Returns
+    =======
+    1D array
+        Scaled axion (gaussian) lineshape
     """
-    lb = axion_lineshape_gaussian(rf_grid_hz, f_axion_hz, sigma_hz)
-    return total_power * lb
+    lineshape = axion_lineshape_gaussian(rf_grid_hz, f_axion_hz, sigma_hz)
+    return total_power * lineshape
 
 def _simulate_one_spectrum(
     i: int,
@@ -169,9 +211,9 @@ def _simulate_one_spectrum(
     rf_index_map: List[np.ndarray],
 ) -> Tuple[np.ndarray, dict]:
     """
-    Simulate one tuned spectrum plus its metadata.
-
-    Returns
+    Simulate one tuned spectrum plus its metadata. Spectrum is just baseline multiplied by the 
+    gaussian noise (to show a multiplactive baseline). The baseline is then manipulated to a 
+    shape detailed in `external_noise`. Also extracts metadata from the information.
     """
     baseline = simulate_baseline(n_bins, rng, amplitude=baseline_amp, corr_bins=baseline_corr_bins)
     white_noise = rng.normal(0.0, noise_sigma, size=n_bins)
@@ -188,8 +230,6 @@ def _simulate_one_spectrum(
         "b_vals": None,
         "q_factor": None,
         "temps": None,
-        "tuning_angle": None,
-        "volume": None,
         "res_freq": axion.f_axion_hz if axion is not None else None,
         "cw_freq": None,
         "bandwidth": axion.sigma_hz if axion is not None else None,
@@ -208,17 +248,38 @@ def simulate_spectra(
     baseline_amp: float = 0.05,
     baseline_corr_bins: int = 400,
     baseline_key: Optional[np.ndarray] = None,
-) -> Tuple[List[np.ndarray], np.ndarray, np.ndarray, List[np.ndarray]]:
+) -> SpectrumSet[List[np.ndarray], np.ndarray, np.ndarray, List[np.ndarray], SpectrumMetadata]:
     """
     Simulate multiple tuned spectra: slow baseline × (1 + Gaussian noise),
     placed on a shared RF grid, with an optional injected axion-like line.
 
+    Parameters
+    ==========
+    n_spectra: int = 60,
+    n_bins: int = 6000,
+    bin_width_hz: float = 100.0,
+    f_start_hz: float = 5.70e9,
+    tune_step_bins: int = 60,
+    noise_sigma: float = 1.0,
+    rng_seed: int | None = 1234,
+    injected_axion: dict | None = None,
+    baseline_amp: float = 0.05,
+    baseline_corr_bins: int = 400,
+    baseline_key: np.ndarray
+
     Returns
-    -------
-    spectra : list of (n_bins,) float arrays
+    =======
+    spectra: list of (n_bins,) float arrays
         Raw spectra (pre-baseline-removal), one per tuning step.
-    freqs_per_spec, rf_grid, rf_index_map
+    freqs_per_spec: rf_grid, rf_index_map
         Frequency bookkeeping from make_frequency_axes().
+    metadata: SpectrumMetadata
+        metadata extracted from simualtion
+
+    See Also
+    ========
+    axion_haloscope.io.SpectrumSet: see the data structure being exported
+    axion_haloscope.io.SpectrumMetadata: see the metadata structure being exported
     """
     rng = np.random.default_rng(rng_seed)
     freqs_per_spec, rf_grid, rf_index_map = make_frequency_axes(

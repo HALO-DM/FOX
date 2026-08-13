@@ -13,7 +13,6 @@ import pathlib
 import sys
 import time
 import numpy as np
-matplotlib.use("Agg")
 import matplotlib as mpl
 import matplotlib.pyplot as plt
 import pandas as pd
@@ -39,6 +38,7 @@ from axion_haloscope.sigma_clipping       import claude_clipping, blue_clipping,
 from axion_haloscope.simulation           import simulate_spectra
 from axion_haloscope.utils                import create_directory, find_project_root, load_yaml_config
 
+mpl.use("Agg")
 mpl.rcParams.update({
     "font.family": "serif",
     "font.serif":  ["Times New Roman"],
@@ -775,18 +775,17 @@ def main():
     # =======================================================================
     # Rebin + Grand Spectrum (SHM template)
     # =======================================================================
-    C, K = rb["C"], rb["K"]
-    Dr, sr, _ = rebin_ml(combined, sigma_c, C=C)
-    freqs_r = rf[:len(Dr)*C:C] + (C//2)* (fper[0][1] - fper[0][0])
-    f0 = freqs_r[len(freqs_r)//2]
+    rebin_width, template_width = rb["C"], rb["K"]
+    data_rebinned, sigma_dr, _ = rebin_ml(combined, sigma_c, rebin_width=rebin_width)
+    feqs_rebinned = rf[:len(data_rebinned)*rebin_width:rebin_width] + (rebin_width//2)* (fper[0][1] - fper[0][0])
+    f0 = feqs_rebinned[len(feqs_rebinned)//2]
     f0 = np.average(metadata.res_freqs) * 1e9
 
-    Lq = shm_maxwell_template(K=K, bin_width_hz=C*(fper[0][1] - fper[0][0]), f0_hz=f0)
-    Dg, sg = grand_spectrum_ml(Dr, sr, Lq)
-    Dg, sg = Dr, sr
+    lineshape_template = shm_maxwell_template(template_width=template_width, bin_width_hz=rebin_width*(fper[0][1] - fper[0][0]), f0_hz=f0)
+    grand_spectrum, sigma_gs = grand_spectrum_ml(data_rebinned, sigma_dr, lineshape_template)
 
-    z = np.zeros_like(Dg); m = np.isfinite(sg) & (sg>0); z[m] = Dg[m]/sg[m]
-    graphs.plot_grand_spectrum(freqs_r, z, main_plots_dir)
+    z = np.zeros_like(grand_spectrum); m = np.isfinite(sigma_gs) & (sigma_gs>0); z[m] = grand_spectrum[m]/sigma_gs[m]
+    graphs.plot_grand_spectrum(feqs_rebinned, z, main_plots_dir)
 
     # =======================================================================
     # Candidates
@@ -796,11 +795,11 @@ def main():
     if diagnostic_mode:
         print(f"[DETECT] Detection threshold theta = {theta:.3f} sigma "
               f"(target_snr={det['target_snr']}, confidence={det['confidence']})")
-    cands, _ = find_candidates(Dg, sg, theta, min_separation=K-1)
+    cands, _ = find_candidates(grand_spectrum, sigma_gs, theta, min_separation=template_width-1)
     if diagnostic_mode:
         print(f"[DETECT] Found {len(cands)} candidate(s) above threshold")
     
-    graphs.plot_candidates(freqs_r, z, theta, cands, main_plots_dir)
+    graphs.plot_candidates(feqs_rebinned, z, theta, cands, main_plots_dir)
 
 
     t1     = time.time()
@@ -818,18 +817,18 @@ def main():
     # Exclusion
     # =======================================================================
 
-    Rloc = compute_local_snr_template(sr, Lq)
-    gmin = coupling_limit(Rloc, target_snr=det["target_snr"], g0=det["g0"], snr_efficiency=det["snr_eff"])
+    local_snr = compute_local_snr_template(sigma_dr, lineshape_template)
+    gmin = coupling_limit(local_snr, target_snr=det["target_snr"], g0=det["g0"], snr_efficiency=det["snr_eff"])
     if diagnostic_mode:
         print(f"[EXCLUSION] Computing local SNR template and coupling limit (target_snr={det['target_snr']}, g0={det['g0']}, snr_eff={det['snr_eff']})")
         finite_g = gmin[np.isfinite(gmin)]
         if finite_g.size:
             print(f"[EXCLUSION] g_min (rel. to g0) stats: best={np.min(finite_g):.4g}, "
                     f"worst={np.max(finite_g):.4g}")
-    graphs.plot_exclusion(freqs_r, gmin, outfile=main_plots_dir/"exclusion.png", title="95% CL Exclusion (SHM)")
+    graphs.plot_exclusion(feqs_rebinned, gmin, outfile=main_plots_dir/"exclusion.png", title="95% CL Exclusion (SHM)")
     with (data_dir/"exclusion.csv").open("w") as fh:
         fh.write("freq_Hz,g_min_rel_to_g0\n")
-        for f,g in zip(freqs_r, gmin):
+        for f,g in zip(feqs_rebinned, gmin):
             if np.isfinite(g): fh.write(f"{f},{g}\n")
     if diagnostic_mode:
         print(f"[OUT]: Exclusion CSV saved to: {data_dir/'exclusion.csv'}")
