@@ -8,6 +8,8 @@ more physical simulation.
 """
 from __future__ import annotations
 from dataclasses import dataclass
+from datetime import datetime
+from pathlib import Path
 from typing import List, Tuple
 
 import numpy as np
@@ -18,11 +20,28 @@ from axion_haloscope.wavepacket import wavepacket_generation
 from axion_haloscope.noise import simulate_baseline
 from axion_haloscope.downmixing import downmix_signal
 from axion_haloscope.graphs import aliasing, simulation_stages
+from axion_haloscope.width_fq import width_from_fq
 
 
 @dataclass
 class AxionParams:
-    """Parameters for an injected axion-like signal."""
+    """Parameters for an injected axion-like signal. Currently unused in this simulation, update
+    to contain simualted axion information.
+
+    Used to configure a synthetic narrow-band signal added to simulated spectra, approximating
+    the expected lineshape of an axion-photon conversion signal (e.g. under the Standard Halo
+    Model) as a Gaussian centered at a given frequency.
+
+    Attributes
+    ==========
+    f_axion_hz : float
+        Central frequency of the injected signal, in Hz.
+    sigma_hz : float
+        Spectral width (1-sigma) of the injected signal, in Hz.
+    total_power : float
+        Total integrated power of the injected signal, in the same (arbitrary) power units as
+        the simulated spectra.
+    """
     f_axion_hz : float     # central frequency [Hz]
     sigma_hz   : float     # spectral width (1-sigma) [Hz]
     total_power: float     # integrated power in spectrum units (arb.)
@@ -35,14 +54,29 @@ def make_frequency_axes(
     """
     Build per-spectrum RF axes on a common global RF grid.
 
+    Parameters
+    ==========
+    n_spectra : int
+        Number of spectra (tuning steps) in the scan.
+    freqs : 1D array
+        Array of frequency bins
+    mask_show : 1D array
+        Array of which freqs should be shown. Currently hardcoded to be between 0.2MHz and 200MHz
+
     Returns
-    -------
-    freqs_per_spec : (n_spectra, n_masked) float array
-        RF frequency of each kept bin for each spectrum.
-    rf_grid : (n_bins,) float array
-        Global RF axis (unmasked).
-    rf_index_map : list of length n_spectra
-        rf_index_map[i] are integer indices into rf_grid for spectrum i.
+    =======
+    freqs_per_spec : 1D array of shape (n_spectra, n_bins)
+        RF frequency of each bin, for each spectrum.
+    rf_grid : 1D array of shape (N_total,)
+        Global RF axis covering the whole scan
+    rf_index_map : list of 1D array
+        `rf_index_map[i]` gives the integer indices into `rf_grid` corresponding to spectrum 
+        `i`'s bins.
+
+    Notes
+    =====
+    If `tune_step_bins >= n_bins`, consecutive spectra don't overlap at all on `rf_grid`.
+    Note for non-tunable cavities, `tune_step_bins` should be set to 0
     """
     rf_grid = freqs
     idx = np.where(mask_show)[0]          # compute once; same for every spectrum
@@ -63,19 +97,66 @@ def simulate_spectra(
     freq_axion: float = 30e9,
     freq_downmixed: float = 6e6,
     samples_per_cycle: float = 125/12,
-    run_dir: str = "",
+    run_dir: Path = "",
 ) -> Tuple[List[np.ndarray], np.ndarray, np.ndarray, List[np.ndarray]]:
     """
-    New simulation
+    Simulate multiple physical spectra, mimicking the current pathfinder status. Uses physical
+    power scalings and realistic noise floors given hardcoded parameters. Does not simualte a 
+    tunable cavity, only 1 resonant frequency 
+
+    Parameters
+    ==========
+    n_spectra: int
+        Number of spectra to be generated
+    n_bins: int
+        Number of bins per spectra
+    freq_axion: float
+        Resonant Frequency of cavity/Injected Axion frequency (as doesn't simulate tunable cavity)
+    freq_downmixed: float
+        Target frequency to downmix to
+    samples_per_cycle: float
+        How many bins per wavelength
+    run_dir: Path
+        Save directory for all graphs/data
+
+    Returns
+    =======
+    spectra: list of (n_bins,) float arrays
+        Raw spectra (pre-baseline-removal)
+    freqs_per_spec: rf_grid, rf_index_map
+        Frequency bookkeeping from make_frequency_axes().
+    metadata: SpectrumMetadata
+        metadata extracted from simualtion
+
+    Notes
+    =====
+    For all simuations, bandwidth is not calculated and therefore not passed. If QC check for min
+    bandwidth is left on, all simualtions will be discarded. Turn off this seting in the config
+    file.
+
+    See Also
+    ========
+    axion_haloscope.io.SpectrumSet: see the data structure being exported
+    axion_haloscope.io.SpectrumMetadata: see the metadata structure being exported
+    axion_haloscope.wavepacket: see the initial signal generation and current hardcoded values
     """
 
     spectra: List[np.ndarray] = []
+    dates = []
+    file_names = []
+    invalid_files = []
+    b_vals = []
+    temps = []
+    q_factors = []
+    res_freqs = []
+    cw_freqs = []
+    bandwidths = []
 
     freq_local_oscillator = freq_axion - freq_downmixed
     combined_freq = freq_axion + freq_local_oscillator
     fs = freq_axion * samples_per_cycle
 
-    bandwidth = 1e-6 * freq_axion
+    axion_bandwidth = width_from_fq(freq_axion)
     dt = 1.0 / fs
     t = np.arange(n_bins) * dt
 
@@ -104,18 +185,31 @@ def simulate_spectra(
 
 
     for i in range(n_spectra):
-        x_raw_signal = wavepacket_generation(freq_axion, bandwidth, n=n_bins,
+        x_raw_signal = wavepacket_generation(freq_axion, axion_bandwidth, n=n_bins,
                                              samples_per_cycle=samples_per_cycle)
         baseline = simulate_baseline(x_raw_signal[:, 0])
 
         x_signal = x_raw_signal[:, 1] + baseline
 
-        x_filtered, x_mixed = downmix_signal(x_signal, t, freq_local_oscillator, h_linear, l_linear)
+        x_filtered, x_mixed = downmix_signal(x_signal, t, freq_local_oscillator, h_linear,
+                                             l_linear)
 
         x_filt  = np.fft.rfft(x_filtered, n=n_bins)
         psd_filt = (np.abs(x_filt)**2) / (n_bins * fs)
 
         spectra.append(psd_filt[mask_show].astype(np.float64))
+        dates.append(datetime.now().strftime("%Y-%m-%d %H:%M:%S"))
+        file_names.append(f"FOX_simulation_{datetime.now().strftime("%Y-%m-%d")}_{i:05d}")
+        invalid_files.append(None)
+        b_vals.append(None)
+        temps.append(None)
+        q_factors.append(None)
+        res_freqs.append(freq_axion)
+        cw_freqs.append(freq_axion)
+        bandwidths.append(None) # Readout Chain Bandwidth not axion bandwidth
+
+        # Please note, with bandwidth at None, if QC check for min bandwidth is on, all spectra
+        # will be discarded.
 
         if i == 0:
             # Graphs
@@ -124,10 +218,17 @@ def simulate_spectra(
                                     x_mixed, x_filtered, freqs,psd_filt, mask_show,
                                     h_linear, l_linear, run_dir, t)
             aliasing(freqs, psd_mixed, freq_downmixed, fs, combined_freq, tag, run_dir)
-    """
-    Fill in Later
-    """
-    metadata = SpectrumMetadata(None)
+
+    metadata = SpectrumMetadata(
+        dates = dates,
+        file_names = file_names,
+        invalid_files = invalid_files,
+        b_vals = b_vals,
+        temps = temps,
+        q_factors = q_factors,
+        res_freqs = res_freqs,
+        cw_freqs = cw_freqs,
+        bandwidths = bandwidths,)
     return SpectrumSet(spectra, freqs_per_spec, rf_grid, rf_index_map, metadata)
 
 # --- Minimal demo (optional) ---

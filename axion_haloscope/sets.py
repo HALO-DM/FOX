@@ -77,7 +77,9 @@ def set_averaging(
     """
     set_avg_spectra = []
     for single_set in sets:
-        set_avg_spectra.append(None)
+        if single_set is None:
+            set_avg_spectra.append(None)
+            continue
 
         set_avg_spectra.append((np.mean([x[1] for x in single_set], axis=0),
                                 np.mean([x[0] for x in single_set], axis=0)))

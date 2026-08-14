@@ -9,7 +9,7 @@ injected gaussian signal which represents the axion.
 from __future__ import annotations
 from collections import defaultdict
 from dataclasses import dataclass
-import datetime
+from datetime import datetime
 from typing import List, Tuple, Optional
 
 import numpy as np
@@ -27,7 +27,7 @@ class AxionParams:
     Model) as a Gaussian centered at a given frequency.
 
     Attributes
-    ----------
+    ==========
     f_axion_hz : float
         Central frequency of the injected signal, in Hz.
     sigma_hz : float
@@ -51,7 +51,7 @@ def make_frequency_axes(
     Build per-spectrum RF axes on a common global RF grid.
 
     Parameters
-    ----------
+    ==========
     n_spectra : int
         Number of spectra (tuning steps) in the scan.
     n_bins : int
@@ -64,7 +64,7 @@ def make_frequency_axes(
         Number of bins the tuning window shifts by between consecutive spectra.
 
     Returns
-    -------
+    =======
     freqs_per_spec : 1D array of shape (n_spectra, n_bins)
         RF frequency of each bin, for each spectrum.
     rf_grid : 1D array of shape (N_total,)
@@ -74,7 +74,7 @@ def make_frequency_axes(
         `i`'s bins.
 
     Notes
-    -----
+    =====
     If `tune_step_bins >= n_bins`, consecutive spectra don't overlap at all on `rf_grid`.
     Note for non-tunable cavities, `tune_step_bins` should be set to 0
     """
@@ -224,15 +224,15 @@ def _simulate_one_spectrum(
         raw = raw + axion_power_global[rf_index_map[i]]
 
     metadata = {
-        "date": datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-        "file_name": None,
+        "date": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+        "file_name": f"FOX_simulation_{datetime.now().strftime("%Y-%m-%d")}_{i:05d}",
         "invalid_files": None,
         "b_vals": None,
         "q_factor": None,
         "temps": None,
         "res_freq": axion.f_axion_hz if axion is not None else None,
-        "cw_freq": None,
-        "bandwidth": axion.sigma_hz if axion is not None else None,
+        "cw_freq": axion.f_axion_hz if axion is not None else None,
+        "bandwidth": None,
     }
     return raw.astype(np.float64), metadata
 
@@ -275,6 +275,12 @@ def simulate_spectra(
         Frequency bookkeeping from make_frequency_axes().
     metadata: SpectrumMetadata
         metadata extracted from simualtion
+
+    Notes
+    =====
+    For all simuations, bandwidth is not calculated and therefore not passed. If QC check for min
+    bandwidth is left on, all simualtions will be discarded. Turn off this seting in the config
+    file.
 
     See Also
     ========

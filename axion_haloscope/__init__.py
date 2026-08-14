@@ -17,7 +17,7 @@ __version__ = "0.1.0"
 from .simulation import simulate_spectra, AxionParams
 from .baseline import remove_baseline, mask_bins
 from .combine import combine_ml
-from .rebin import rebin_ml, axion_template_gaussian, grand_spectrum_ml
+from .rebin import rebin_ml, grand_spectrum_ml
 from .detection import threshold_for_detection, find_candidates
 from .limit import compute_local_snr_template, coupling_limit
 from .lineshape import shm_maxwell_template, shm_maxwell_profile

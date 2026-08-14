@@ -312,7 +312,7 @@ def main():
     ['2026-02-05 00:10:58', '2026-02-05 19:10:58'], #full linear section
     ['2026-02-01 00:10:58', '2026-02-04 22:30:58'] #low freq linear section
     ]
-    time_ar = 1
+    time_array_index = 1
 
     sset = cut_by_datetime(
         sset,
@@ -637,7 +637,7 @@ def main():
             plotting_set_masks = set_masks
 
         if diagnostic_mode:
-            graphs.plot_iteritive_clipping(set_avg_spectra, plotting_set_masks, set_sg_fits,iteration, warm_run_dir, set_mean_res)
+            graphs.plot_iteritive_clipping(set_avg_spectra, plotting_set_masks, set_sg_fits,iteration, warm_run_dir, set_mean_res, set_masks)
 
 
     # --------------------

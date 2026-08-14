@@ -1,14 +1,23 @@
 # axion_haloscope/data_quality.py
+"""
+Data Quality
+============
+Runs different Quality Control (QC) checks on data. 
+"""
+
 from __future__ import annotations
 from typing import Callable, Iterable, List, Tuple
-import numpy as np
 from datetime import datetime
+
+import numpy as np
 from .io_working import SpectrumSet, SpectrumMetadata
+
 BadPredicate = Callable[[np.ndarray, np.ndarray, SpectrumMetadata, int], bool]
 
 def placeholder_bad_predicate(s: np.ndarray, f: np.ndarray, md: SpectrumMetadata, i: int) -> bool:
+    """Unused placeholder - all predicate functions match this basic template, plus any extra 
+    restrictions"""
     return False
-
 
 
 def power_too_high(
@@ -23,23 +32,22 @@ def power_too_high(
     Flag a spectrum as bad if its average power exceeds the max power limit p_max.
     
     Parameters
-    ----------
-        s : np.ndarray
-            power data
-        f : np.ndarray
-            frequency data
-        md : SpectrumMetadata
-            metadata for the spectrum.
-        i : int
-            spectrum index
-        p_max : float
-            max power threshold in arb units.
+    ==========
+    s : np.ndarray
+        power data
+    f : np.ndarray
+        frequency data
+    md : SpectrumMetadata
+        metadata for the spectrum.
+    i : int
+        spectrum index
+    p_max : float
+        max power threshold in arb units.
     
     Returns
-    -------
-        bool
-            
-        """
+    =======
+    bool
+    """
     average_power = np.average(s)
 
     return average_power > p_max
@@ -58,22 +66,21 @@ def small_bandwidth(
     Flag a spectrum as bad if its minimium bandwidth is below the threshold.
 
     Parameters
-    ----------
-        s : np.ndarray
-            power data
-        f : np.ndarray
-            frequency data
-        md : SpectrumMetadata
-            metadata for the spectrum.
-        i : int
-            spectrum index
-        bw_min : float
-            min bandwidth value, in Hz.
+    ==========
+    s : np.ndarray
+        power data
+    f : np.ndarray
+        frequency data
+    md : SpectrumMetadata
+        metadata for the spectrum.
+    i : int
+        spectrum index
+    bw_min : float
+        min bandwidth value, in Hz.
 
     Returns
-    -------
-        bool
-        
+    =======
+    bool
     """
     bw = md.bandwidths[i]
 
@@ -93,22 +100,21 @@ def metadata_is_zeros(
     Flag a spectrum as bad if an attribute (specified by item) is full of zeros.
 
     Parameters
-    ----------
-        s : np.ndarray
-            power data
-        f : np.ndarray
-            frequency data
-        md : SpectrumMetadata
-            metadata for the spectrum.
-        i : int
-            spectrum index
-        item : str
-            name of the metadata element that is being checked.
+    ==========
+    s : np.ndarray
+        power data
+    f : np.ndarray
+        frequency data
+    md : SpectrumMetadata
+        metadata for the spectrum.
+    i : int
+        spectrum index
+    item : str
+        name of the metadata element that is being checked.
 
     Returns
-    -------
-        bool
-        
+    =======
+    bool
     """
     value = getattr(md, item)
     return bool(np.all(value[i] == 0))
@@ -126,25 +132,24 @@ def time_filter(
 ) -> bool:
     """
     Flag a spectrum as bad if it is within known bad time range.
-    
+
     Parameters
-    ----------
-        s : np.ndarray
-            power data
-        f : np.ndarray
-            frequency data
-        md : SpectrumMetadata
-            metadata for the spectrum.
-        i : int
-            spectrum index
-        start_time : str,
-            start time of the data that is being removed.
-        end_time : str,
-            end time of the data that is being removed.
+    ==========
+    s : np.ndarray
+        power data
+    f : np.ndarray
+        frequency data
+    md : SpectrumMetadata
+        metadata for the spectrum.
+    i : int
+        spectrum index
+    start_time : str,
+        start time of the data that is being removed.
+    end_time : str,
+        end time of the data that is being removed.
     Returns
-    -------
-        bool
-        
+    =======
+    bool
     """
     date = md.dates[i]
 
@@ -177,26 +182,25 @@ def too_noisy(
     - units are in the spectrum’s native (arb) units.
 
     Parameters
-    ----------
-        s : np.ndarray
-            power data
-        f : np.ndarray
-            frequency data
-        md : SpectrumMetadata
-            metadata for the spectrum.
-        i : int
-            spectrum index
-        rms_max : float
-            maxmium value of rms.
-        nan_fail : bool
-            if checking for NaNs/inf
-        robust : bool
-            if using median+MAD (True) or mean+std (False)
+    ==========
+    s : np.ndarray
+        power data
+    f : np.ndarray
+        frequency data
+    md : SpectrumMetadata
+        metadata for the spectrum.
+    i : int
+        spectrum index
+    rms_max : float
+        maxmium value of rms.
+    nan_fail : bool
+        if checking for NaNs/inf
+    robust : bool
+        if using median+MAD (True) or mean+std (False)
 
     Returns
-    -------
-        bool
-        
+    =======
+    bool
     """
     if nan_fail and (not np.isfinite(s).all()):
         return True
@@ -212,7 +216,7 @@ def too_noisy(
         rms = np.sqrt(np.nanmean((x - mu) ** 2))
     if not np.isfinite(sigma):  # degenerate edge case
         return True
-    
+
     return rms > rms_max
 
 
@@ -225,17 +229,16 @@ def identify_bad_spectra(sset: SpectrumSet,
     indices of the bad spectra. 
 
     Parameters
-    ----------
-        sset : SpectrumSet
-            the spectra
-        predicate : BadPredicate
-            the condition that is being considered when filtering
-    Returns
-    -------
-        List[int]
-            list of the indices of the bad spectra
+    ==========
+    sset : SpectrumSet
+        the spectra
+    predicate : BadPredicate
+        the condition that is being considered when filtering
 
-        
+    Returns
+    =======
+    List[int]
+        list of the indices of the bad spectra
     """
     pred = predicate
     bad: List[int] = []
@@ -264,6 +267,34 @@ def filter_spectrum_set(
     bad_mask: Iterable[bool] | None = None,
     predicate: BadPredicate | None = None,
 ) -> Tuple[SpectrumSet, SpectrumSet, List[int], List[int]]:
+    """
+    Filters a SpectrumSet object by a given set of rules, defined by either bad_indices (known
+    bad data), bad_mask (mask that filters out bad data), or predicate.
+    Predicate is one of a few different filters for Quality Control (QC) checks.
+
+    Parameters
+    ==========
+    sset: SpectrumSet
+
+    bad_indices: Iterable[int]
+
+    bad_mask: Iterable[bool]
+
+    predicate: BadPredicate
+        Function that describes what filter is being applied to `sset`
+
+    Returns
+    =======
+    filtered: SpectrumSet
+        sset of all validated data
+    removed: SpectrumSet
+        sset of all invalid data that will not be used in the data analysis
+    keep: List
+        List of kept spectra
+    bad: List
+        List of bad spectra
+
+    """
     
     n = sset.n_spectra()
     if sum(x is not None for x in (bad_indices, bad_mask, predicate)) > 1:
@@ -311,22 +342,18 @@ def restrict_frequency_range(
     The global rf_grid is also trimmed to the same range.
 
     Parameters
-    ----------
-        sset : SpectrumSet
-            the spectra
-        fmin_hz : float
-            lower limit on the accepted frequency range.
-        fmax_hz : float
-            upper limit on the accepted frequency range.
+    ==========
+    sset : SpectrumSet
+        Defined in .io
+    fmin_hz : float
+        lower limit on the accepted frequency range.
+    fmax_hz : float
+        upper limit on the accepted frequency range.
 
     Returns
-    -------
-        bool
-        
+    =======
+    SpectrumSet of filtered data
     """
-    import numpy as np
-    from .io import SpectrumSet
-
     if fmin_hz is None:
         fmin_hz = -np.inf
     if fmax_hz is None:
@@ -370,4 +397,5 @@ def restrict_frequency_range(
         freqs_per_spec=freqs_new,
         rf_grid=rf_grid_new,
         rf_index_map=rf_index_map_new,
+        metadata=sset.metadata,
     )

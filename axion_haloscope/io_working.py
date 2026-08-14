@@ -1,30 +1,51 @@
+"""
+I/O
+===
+
+Describes the input and output system of the data analysis. Can currently read the following files:
+.npz
+.csv
+QSHS .hdf5 files
+
+Can write to the following:
+.npz
+FOX .hdf5 files
+
+Converts QSHS files to SpectrumSet, and can then write SpectrumSet to QSHS
+"""
+
 from __future__ import annotations
-import numpy as np
 from dataclasses import dataclass
+import json
 from pathlib import Path
 from typing import List, Tuple, Optional
-import h5py, json
+
+import h5py
+import numpy as np
 from tqdm import tqdm
 
 @dataclass
 class SpectrumMetadata:
     """
-    Metadata innit
+    Multi-spectrum collection of metadata and other information. Not all variable can be inputted
+    as of current, and is a form of future proofing.
 
-    dates            : list of floats
-    file_names       : list of strings
-    invalid_files    : list of [file_name, reason, date] triples
-    b_vals           : list of floats
-    temps            : list of floats
-    q_factors        : list of floats
-    res_freqs        : list of floats
-    cw_freqs         : list of floats
-    bandwidths       : list of floats
+    Attributes
+    ==========
+    dates            : list of (n_bins,) strings
+    file_names       : list of (n_bins,)strings
+    invalid_files    : list of (invalid_files,) [file_name, reason, date] triples
+    b_vals           : array of (n_bins,) floats
+    temps            : array of (n_bins,) floats
+    q_factors        : array of (n_bins,) floats
+    res_freqs        : array of (n_bins,) floats
+    cw_freqs         : array of (n_bins,) floats
+    bandwidths       : array of (n_bins,) floats
     """
 
-    dates: np.ndarray
-    file_names: np.ndarray
-    invalid_files: np.ndarray
+    dates: List[str]
+    file_names: List[str]
+    invalid_files: List[Tuple[str, str, str]]
     b_vals: np.ndarray
     temps: np.ndarray
     q_factors: np.ndarray
@@ -32,13 +53,13 @@ class SpectrumMetadata:
     cw_freqs: np.ndarray
     bandwidths: np.ndarray
 
-
-    
 @dataclass
 class SpectrumSet:
     """
     Multi-spectrum scan on a common RF grid.
 
+    Attributes
+    ==========
     spectra        : list of (n_bins_i,) float arrays (raw power)
     freqs_per_spec : list of (n_bins_i,) float arrays [Hz]
     rf_grid        : (N_rf,) float array [Hz]
@@ -55,6 +76,7 @@ class SpectrumSet:
         return len(self.spectra)
 
 def _infer_bin_width(freqs_1d: np.ndarray) -> float:
+    """Calculates bin width manually"""
     df = np.diff(freqs_1d.astype(float, copy=False))
     df = df[np.isfinite(df)]
     return float(np.median(df)) if df.size else 0.0
@@ -97,6 +119,8 @@ def _build_rf_grid_and_map(freqs_per_spec: List[np.ndarray],
 # NPZ bundle I/O
 # ----------------------------
 def read_npz(npz_path: str | Path) -> SpectrumSet:
+    """Function to read .npz files in the format that they have been written. Doesn't account
+    for metadata"""
     npz_path = Path(npz_path)
     with np.load(npz_path, allow_pickle=False) as z:
         spectra = z["spectra"]
@@ -122,6 +146,7 @@ def read_npz(npz_path: str | Path) -> SpectrumSet:
                        metadata=None)
 
 def write_npz(sset: SpectrumSet, path: str | Path) -> None:
+    """Writes .npz files from sset, doesn't write metadata"""
     path = Path(path)
     spectra = np.stack(sset.spectra, axis=0)
     max_len = max(len(f) for f in sset.freqs_per_spec)
@@ -143,6 +168,7 @@ def read_csv_dir(csv_dir: str | Path,
     """
     Read a directory of per-spectrum CSV files with columns [freq_Hz, power].
     Builds a common RF grid and index map automatically.
+    Doesn't read metadata.
     """
     csv_dir = Path(csv_dir)
     files = sorted(csv_dir.glob(pattern))
@@ -174,10 +200,15 @@ def read_csv_dir(csv_dir: str | Path,
 # HDF5 I/O
 # ----------------------------
 
-def write_hdf5(sset: SpectrumSet, path: str | Path,
-               compression: str | None = "gzip", compression_opts: int = 4) -> None:
+def write_hdf5(
+    sset: SpectrumSet,
+    path: str | Path,
+    compression: str | None = "gzip",
+    compression_opts: int = 4
+) -> None:
     """
-    Save SpectrumSet to HDF5 using vlen datasets for ragged arrays.
+    Save SpectrumSet to HDF5 using vlen datasets for ragged arrays. Metadata is written to a 
+    seperate group, with seperate datasets per type.
     """
     path = Path(path)
     with h5py.File(path, "w") as h5:
@@ -315,6 +346,9 @@ def read_qshs_hdf5(
 
     If center_frequency_hz is provided and use_shifted_frequency=False:
       rf_grid = center_frequency_hz + frequency_offset_hz
+
+
+    Manually extracts metadata that is known to exist. Retrieve it using `key`.
 
     Returns a SpectrumSet with one spectrum.
     """
@@ -456,6 +490,8 @@ def read_qshs_hdf5_dir(
             else:
                 spectra.append(one.spectra[0])
                 freqs_per_spec.append(one.freqs_per_spec[0])
+
+                # Extract Metadata
                 spectrum_metadata = one.metadata
                 dates.append(spectrum_metadata.dates)
                 file_names.append(spectrum_metadata.file_names)

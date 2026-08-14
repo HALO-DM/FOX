@@ -76,10 +76,6 @@ def _get(
     default: Any,
 ) -> Optional[Any]:
     """Basic getter for a certain variable from the YAML file"""
-
-    print(type(d))
-    import sys
-    sys.exit()
     v = d.get(key, default)
     return default if v is None else v
 
