@@ -1,7 +1,7 @@
 input:
-  input_mode: "read_data"                 # "read_data", "convert_data", or "simulation"
+  input_mode: "convert_data"              # "read_data", "convert_data", or "simulation"
                                           # note if "simulation", please make sure simulation information is filled out
-  directory: "output/data_analysis/run_10.08.2026_12.34.19/data"                  # location of either raw data (for input_mode = "convert_data"), 
+  directory: "input/QSHS/Feb/"            # location of either raw data (for input_mode = "convert_data"), 
                                           # or location of file to be read (for input_mode = "read_data")
   input_file_name: "converted_spectra.h5" # name of file to be read. Only used on "read_data" input_mode
 

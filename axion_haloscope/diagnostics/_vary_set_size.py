@@ -17,7 +17,7 @@ from axion_haloscope.baseline import remove_baseline
 def _init_masks(
     clipping_mode: str,
     set_avg_spectra:np.ndarray,
-    sets:List[List[Tuple[np.ndarray, np.ndaray, float]]],
+    sets:List[List[Tuple[np.ndarray, np.ndarray, float]]],
 ) -> List[List[np.ndarray]]:
     '''Creates empty mask structure and checks the clipping mode here is correct'''
     if clipping_mode == "claude":
@@ -31,7 +31,7 @@ def _init_masks(
 def _run_clipping(
     clipping_mode: str,
     set_avg_spectra: np.ndarray,
-    sets: List[List[Tuple[np.ndarray, np.ndaray, float]]],
+    sets: List[List[Tuple[np.ndarray, np.ndarray, float]]],
     masks: List[List[np.ndarray]],
     fits: List[np.ndarray],
     sigma_cut: int,
@@ -67,7 +67,7 @@ def _masked_fraction(
 
 def _residual_stats(
     clipping_mode: str,
-    sets: List[List[Tuple[np.ndarray, np.ndaray, float]]],
+    sets: List[List[Tuple[np.ndarray, np.ndarray, float]]],
     set_avg_spectra: np.ndarray,
     masks: List[List[np.ndarry]],
     fits: List[np.ndarray],
