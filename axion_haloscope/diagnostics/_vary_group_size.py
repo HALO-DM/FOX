@@ -1,10 +1,10 @@
 """
-Vary Set Size for demonsrative purposes
+Vary Group Size for demonsrative purposes
 
-Tests a range of different set sizes and exports information generated which 
+Tests a range of different group sizes and exports information generated which 
 can be passed on to a ploting class 
 """
-__all__ = ['evaluate_set_spacing']
+__all__ = ['evaluate_group_spacing']
 
 from typing import Dict, List, Tuple
 
@@ -16,22 +16,22 @@ from axion_haloscope.baseline import remove_baseline
 
 def _init_masks(
     clipping_mode: str,
-    set_avg_spectra:np.ndarray,
-    sets:List[List[Tuple[np.ndarray, np.ndarray, float]]],
+    group_avg_spectra:np.ndarray,
+    group:List[List[Tuple[np.ndarray, np.ndarray, float]]],
 ) -> List[List[np.ndarray]]:
     '''Creates empty mask structure and checks the clipping mode here is correct'''
     if clipping_mode == "claude":
         return [np.zeros(len(avg[0]), dtype=int) if avg is not None else None
-                for avg in set_avg_spectra]
+                for avg in group_avg_spectra]
     elif clipping_mode == "blue":
-        return [[np.zeros(len(item[0]), dtype=int) for item in s] for s in sets]
+        return [[np.zeros(len(item[0]), dtype=int) for item in s] for s in group]
     raise ValueError(f"Unknown clipping_mode: {clipping_mode}")
 
 
 def _run_clipping(
     clipping_mode: str,
-    set_avg_spectra: np.ndarray,
-    sets: List[List[Tuple[np.ndarray, np.ndarray, float]]],
+    group_avg_spectra: np.ndarray,
+    group: List[List[Tuple[np.ndarray, np.ndarray, float]]],
     masks: List[List[np.ndarray]],
     fits: List[np.ndarray],
     sigma_cut: int,
@@ -42,10 +42,10 @@ def _run_clipping(
     '''Runs clipping algorithms and returns masks and fits'''
     for iteration in range(1, n_iterations + 1):
         if clipping_mode == "claude":
-            masks, fits = claude_clipping(set_avg_spectra, masks, fits,
+            masks, fits = claude_clipping(group_avg_spectra, masks, fits,
                                            sigma_cut, sg_window, sg_poly, iteration)
         else:
-            masks, fits = blue_clipping(sets, masks, fits,
+            masks, fits = blue_clipping(group, masks, fits,
                                          sigma_cut, sg_window, sg_poly, iteration)
     return masks, fits
 
@@ -67,15 +67,15 @@ def _masked_fraction(
 
 def _residual_stats(
     clipping_mode: str,
-    sets: List[List[Tuple[np.ndarray, np.ndarray, float]]],
-    set_avg_spectra: np.ndarray,
-    masks: List[List[np.ndarry]],
+    group: List[List[Tuple[np.ndarray, np.ndarray, float]]],
+    group_avg_spectra: np.ndarray,
+    masks: List[List[np.ndarray]],
     fits: List[np.ndarray],
 ) -> Tuple[List[np.array], List[np.array]]:
     """Return statistics on residuals based on the clipping mode selected"""
     stds, avgs = [], []
     if clipping_mode == "claude":
-        for avg, mask, fit in zip(set_avg_spectra, masks, fits):
+        for avg, mask, fit in zip(group_avg_spectra, masks, fits):
             if avg is None or mask is None or fit is None:
                 continue
             _, spec_avg = avg
@@ -86,10 +86,10 @@ def _residual_stats(
             stds.append(np.nanstd(residuals))
             avgs.append(np.nanmean(residuals))
     else:
-        for set_, set_masks, fit in zip(sets, masks, fits):
-            if fit is None or len(set_) == 0:
+        for group_, group_masks, fit in zip(group, masks, fits):
+            if fit is None or len(group_) == 0:
                 continue
-            for (spectra, _freq, _res_freq), mask in zip(set_, set_masks):
+            for (spectra, _freq, _res_freq), mask in zip(group_, group_masks):
                 unmasked = mask == 0
                 if not unmasked.any():
                     continue
@@ -99,24 +99,24 @@ def _residual_stats(
     return stds, avgs
 
 
-def evaluate_set_spacing(
+def evaluate_group_spacing(
     spacing: int,
-    sets: List[List[Tuple[np.ndarray, np.ndarray, float]]],
+    grand_group: List[List[Tuple[np.ndarray, np.ndarray, float]]],
     base: Dict[int, int, int, int, float, float, str, int],
     sigma_cut: int,
     n_iterations: int,
 ) -> Dict[int, int, float, float, float, int, int, float]:
     """
-    Take a given set spacing, process the sets as if they are in the actual 
+    Take a given grand group spacing, process the grand group as if they are in the actual 
     pipeline, return summary stats for that spacing.
 
     Parameters
     ----------
     spacing: int, units: Minutes
-        maximum time between the start and end of a set - the length of 
-        time for which spectra are grouped into sets
-    sets: List[...]
-        spectra grouped into sets
+        maximum time between the start and end of a grand_group - the length of 
+        time for which spectra are grouped into grand_group
+    grand_group: List[...]
+        spectra grouped into grand_group
     base: Dict{...}
         dictionary of all baseline settings from YAML
     sigma_cut: float
@@ -129,16 +129,16 @@ def evaluate_set_spacing(
     -------
     Dict{
     spacing_minutes:  int, units: Minutes
-        maximum time between the start and end of a set - the length of 
-        time for which spectra are grouped into sets
-    n_sets: int
-        total number of sets 
-    average_set_size: float
-        average number of spectra in a set
+        maximum time between the start and end of a grand_group - the length of 
+        time for which spectra are grouped into grand_group
+    n_groups: int
+        total number of groups in grand group 
+    average_group_size: float
+        average number of spectra in a group
     average_residual_std: float
-        average standard deviation of the residuals of all sets
+        average standard deviation of the residuals of grand group
     average_residual_average: float
-        average mean of the residuals of all sets
+        average mean of the residuals of all grand group
     total_masked: int
         total number of masked bins
     total_bins: int
@@ -150,46 +150,46 @@ def evaluate_set_spacing(
     
     Warns
     ------
-    If SG fails, warn user that no SG has been fit for that set
+    If SG fails, warn user that no SG has been fit for that group
 
     
     See Also
     --------
     axion_haloscope.utils.load_yaml_config for full "base" description
     axion_haloscope.baseline.remove_baseline
-    axion_haloscope.sets
+    axion_haloscope.groups
 
     """
 
-    set_avg_spectra = [(np.mean([x[1] for x in s], axis=0),
-                        np.mean([x[0] for x in s], axis=0)) for s in sets]
+    group_avg_spectra = [(np.mean([x[1] for x in s], axis=0),
+                        np.mean([x[0] for x in s], axis=0)) for s in grand_group]
     clipping_mode = base["clipping_mode"].lower()
-    set_fits = []
-    for _, spec_avg in set_avg_spectra:
+    group_fits = []
+    for _, spec_avg in group_avg_spectra:
         if not spec_avg.any():
-            set_fits.append(None)
+            group_fits.append(None)
             continue
         try:
             _, baseline = remove_baseline(spectrum=spec_avg,
                                            window_length=base["sg_window_warm"],
                                            polyorder=base["sg_poly_warm"])
-            set_fits.append(baseline)
+            group_fits.append(baseline)
         except ValueError as e:
-            print(f"[Set size variation] spacing={spacing}min: SG fit failed ({e}), skipping set")
-            set_fits.append(None)
+            print(f"[Group size variation] spacing={spacing}min: SG fit failed ({e}), skipping group")
+            group_fits.append(None)
 
-    masks = _init_masks(clipping_mode, set_avg_spectra, sets)
-    masks, set_fits = _run_clipping(clipping_mode, set_avg_spectra, sets, masks, set_fits,
+    masks = _init_masks(clipping_mode, group_avg_spectra, grand_group)
+    masks, group_fits = _run_clipping(clipping_mode, group_avg_spectra, grand_group, masks, group_fits,
                                     sigma_cut, base["sg_window_warm"], base["sg_poly_warm"],
                                     n_iterations)
 
     total_masked, total_bins = _masked_fraction(clipping_mode, masks)
-    stds, avgs = _residual_stats(clipping_mode, sets, set_avg_spectra, masks, set_fits)
+    stds, avgs = _residual_stats(clipping_mode, grand_group, group_avg_spectra, masks, group_fits)
 
     return {
         "spacing_minutes": spacing,
-        "n_sets": len(sets),
-        "average_set_size": np.mean([len(s) for s in sets]),
+        "n_groups": len(grand_group),
+        "average_group_size": np.mean([len(s) for s in grand_group]),
         "average_residual_std": np.mean(stds),
         "average_residual_average": np.mean(np.abs(avgs)),
         "total_masked": total_masked,

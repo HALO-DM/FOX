@@ -27,13 +27,13 @@ from axion_haloscope.combine              import combine_ml
 from axion_haloscope.data_cuts            import cut_by_values, cut_by_datetime
 from axion_haloscope.data_quality_working import filter_spectrum_set, too_noisy, power_too_high, metadata_is_zeros, time_filter, small_bandwidth
 from axion_haloscope.detection            import threshold_for_detection, find_candidates
-from axion_haloscope.diagnostics          import evaluate_set_spacing, vary_set_size_plots
-from axion_haloscope.io_working           import write_hdf5
+from axion_haloscope.diagnostics          import evaluate_group_spacing, vary_group_size_plots
+from axion_haloscope.io_working           import write_hdf5, save_masks_to_csv
 from axion_haloscope.limit                import compute_local_snr_template, coupling_limit
 from axion_haloscope.lineshape            import shm_maxwell_template
 from axion_haloscope.load_data            import load_data
 from axion_haloscope.rebin                import rebin_ml, grand_spectrum_ml
-from axion_haloscope.sets                 import set_creation, group_sets
+from axion_haloscope.groups               import group_creation, group_spectra
 from axion_haloscope.sigma_clipping       import claude_clipping, blue_clipping, finalise_specs, general_clipping
 from axion_haloscope.utils                import create_directory, find_project_root, load_yaml_config
 
@@ -312,7 +312,7 @@ def main():
     ['2026-02-05 00:10:58', '2026-02-05 19:10:58'], #full linear section
     ['2026-02-01 00:10:58', '2026-02-04 22:30:58'] #low freq linear section
     ]
-    time_array_index = 1
+    time_array_index = 5
 
     sset = cut_by_datetime(
         sset,
@@ -333,7 +333,7 @@ def main():
     cw_freqs = np.array(metadata.cw_freqs)
     res_freqs = np.array(metadata.res_freqs)
 
-    out_h5 = f"{data_dir}/final_converted_spectra.h5"
+    out_h5 = f"{data_dir}/converted_spectra.h5"
     write_hdf5(sset, out_h5)
     print(f"[OUT]: Post Time Cut SpectrumSet saved to: {out_h5}")
 
@@ -368,8 +368,8 @@ def main():
             print(f"[DIAG]: Saved raw plots to: {raw_run_dir}")
 
         # Always save one valid example raw spectrum
-        graphs.plot_spectrum(fper[0]/1e9, specs[0], f"Example valid raw spectrum", qc_run_dir/f"valid_raw_spectrum_first.png")
-        graphs.plot_spectrum(fper[-1]/1e9, specs[-1], f"Example valid raw spectrum", qc_run_dir/f"valid_raw_spectrum_last.png")
+        graphs.plot_spectrum(fper[0]/1e9, specs[0], f"Example valid raw spectrum", raw_run_dir/f"valid_raw_spectrum_first.png")
+        graphs.plot_spectrum(fper[-1]/1e9, specs[-1], f"Example valid raw spectrum", raw_run_dir/f"valid_raw_spectrum_last.png")
 
         # Optional: plot all valid/invalid raw spectra in one figure
         if diag["combined_plot"]:
@@ -451,7 +451,7 @@ def main():
         specs = shifted_spectra
 
     # =======================================================================
-    # Data Cleaning
+    # Data Cleaning - here as an extra data clean step - not needed for core analysis, masks removed are not tracked
     # =======================================================================
     if qc["data_cleaning"] and diagnostic_mode:
         data_clean_dir = create_directory(diag_run_dir, 'data_cleaning')
@@ -473,9 +473,10 @@ def main():
                 new_spec[~unmasked] = baseline[~unmasked]
                    
                 if diagnostic_mode and masked_this_iteration.any():
+                    per_spec_data_clean_dir = create_directory(data_clean_dir, f'spectra_{spec_idx}')
                     graphs.plot_data_cleaning(freq, spec, metadata, baseline, threshold, 
                                     residuals, spec_idx, masked_this_iteration, 
-                                    masked_previously, mask, unmasked, iteration=iteration, base=base, run_dir=data_clean_dir)
+                                    masked_previously, mask, unmasked, iteration=iteration, base=base, run_dir=per_spec_data_clean_dir)
             new_specs.append(new_spec)
         specs = new_specs
 
@@ -505,94 +506,94 @@ def main():
             print(f"{dt} -> {e}")
 
     # -----------------------------------------------------------------------
-    # Creating sets
+    # Creating groups
     # -----------------------------------------------------------------------
 
-    sets, set_avg_spectra, set_sg_fits = set_creation(date_times, spacing_minutes, specs, fper, metadata, base)
+    grand_group, group_avg_spectra, group_sg_fits = group_creation(date_times, spacing_minutes, specs, fper, metadata, base)
 
     # -----------------------------------------------------------------------
     # Plotting
     # -----------------------------------------------------------------------
 
-    set_mean_res = np.array([
-    np.nanmean([item[2] for item in set], axis=0)
-    for set in sets
+    group_mean_res = np.array([
+    np.nanmean([item[2] for item in group], axis=0)
+    for group in grand_group
     ])
  
-    if diag["set_average_diagnostics"] and diagnostic_mode:
-        set_av_spec_dir = create_directory(warm_run_dir, "set_averaged_spectra")
+    if diag["group_average_diagnostics"] and diagnostic_mode:
+        group_av_spec_dir = create_directory(warm_run_dir, "group_averaged_spectra")
 
-        set_and_av_dir = create_directory(warm_run_dir, "set_and_average_spectra")
+        group_and_av_dir = create_directory(warm_run_dir, "group_and_average_spectra")
 
         std_vs_freq_dir = create_directory(warm_run_dir, "std_vs_freq")
 
-        set_av_spec_errors_dir = create_directory(set_av_spec_dir, "errors")
+        group_av_spec_errors_dir = create_directory(group_av_spec_dir, "errors")
 
-        set_av_spec_errors_zoom_dir = create_directory(set_av_spec_dir, "errors_zoom")
+        group_av_spec_errors_zoom_dir = create_directory(group_av_spec_dir, "errors_zoom")
 
-        set_hist_psd_dir = create_directory(warm_run_dir, "histogram_of_set_psd")
+        group_hist_psd_dir = create_directory(warm_run_dir, "histogram_of_group_psd")
 
-        # Plot set averaged spectra for all sets on one axis
-        graphs.plot_sets("sets", fper, specs, set_mean_res, "Mean Cavity Resonance", warm_run_dir, f"Set-averaged spectra — all sets (n = {len(sets)})",
-                  "set_averaged_spectra_all.png", plt.cm.viridis, set_avg_spectra = set_avg_spectra, set_sg_fits=None, sets=sets)
+        # Plot group averaged spectra for all groups on one axis
+        graphs.plot_groups("groups", fper, specs, group_mean_res, "Mean Cavity Resonance", warm_run_dir, f"group-averaged spectra — all groups (n = {len(grand_group)})",
+                  "group_averaged_spectra_all.png", plt.cm.viridis, group_avg_spectra = group_avg_spectra, group_sg_fits=None, groups=grand_group)
 
-        # Plot set average spectra for all sets 3x3
-        graphs.plot_3x3("mean", sets, set_mean_res, "IF frequency  [MHz]", "PSD  [V²/Hz]", 
-                 f"Set-averaged spectra — all sets (n = {len(sets)})", "set_averaged_spectra_all_3x3.png", warm_run_dir)
+        # Plot group average spectra for all groups 3x3
+        graphs.plot_3x3("mean", grand_group, group_mean_res, "IF frequency  [MHz]", "PSD  [V²/Hz]", 
+                 f"group-averaged spectra — all groups (n = {len(grand_group)})", "group_averaged_spectra_all_3x3.png", warm_run_dir)
 
-        # Plot standard deviation of averaged sets againist frequency for all sets 3x3
-        graphs.plot_3x3("std", sets, set_mean_res, "Standard Deviation  [V²/Hz]", "IF frequency  [MHz]", 
-                 f"Standard deviation of averaged spectra against frequency - all sets (n = {len(sets)})",
+        # Plot standard deviation of averaged groups againist frequency for all groups 3x3
+        graphs.plot_3x3("std", grand_group, group_mean_res, "Standard Deviation  [V²/Hz]", "IF frequency  [MHz]", 
+                 f"Standard deviation of averaged spectra against frequency - all groups (n = {len(grand_group)})",
                  "std_vs_freq_all_3x3.png", warm_run_dir) 
 
-        # Plot standard deviation of averaged sets againist frequency for all sets
-        graphs.plot_std_freq(sets, set_mean_res, warm_run_dir)
+        # Plot standard deviation of averaged groups againist frequency for all groups
+        graphs.plot_std_freq(grand_group, group_mean_res, warm_run_dir)
     
-        # Plot a histogram of standard deviation of averaged sets for all sets
-        n = len(sets)
-        graphs.plot_hist(data=[np.std([x[0] for x in set], axis=0) for set in sets],
+        # Plot a histogram of standard deviation of averaged groups for all groups
+        n = len(grand_group)
+        graphs.plot_hist(data=[np.std([x[0] for x in group], axis=0) for group in grand_group],
                 vline=None, n=n, bins=50, xlabel="Standard Deviation of average  [V²/Hz]", vlabel=None, 
-                title=f"Histogram of standard deviation of averaged sets - all sets (n = {len(sets)})",
+                title=f"Histogram of standard deviation of averaged groups - all groups (n = {len(grand_group)})",
                 cb_label="Mean cavity resonance [GHz]", output_loc=f"{warm_run_dir}/std_hist_all" )
 
 
-        # Plot average std for each set againist set number
+        # Plot average std for each group againist group number
         av_stds = []
-        for s, set in enumerate(sets):
-            std = np.std([x[0] for x in set], axis=0)
+        for g, group in enumerate(grand_group):
+            std = np.std([x[0] for x in group], axis=0)
             av_stds.append(np.mean(std))
-        graphs.plot_std_set_num(av_stds, warm_run_dir)
+        graphs.plot_std_group_num(av_stds, warm_run_dir)
 
 
-        for s, set in enumerate(tqdm(sets, desc="[DIAG]: Set averaging diagnostic plots")):
-        # for g, (freqs, specs) in enumerate(set_avg_spectra):
+        for g, group in enumerate(tqdm(grand_group, desc="[DIAG]: group averaging diagnostic plots")):
+        # for g, (freqs, specs) in enumerate(group_avg_spectra):
 
-            # Plot set averaged spectra + the sets spectra per set
-            graphs.plot_spectra_in_set(set, s, set_and_av_dir)
+            # Plot group averaged spectra + the groups spectra per group
+            graphs.plot_spectra_in_group(group, g, group_and_av_dir)
 
-            # Plot set averaged spectra with errors per set
-            graphs.plot_set_average_errors(set, s, set_av_spec_errors_dir)
+            # Plot group averaged spectra with errors per group
+            graphs.plot_group_average_errors(group, g, group_av_spec_errors_dir)
 
 
-            # Plot zoomed set averaged spectra with errors zoomed in per set
-            graphs.plot_zoom_set_average_errors(set, s, set_av_spec_errors_zoom_dir)
+            # Plot zoomed group averaged spectra with errors zoomed in per group
+            graphs.plot_zoom_group_average_errors(group, g, group_av_spec_errors_zoom_dir)
         
 
-            # Plot histogram of each set averaged spectra per set
-            mean_val = np.mean([x[0] for x in set])
-            med_val = np.median([x[0] for x in set])
-            graphs.plot_hist(data=np.mean([x[0] for x in set], axis=0), vline=[mean_val, med_val],
+            # Plot histogram of each group averaged spectra per group
+            mean_val = np.mean([x[0] for x in group])
+            med_val = np.median([x[0] for x in group])
+            graphs.plot_hist(data=np.mean([x[0] for x in group], axis=0), vline=[mean_val, med_val],
                     n=1, bins=100, xlabel="PSD  [V²/Hz]", vlabel=["mean value", "median value"],
-                    title=f"Histogram of set averaged set {s}", cb_label=None, output_loc=f"{set_hist_psd_dir}/histogram_{s}")
+                    title=f"Histogram of group averaged group {g}", cb_label=None, output_loc=f"{group_hist_psd_dir}/histogram_{g}")
 
 
-            # Plot standard deviation of each set average againist frequency per set
-            graphs.plot_std_against_freq(set, s, set_mean_res, std_vs_freq_dir)
+            # Plot standard deviation of each group average againist frequency per group
+            graphs.plot_std_against_freq(group, g, group_mean_res, std_vs_freq_dir)
 
     if diagnostic_mode:
-        graphs.plot_sets("sg_fit", fper, specs, set_mean_res, "Mean Cavity Resonance", warm_run_dir,
-                "Set-averaged spectra with initial SG fits  (dashed = fit)", "set_averaged_spectra_with_sg_fits.png",
-                cmap=plt.cm.viridis, set_avg_spectra=set_avg_spectra,set_sg_fits=set_sg_fits)
+        graphs.plot_groups("sg_fit", fper, specs, group_mean_res, "Mean Cavity Resonance", warm_run_dir,
+                "Group-averaged spectra with initial SG fits  (dashed = fit)", "group_averaged_spectra_with_sg_fits.png",
+                cmap=plt.cm.viridis, group_avg_spectra=group_avg_spectra,group_sg_fits=group_sg_fits)
 
 
     # -----------------------------------------------------------------------
@@ -600,14 +601,14 @@ def main():
     # -----------------------------------------------------------------------
 
     if base["clipping_mode"].lower() == "claude":
-        set_masks = [
+        grand_group_masks = [
             np.zeros(len(avg[0]), dtype=int) if avg is not None else None
-            for avg in set_avg_spectra
+            for avg in group_avg_spectra
         ]
     elif base["clipping_mode"].lower() == "blue":
-        set_masks = [
-            [np.zeros(len(item[0]), dtype=int) for item in set]
-            for set in sets
+        grand_group_masks = [
+            [np.zeros(len(item[0]), dtype=int) for item in group]
+            for group in grand_group
         ]
     else:
         raise ValueError(f"Clipping mode {base["clipping_mode"]} no found. Did you enter the correct name?")
@@ -617,28 +618,49 @@ def main():
     for iteration in range(1, n_iterations + 1):
         if diagnostic_mode:
         
-            print(f"[WB] Iteration {iteration} / {n_iterations} ---")
+            print(f"[WB] Iteration {iteration} / {n_iterations}")
 
         if base["clipping_mode"].lower() == "claude":
-            set_masks, set_sg_fits = claude_clipping(
-                set_avg_spectra, set_masks, set_sg_fits,
+            grand_group_masks, group_sg_fits = claude_clipping(
+                group_avg_spectra, grand_group_masks, group_sg_fits,
                 sigma_cut, base["sg_window_warm"], base["sg_poly_warm"], iteration
                 )
-            plotting_set_masks = [
-                [mask] * len(set) if mask is not None else None
-                for mask, set in zip(set_masks, sets)
+            plotting_group_masks = [
+                [mask] * len(group) if mask is not None else None
+                for mask, group in zip(grand_group_masks, grand_group)
             ]
 
         elif base["clipping_mode"].lower() == "blue":
-            set_masks, set_sg_fits = blue_clipping(
-                sets, set_masks, set_sg_fits, sigma_cut,
+            grand_group_masks, group_sg_fits = blue_clipping(
+                grand_group, grand_group_masks, group_sg_fits, sigma_cut,
                 base["sg_window_warm"], base["sg_poly_warm"], iteration
                 )
-            plotting_set_masks = set_masks
+            plotting_group_masks = grand_group_masks
 
+
+        if diagnostic_mode and any(
+            np.any(np.asarray(arr) == iteration)
+            for mask_list in plotting_group_masks if mask_list is not None
+            for arr in mask_list
+        ):
+            graphs.plot_iteritive_clipping(
+                group_avg_spectra, plotting_group_masks, group_sg_fits,
+                iteration, warm_run_dir, group_mean_res, base["clipping_mode"].lower(),
+            )
+        else:
+            if diagnostic_mode:
+                print("[WB]     No bins masked this iteration, skipping rest of iterations...")
+            break
+
+
+    # --------------------
+    # Save Masks to CSV
+    # --------------------
+
+    if out["save_data"]:
+        save_masks_to_csv(grand_group_masks, fper[0], base["clipping_mode"].lower(), data_dir)
         if diagnostic_mode:
-            graphs.plot_iteritive_clipping(set_avg_spectra, plotting_set_masks, set_sg_fits,iteration, warm_run_dir, set_mean_res)
-
+            print(f"[OUT]: Masked Bins CSV saved to: {data_dir/f'{base["clipping_mode"].lower()}_masked_bin_summary.csv'}")
 
     # --------------------
     # Residuals Plotting
@@ -653,81 +675,81 @@ def main():
         clip_residuial_run_dir = create_directory(clip_run_dir, f'{base["clipping_mode"].lower()}_residuals_from_clipping')
         
 
-        for s, fit in enumerate(tqdm(set_sg_fits, desc="[DIAG]: Clipping residuals plots")):
+        for g, fit in enumerate(tqdm(group_sg_fits, desc="[DIAG]: Clipping residuals plots")):
 
             if base["clipping_mode"].lower() == "claude":
 
-                avg = set_avg_spectra[s]
+                avg = group_avg_spectra[g]
                 if avg is None or fit is None:
                     continue
                 freqs, specs = avg
                 residuals = specs - fit
 
                 # Plot residuals againist frequency
-                graphs.plot_claude_residuals(freqs, residuals, s, clip_residuial_run_dir)
+                graphs.plot_claude_residuals(freqs, residuals, g, clip_residuial_run_dir)
 
                 # Plot histogram of residuals
                 graphs.plot_hist(data=residuals[np.isfinite(residuals)], vline=None, n=1, bins=50, xlabel="IF frequency  [MHz]",
-                        vlabel=None, title=f"Residuals - set {s} (Claude's clipping method)", cb_label=None, 
-                        output_loc=f"{clip_hist_run_dir}/histogram_{s}.png")
+                        vlabel=None, title=f"Residuals - group {g} (Claude's clipping method)", cb_label=None, 
+                        output_loc=f"{clip_hist_run_dir}/histogram_{g}.png")
         
 
 
             elif base["clipping_mode"].lower() == "blue":
 
-                set = sets[s]
-                if fit is None or len(set) == 0:
+                group = grand_group[g]
+                if fit is None or len(group) == 0:
                     continue
 
                 
-                # Plot residuals againist frequnecy for each set
-                all_residuals = graphs.plot_blue_residuals(set, fit, cm.viridis(np.linspace(0, 1, len(set))), s, clip_residuial_run_dir)
+                # Plot residuals againist frequnecy for each group
+                all_residuals = graphs.plot_blue_residuals(group, fit, cm.viridis(np.linspace(0, 1, len(group))), g, clip_residuial_run_dir)
 
 
-                # Plot stacked histogram of residuals in each set
+                # Plot stacked histogram of residuals in each group
                 graphs.plot_hist(data=[r[np.isfinite(r)] for r in all_residuals],
-                        vline=None, n=len(set), bins=50, xlabel="Residuals  [V²/Hz]", vlabel=None,
-                        title=f"Residuals histogram (stacked) — set {s} (Blue's clipping method)", cb_label="Spectrum index in set", 
-                        output_loc=f"{clip_hist_run_dir}/histogram_{s}.png")
+                        vline=None, n=len(group), bins=50, xlabel="Residuals  [V²/Hz]", vlabel=None,
+                        title=f"Residuals histogram (stacked) — group {g} (Blue's clipping method)", cb_label="Spectrum index in group", 
+                        output_loc=f"{clip_hist_run_dir}/histogram_{g}.png")
 
 
     # --------------------
-    # Varying Set Size
+    # Varying Group Size
     # --------------------
 
 
-    if diag["varying_set_size"] and diagnostic_mode:
-        specs_set = shifted_spectra
-        var_dir = create_directory(diag_run_dir, 'varying_set_size')
+    if diag["varying_group_size"] and diagnostic_mode:
+        specs_group = shifted_spectra
+        var_dir = create_directory(diag_run_dir, 'varying_group_size')
 
         spacings_config = [5, 10, 15, 30, 60, 90, 120, 150, 180, 210, 240]  # minutes
-        sets_by_spacing = {sp: group_sets(date_times, sp, specs_set, fper, metadata) for sp in spacings_config}
+        grand_group_by_spacing = {sp: group_spectra(date_times, sp, specs_group, fper, metadata) for sp in spacings_config}
 
         var_results = [
-            evaluate_set_spacing(sp, sets_by_spacing[sp], base, sigma_cut, n_iterations)
+            evaluate_group_spacing(sp, grand_group_by_spacing[sp], base, sigma_cut, n_iterations)
             for sp in spacings_config
         ]
 
-        vary_set_size_plots(var_results, spacings_config, sets_by_spacing, var_dir, base)
+        vary_group_size_plots(var_results, spacings_config, grand_group_by_spacing, var_dir, base)
 
-        print("\n[Set size variation summary]")
+        print("\n[Group size variation summary]")
         for r in var_results:
-            print(f"  set size={r['spacing_minutes']:>4} min | "
-                f"n_sets={r['n_sets']:>4} | "
-                f"average size={r['average_set_size']:.1f} | "
+            print(f"  group size={r['spacing_minutes']:>4} min | "
+                f"n_groups={r['n_groups']:>4} | "
+                f"average size={r['average_group_size']:.1f} | "
                 f"average residual std={r['average_residual_std']:.4g} | "
                 f"masked={r['total_masked']:>6}/{r['total_bins']:<6}")
 
     # --------------------
     # Final Baseline Removal
     # --------------------
-    specs, fper = finalise_specs(base["clipping_mode"].lower(), set_avg_spectra, sets, set_sg_fits, set_masks)
+    specs, fper = finalise_specs(base["clipping_mode"].lower(), group_avg_spectra, grand_group, group_sg_fits, grand_group_masks)
 
     colour_vals = np.abs(cw_freqs - res_freqs*1e9) / 1e9  # Hz -> GHz
 
 
-    graphs.plot_sets("baseline_removal", fper, specs, colour_vals, r"$|f_{\rm CW} - f_{\rm res}|$  [GHz]", 
-                    main_plots_dir, "Set-averaged spectra with initial SG fits  (dashed = fit)",
+    graphs.plot_groups("baseline_removal", fper, specs, colour_vals, r"$|f_{\rm CW} - f_{\rm res}|$  [GHz]", 
+                    main_plots_dir, "Group-averaged spectra with initial SG fits  (dashed = fit)",
                     "warm_baseline_removal.png", cmap=plt.cm.inferno)
 
   
@@ -824,12 +846,13 @@ def main():
             print(f"[EXCLUSION] g_min (rel. to g0) stats: best={np.min(finite_g):.4g}, "
                     f"worst={np.max(finite_g):.4g}")
     graphs.plot_exclusion(feqs_rebinned, gmin, outfile=main_plots_dir/"exclusion.png", title="95% CL Exclusion (SHM)")
-    with (data_dir/"exclusion.csv").open("w") as fh:
-        fh.write("freq_Hz,g_min_rel_to_g0\n")
-        for f,g in zip(feqs_rebinned, gmin):
-            if np.isfinite(g): fh.write(f"{f},{g}\n")
-    if diagnostic_mode:
-        print(f"[OUT]: Exclusion CSV saved to: {data_dir/'exclusion.csv'}")
+    if out["save_data"]:
+        with (data_dir/"exclusion.csv").open("w") as fh:
+            fh.write("freq_Hz,g_min_rel_to_g0\n")
+            for f,g in zip(feqs_rebinned, gmin):
+                if np.isfinite(g): fh.write(f"{f},{g}\n")
+        if diagnostic_mode:
+            print(f"[OUT]: Exclusion CSV saved to: {data_dir/'exclusion.csv'}")
 
     print(f"[OUT]: Run dir: {run_dir}")
     print(f"[FOX]: Candidates flagged: {len(cands)}  (threshold = {theta:.2f}σ)")

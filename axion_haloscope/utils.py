@@ -190,14 +190,14 @@ def load_yaml_config(
             "subdir_prefix":            _get(out, "subdir_prefix", "run"),
         },
         "diagnostic": {
-            "run_diagnostics":          bool(_get(diag, "run_diagnostics", False)),
-            "save_raw_plots":           bool(_get(diag, "save_raw_plots", False)),
-            "combined_plot":            bool(_get(diag, "combined_plot", False)),
-            "offset_combined_plot":     bool(_get(diag, "offset_combined_plot", False)),
-            "injection_distribution":   bool(_get(diag, "injection_distribution", False)),
-            "set_average_diagnostics":  bool(_get(diag, "set_average_diagnostics", False)),
-            "clipping_residuals":       bool(_get(diag, "clipping_residuals", False)),
-            "varying_set_size":         bool(_get(diag, "varying_set_size", False)),
+            "run_diagnostics":            bool(_get(diag, "run_diagnostics", False)),
+            "save_raw_plots":             bool(_get(diag, "save_raw_plots", False)),
+            "combined_plot":              bool(_get(diag, "combined_plot", False)),
+            "offset_combined_plot":       bool(_get(diag, "offset_combined_plot", False)),
+            "injection_distribution":     bool(_get(diag, "injection_distribution", False)),
+            "group_average_diagnostics":  bool(_get(diag, "group_average_diagnostics", False)),
+            "clipping_residuals":         bool(_get(diag, "clipping_residuals", False)),
+            "varying_group_size":         bool(_get(diag, "varying_group_size", False)),
                         
         }
     }

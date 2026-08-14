@@ -15,6 +15,7 @@ Converts QSHS files to SpectrumSet, and can then write SpectrumSet to QSHS
 """
 
 from __future__ import annotations
+import csv
 from dataclasses import dataclass
 import json
 from pathlib import Path
@@ -195,6 +196,62 @@ def read_csv_dir(csv_dir: str | Path,
                        rf_index_map=rf_index_map,
                        metadata=None)
 
+def save_masks_to_csv(grand_group_masks, frequency_array, mode, save_dir):
+    """
+    Writes a summary of masked frequency bins to a CSV file.
+
+    Parameters
+    ----------
+        grand_group_masks : List[1D array] | List[List[1D array]]
+            The mask data to summarise. For mode == "claude", this is a flat list of masks, one
+            per group (List[1D array]). For any other mode (e.g. "blue"), this is a nested list of
+            masks grouped by group, one sublist per group and one mask per spectra within that group
+            (List[List[1D array]]) — flattened internally into a single list of per-spectrum masks
+            before writing.
+        frequency_array : 1D array
+            Frequency values corresponding to each bin index in a mask.
+            Must be the same length as each individual mask array.
+        mode : str
+            Clipping mode used to generate the masks, either "claude" or "blue". Determines both
+            the header labelling ("Group" vs "Spectra") and whether grand_group_masks needs
+            flattening.
+        save_dir : pathlib.Path
+            Directory to save the output CSV file to. The file is named
+            '{mode}_masked_bin_summary.csv'.
+
+    Returns
+    -------
+    None
+        Writes the CSV file to disk at
+        save_dir / f'{mode}_masked_bin_summary.csv'.
+        No value is returned.
+
+    Notes
+    -----
+        Each output row corresponds to a single masked bin (mask_entry != 0) and contains:
+        [spectrum/group number, iteration the bin was masked on, frequency of that bin, bin index].
+        Unmasked bins (mask_entry == 0) are omitted entirely.
+    """
+    if mode == "claude":
+        headers = ["Group", "Iteration", "Processed Frequency Bin", "Index"]
+        true_masks = grand_group_masks
+    else:
+        headers = ["Spectra", "Iteration", "Processed Frequency Bin", "Index"]
+        true_masks = []
+        for group_masks in grand_group_masks:
+            for spectra_mask in group_masks:
+                true_masks.append(spectra_mask)
+
+    data = []
+    data.append(headers)
+    for spectrum_number, spectrum_masks in enumerate(true_masks):
+        for index, (mask_entry, frequency) in enumerate(zip(spectrum_masks, frequency_array)):
+            if mask_entry != 0:
+                row = [spectrum_number, mask_entry, frequency, index]
+                data.append(row)
+    with open(save_dir / f'{mode}_masked_bin_summary.csv', 'w', newline='') as csvfile:
+        writer = csv.writer(csvfile)
+        writer.writerows(data)
 
 # ----------------------------
 # HDF5 I/O
@@ -384,7 +441,7 @@ def read_qshs_hdf5(
             elif key == "q_loaded":
                 q_loaded_str = value
 
-            # Add more items here later when more get added from QSHS data set
+            # Add more items here later when more get added from QSHS data group
 
         for key, value in status_data.items():
             if key == "RF1":

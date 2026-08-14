@@ -43,7 +43,7 @@ def _interpolate_nans(y):
         y[nans] = np.interp(x[nans], x[~nans], y[~nans])
     return y
 
-def finalise_specs(mode, group_avg_spectra, groups, group_sg_fits, group_masks):
+def finalise_specs(mode, group_avg_spectra, grand_group, group_sg_fits, grand_group_masks):
     """
     Divide out the fitted baseline from each individual spectrum in a group,
     excluding sigma-clipped bins and interpolating over them.
@@ -53,17 +53,17 @@ def finalise_specs(mode, group_avg_spectra, groups, group_sg_fits, group_masks):
         mode : str
             "claude" or "blue" — selects the grouping/masking convention.
         group_avg_spectra : List[Tuple[1D array, 1D array] | None]
-            Per-set (freq, avg_spectrum) tuples (claude mode only).
-        groups : List[List[Tuple[1D array, 1D array, float]]]
-            Per-set lists of individual (spectrum, freq, res_freq) tuples.
+            Per-group (freq, avg_spectrum) tuples (claude mode only).
+        grand_group : List[List[Tuple[1D array, 1D array, float]]]
+            Per-group lists of individual (spectrum, freq, res_freq) tuples.
         group_sg_fits : List[1D array | None]
-            Per-set baseline fits.
-        group_masks : List[1D array | None] | List[List[1D array]]
-            claude mode: one mask per set, aligned with
+            Per-group baseline fits.
+        grand_group_masks : List[1D array | None] | List[List[1D array]]
+            claude mode: one mask per group, aligned with
             `group_avg_spectra[g][0]` (0 = good, nonzero = masked at that
             iteration).
-            blue mode: one list of per-spectrum masks per set, aligned
-            with `groups[g]`.
+            blue mode: one list of per-spectrum masks per group, aligned
+            with `grand_group[g]`.
 
     Returns
     -------
@@ -75,10 +75,10 @@ def finalise_specs(mode, group_avg_spectra, groups, group_sg_fits, group_masks):
     specs, fper = [], []
 
     if mode == "claude":
-        for g, group in enumerate(groups):
+        for g, group in enumerate(grand_group):
             avg = group_avg_spectra[g]
             fit = group_sg_fits[g]
-            mask = group_masks[g]
+            mask = grand_group_masks[g]
             if avg is None or fit is None:
                 continue
 
@@ -107,7 +107,7 @@ def finalise_specs(mode, group_avg_spectra, groups, group_sg_fits, group_masks):
                 fper.append(f_i)
 
     elif mode == "blue":
-        for group, baseline, masks in zip(groups, group_sg_fits, group_masks):
+        for group, baseline, masks in zip(grand_group, group_sg_fits, grand_group_masks):
             if baseline is None:
                 continue
             group_spectra, group_freqs, _ = map(np.array, zip(*group))
@@ -124,10 +124,10 @@ def finalise_specs(mode, group_avg_spectra, groups, group_sg_fits, group_masks):
 
     return specs, fper
 
-def claude_clipping(group_avg_spectra, group_masks, group_sg_fits,
+def claude_clipping(group_avg_spectra, grand_group_masks, group_sg_fits,
                 sigma_cut, sg_window, sg_order, iteration):
     """
-    Impliments Claude's Clipping Algorithm. Cleans each set average by performing 
+    Impliments Claude's Clipping Algorithm. Cleans each group average by performing 
     an SG fit to find a baseline, finding the residuals of that baseline and
     masking any bins that are above/below +-sigma_cut * std. Tracks the 
     iteration this clipping algorithm is happening in, and masks bins 
@@ -136,13 +136,13 @@ def claude_clipping(group_avg_spectra, group_masks, group_sg_fits,
     Parameters
     ----------
         group_avg_spectra : List[Tuple[1D array, 1D array]]]
-            A grand group that contains all set averages. Each Tuple has 
-            X and Y values of 1 set average.
-        group_masks : List[1D array]
-            A grand group that contains all set averaged masks.
+            A grand group that contains all group averages. Each Tuple has 
+            X and Y values of 1 group average.
+        grand_group_masks : List[1D array]
+            A grand group that contains all group averaged masks.
             Follows same pattern as group_avg_spectra.
         group_sg_fits : List[1D array]
-            A grand group that contains Savitsky Golay fits on set averaged
+            A grand group that contains Savitsky Golay fits on group averaged
             spectra.
         sigma_cut : float
             The threshold coefficient
@@ -155,18 +155,18 @@ def claude_clipping(group_avg_spectra, group_masks, group_sg_fits,
     Returns
     -------
         new_group_masks : List[List[1D array]]
-            Updated group_masks with new masks from this algorithm
+            Updated grand_group_masks with new masks from this algorithm
         new_group_sg_fits : List[1D array]
             Updated group_sg_fits with new fits from this algorithm       
     """
     total_new = 0
-    new_group_masks = group_masks.copy()
+    new_group_masks = grand_group_masks.copy()
     new_group_sg_fits = group_sg_fits.copy()
     for g, avg in enumerate(group_avg_spectra):
         if avg is None:
             continue
         f, p         = avg
-        current_mask = group_masks[g].copy()
+        current_mask = grand_group_masks[g].copy()
         prev_fit     = group_sg_fits[g].copy()
         if prev_fit is None:
             continue
@@ -189,8 +189,8 @@ def claude_clipping(group_avg_spectra, group_masks, group_sg_fits,
 
 
 def blue_clipping(
-        groups: List[List[Tuple[np.ndarray, np.ndarray, float]]],
-        group_masks: List[List[np.ndarray]],
+        grand_group: List[List[Tuple[np.ndarray, np.ndarray, float]]],
+        grand_group_masks: List[List[np.ndarray]],
         group_sg_fits: List[np.ndarray],
         sigma_cut: float,
         sg_window: int,
@@ -206,14 +206,14 @@ def blue_clipping(
 
     Parameters
     ----------
-        groups        : List[List[Tuple[1D array, 1D array, float]]]
-            A grand group that contains all sets, each set containing some 
+        grand_group        : List[List[Tuple[1D array, 1D array, float]]]
+            A grand group that contains all grand_group, each group containing some 
             tuples. Each Tuple has information on 1 spectra.
-        group_masks   : List[List[1D array]]
-            A grand group that contains all spectra masks, grouped into sets.
-            Follows same pattern as groups
+        grand_group_masks   : List[List[1D array]]
+            A grand group that contains all spectra masks, grouped into 1 grand_group.
+            Follows same pattern as grand_group
         group_sg_fits : List[1D array]
-            A grand group that contains Savitsky Golay fits on set averaged
+            A grand group that contains Savitsky Golay fits on group averaged
             spectra.
         sigma_cut     : float
             The threshold coefficient
@@ -226,15 +226,15 @@ def blue_clipping(
     Returns
     -------
         new_group_masks : List[List[1D array]]
-            Updated group_masks with new masks from this algorithm
+            Updated grand_group_masks with new masks from this algorithm
         new_group_sg_fits : List[1D array]
             Updated group_sg_fits with new fits from this algorithm       
     """
     total_new = 0
-    new_group_masks = group_masks.copy()
+    new_group_masks = grand_group_masks.copy()
     new_group_sg_fits = group_sg_fits.copy()
-    for g, group in enumerate(groups):
-        current_masks = group_masks[g].copy()
+    for g, group in enumerate(grand_group):
+        current_masks = grand_group_masks[g].copy()
 
         n_new = 0
         for spec_idx, (spectra, frequencies, _) in enumerate(group):
@@ -304,7 +304,7 @@ def general_clipping(
             Pre-Computed mask. If not provided, creates new mask full of 0s 
             with shape (nbins,)
         iteration    : int | None
-            Iteration number. If not provided, set to '1'
+            Iteration number. If not provided, group to '1'
     Returns
     -------
         mask: 1D array

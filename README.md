@@ -25,42 +25,20 @@ going into the FOX directory
 - This folder might look like: input/January_Data
 - Inside that folder should be a list of .hdf5 files
 
-4. Change Input Directory for conversion
-- In your text editor of choice, open scripts/qshs/convert_qshs_to_fox.py
-> nano scripts/qshs/convert_qshs_to_fox.py
-
-- In the "main" function, change the input directory string to your input folder location
-```python
-def main():
-    # ===================
-    # Initialising
-    # ===================
-
-    input_dir = "input/January_Data"
-
-    pattern = "*.hdf5"
-    save_fox_h5 = True
-```
-
-5. Run file conversion
-> python scripts/qshs/convert_qshs_to_fox.py
-- Copy the directory of the output file
-- Alternatively, open the following directory: output/qshs_to_FOX
-- Copy the directory of the most recent run
-
-6. Change Input Directory for Analysis
+5. Setup the data analysis
 - In your text editor of choice, open configs/simulate_run_working.yaml
-> nano configs/simulate_run_working.yaml
+- Choose your input mode
+    - "convert_data" - converts data from "directory"
+        - Make sure you point "directory" to the location of your data
+    - "read_data" - reads an already converted .hdf5 file
+        - Make sure you point "directory" to the location of the converted file 
+(usually in the run directory, in the "data" folder under the name "converted_data.hdf5")
+    - "simulation" - generates a simulation (great if you haven't got any data)
+        - Make sure ou have filled out the simulation section of the YAML file for a custom simulation.
 
-7. Change the yaml input directory to the copied directory
-```yaml
-input:
-  read_input: true
-  directory: "output/qshs_to_FOX/run_<timestamp>"
-  input_file_name: "converted_spectra.h5"
-```
 
-8. Run the data analysis
+6. Run the data analysis
+- From the root directory:
 > python scripts/simulation/simulate_run_yaml_working.py configs/simulate_run_working.yaml
 
 ---
@@ -92,6 +70,7 @@ FOX/                       <-- Project root (where pyproject.toml lives)
 │   ├── simulation.py
 │   └── width_fq.py
 ├── configs/                             <-- put your yaml configuration files here
+│   ├── data_analysis.yaml
 │   ├── simulate_run.yaml
 │   └── simulate_spectra_only.yaml
 ├── scripts/                             <-- put run scripts here
@@ -100,17 +79,17 @@ FOX/                       <-- Project root (where pyproject.toml lives)
 │   ├── read_spectra_npz.py
 │   └── simulation/
 │   └── simulate_run.py
+├── input/                               <-- put data here (gitignored)
 ├── output/                              <-- generated results from the scripts folder go here (gitignored)
 ├── tests/                               <-- unit & integration tests
-    ├── test_combine.py
-    ├── test_data_quality.py
-    ├── test_detection.py
-    ├── test_io_hdf5.py
-    ├── test_lineshape.py
-    ├── test_simulation_plot.py
-    └── test_simulation_smoke.py
-└── test_output/                         <-- generated results of the unit tests (gitignored)
-
+│   ├── test_output/                         <-- generated results of the unit tests (gitignored)
+│   ├── test_combine.py
+│   ├── test_data_quality.py
+│   ├── test_detection.py
+│   ├── test_io_hdf5.py
+│   ├── test_lineshape.py
+│   ├── test_simulation_plot.py
+│   └── test_simulation_smoke.py
 ```
 
 
