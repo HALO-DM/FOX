@@ -637,7 +637,7 @@ def main():
             plotting_set_masks = set_masks
 
         if diagnostic_mode:
-            graphs.plot_iteritive_clipping(set_avg_spectra, plotting_set_masks, set_sg_fits,iteration, warm_run_dir, set_mean_res, set_masks)
+            graphs.plot_iteritive_clipping(set_avg_spectra, plotting_set_masks, set_sg_fits,iteration, warm_run_dir, set_mean_res)
 
 
     # --------------------
@@ -721,7 +721,7 @@ def main():
     # --------------------
     # Final Baseline Removal
     # --------------------
-    specs, fper = finalise_specs(base["clipping_mode"].lower(), set_avg_spectra, sets, set_sg_fits)
+    specs, fper = finalise_specs(base["clipping_mode"].lower(), set_avg_spectra, sets, set_sg_fits, set_masks)
 
     colour_vals = np.abs(cw_freqs - res_freqs*1e9) / 1e9  # Hz -> GHz
 
@@ -777,7 +777,7 @@ def main():
     f0 = feqs_rebinned[len(feqs_rebinned)//2]
     f0 = np.average(metadata.res_freqs) * 1e9
 
-    lineshape_template = shm_maxwell_template(template_width=template_width, bin_width_hz=rebin_width*(fper[0][1] - fper[0][0]), f0_hz=f0)
+    lineshape_template = shm_maxwell_template(k=template_width, bin_width_hz=rebin_width*(fper[0][1] - fper[0][0]), f0_hz=f0)
     grand_spectrum, sigma_gs = grand_spectrum_ml(data_rebinned, sigma_dr, lineshape_template)
 
     z = np.zeros_like(grand_spectrum)
