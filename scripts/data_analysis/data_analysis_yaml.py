@@ -312,8 +312,9 @@ def main():
     ['2026-02-05 00:10:58', '2026-02-05 19:10:58'], #full linear section
     ['2026-02-01 00:10:58', '2026-02-04 22:30:58'] #low freq linear section
     ]
-    time_array_index = 5
+    time_array_index = qc["time_array_index"]
 
+    old_sset = sset
     sset = cut_by_datetime(
         sset,
         time_array[time_array_index][0],
@@ -324,6 +325,8 @@ def main():
         print("Applying Time Cuts")
         print("-" * 60)
         print("[TF]:", time_array[time_array_index][0], "-->", time_array[time_array_index][1])
+    if len(sset.spectra) == 0 and len(old_sset.spectra) != 0:
+        raise ValueError("Time Cut has returned 0 Spectra - Please ensure the time filter is selecting the correct data")
     print(f"[TF]: {len(sset.metadata.file_names)} files kept after time filter "
        f"(removed {len(metadata.file_names) - len(sset.metadata.file_names)})")
     

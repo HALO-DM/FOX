@@ -224,15 +224,15 @@ def _simulate_one_spectrum(
         raw = raw + axion_power_global[rf_index_map[i]]
 
     metadata = {
-        "date": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-        "file_name": f"FOX_simulation_{datetime.now().strftime("%Y-%m-%d")}_{i:05d}",
+        "dates": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+        "file_names": f"FOX_simulation_{datetime.now().strftime("%Y-%m-%d")}_{i:05d}",
         "invalid_files": None,
         "b_vals": None,
-        "q_factor": None,
+        "q_factors": None,
         "temps": None,
-        "res_freq": axion.f_axion_hz if axion is not None else None,
-        "cw_freq": axion.f_axion_hz if axion is not None else None,
-        "bandwidth": None,
+        "res_freqs": axion.f_axion_hz if axion is not None else None,
+        "cw_freqs": axion.f_axion_hz if axion is not None else None,
+        "bandwidths": None,
     }
     return raw.astype(np.float64), metadata
 

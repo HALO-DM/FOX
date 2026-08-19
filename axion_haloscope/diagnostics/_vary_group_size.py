@@ -102,10 +102,10 @@ def _residual_stats(
 def evaluate_group_spacing(
     spacing: int,
     grand_group: List[List[Tuple[np.ndarray, np.ndarray, float]]],
-    base: Dict[int, int, int, int, float, float, str, int],
+    base: Dict,
     sigma_cut: int,
     n_iterations: int,
-) -> Dict[int, int, float, float, float, int, int, float]:
+) -> Dict:
     """
     Take a given grand group spacing, process the grand group as if they are in the actual 
     pipeline, return summary stats for that spacing.

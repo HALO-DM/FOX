@@ -103,7 +103,7 @@ def _plot_sg_fit_overlay(
     spacings_config: List[int],
     grand_group_by_spacing: Dict[int, List[List[Tuple[np.ndarray, np.ndarray, float]]]],
     var_dir: Path,
-    base: Dict[int, int, int, int, float, float, str, int],
+    base: Dict,
 ) -> None:
     """Plot the SG fit of 1 group with all different spacing overlayed"""
     fig, ax = plt.subplots(figsize=(13, 7))
@@ -269,11 +269,11 @@ def _plot_per_spacing_diagnostics(
 
 
 def vary_group_size_plots(
-    var_results: Dict[int, int, float, float, float, int, int, float],
+    var_results: Dict,
     spacings_config: List[int],
     grand_group_by_spacing: Dict[int, List[List[tuple[np.ndarray, np.ndarray, float]]]],
     var_dir: str,
-    base: Dict[int, int, int, int, float, float, str, int],
+    base: Dict,
 ) -> None:
     """
     Generate the full suite of group-size-variation diagnostic plots.

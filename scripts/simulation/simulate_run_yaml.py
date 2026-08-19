@@ -119,12 +119,14 @@ def main():
         ax = AxionParams(f_axion_hz=float(f_ax), sigma_hz=s_ax, total_power=inj["total_power"])
 
     # 1) simulate
-    specs, fper, rf, rf_map, metadata = simulate_spectra(
+        sset = simulate_spectra(
         n_spectra=sim["n_spectra"], n_bins=sim["n_bins"],
         bin_width_hz=sim["bin_width_hz"], f_start_hz=sim["f_start_hz"],
         tune_step_bins=sim["tune_step_bins"], rng_seed=sim["rng_seed"],
         noise_sigma=sim["noise_sigma"], injected_axion=inj
     )
+    specs, fper, rf, rf_map, metadata = sset.spectra, sset.freqs_per_spec, sset.rf_grid, sset.rf_index_map, sset.metadata
+
 
     # Always save one example raw spectrum
     plt.figure(figsize=(9,3))
@@ -204,10 +206,10 @@ def main():
 
     # 4) rebin + grand spectrum (SHM template)
     C, K = rb["C"], rb["K"]
-    Dr, sr, _ = rebin_ml(combined, sigma_c, C=C)
+    Dr, sr, _ = rebin_ml(combined, sigma_c, rebin_width=C)
     freqs_r = rf[:len(Dr)*C:C] + (C//2)*sim["bin_width_hz"]
     f0 = freqs_r[len(freqs_r)//2]
-    Lq = shm_maxwell_template(K=K, bin_width_hz=C*sim["bin_width_hz"], f0_hz=f0)
+    Lq = shm_maxwell_template(k=K, bin_width_hz=C*sim["bin_width_hz"], f0_hz=f0)
     Dg, sg = grand_spectrum_ml(Dr, sr, Lq)
 
     z = np.zeros_like(Dg); m = np.isfinite(sg) & (sg>0); z[m] = Dg[m]/sg[m]

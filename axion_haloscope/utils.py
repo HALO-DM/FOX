@@ -158,6 +158,7 @@ def load_yaml_config(
             "start_time":               _get(qc, "start_time", None),
             "end_time":                 _get(qc, "end_time", None),
             "data_cleaning":            bool(_get(qc, "data_cleaning", False)),
+            "time_array_index":         int(_get(qc, "time_array_index", 1))
         },
         "alignment": {
             "gain_alignment": bool(_get(alg, "gain_alignment", True))
