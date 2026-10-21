@@ -1,0 +1,66 @@
+
+  
+input:
+  input_mode: "convert_data"              # "read_data", "convert_data", or "simulation"
+  directory: "Data+Directory"                        # location of data to be read 
+  input_file_name: "converted_spectra.h5" # name of file to be read. Only used on "read_data" input_mode
+  diagnostic_mode : False
+  save_dir : "output"     #where to save to
+
+
+quality:
+  item: "res_freqs"
+  max_power_filter: true              # filter the spectra for max mean power 
+  p_max: 1e-9                     # max power allowed
+  noise_filter: true                  # filter the spectra for noise
+  rms_max: 0.5     # max RMS allowed
+  nan_fail: true                      # drop spectra with NaNs/inf
+  robust: false                 # use median+MAD instead of mean+std
+  small_bandwidth_filter: true        # filter the spectra for small bandwidths
+  bw_min: 0.00002                 # min bandwidth allowed (same as QSHS)
+  bandwidth_zeros_filter: true        # filter the spectra for bandwdith data being arrays of zeros
+  res_freq_zeros_filter: true         # filter the spectra for res_freq data being arrays of zeros
+  cw_freq_zeros_filter: false         # filter the spectra for cw_freq data being arrays of zeros
+  bad_time_filter: false              # filter spectra within a known bad time frame
+  start_time: ["2026-01-20 09:55:41"] # list of start times of the known bad data in format YYYY-MM-DD HH:MM:SS
+  end_time: ["2026-01-30 00:10:58"]   # list of end times of the known bad data in format YYYY-MM-DD HH:MM:SS
+  data_cleaning: false                # check if early data cleaning should be completed
+  time_array_index: 1                 # choose which time range to use in the predetermined array in Time Cutting
+
+baseline:
+  sg_window_warm: 351     # total window length for warm SG filter
+  sg_poly_warm: 4         # polynomial order for warm SG filter
+  sg_window_cold: 351     # total window length for cold SG filter
+  sg_poly_cold: 4         # polynomial order for cold SG filter
+  spacing_minutes: 30     # group spacing in which to group different groups (minutes)
+  sigma_cut: 4.5          # sigma threshold coefficient
+  clipping_mode: "blue"   # "Claude" or "Blue" - look in sigma_clipping.py for more information
+  n_iterations: 3         # number of iterations for iterative sigma clipping
+
+rebin:
+  C: 10
+  K: 9
+
+detection:
+  target_snr: 5.0
+  confidence: 0.95
+  snr_eff: 0.90
+  g0: 1.0
+
+output:
+  save_data: false       # *.hdf5 + spectra.npz
+  plots_step: 1         # plot every Nth spectrum
+  # max_plots: 100      # optional cap
+  root: "output"        # base output folder
+  subdir_prefix: "run"  # subfolder prefix: run_<timestamp>
+
+diagnostic:
+  run_diagnostics: false           # switch to turn on diagnostics
+  save_raw_plots: false           # save per-spectrum PNGs
+  combined_plot: false            # save combined PNG of all spectra
+  offset_combined_plot: false     # save combined PNG of all spectra with offset
+  injection_distribution: false   # save injected freqency distribution
+  group_average_diagnostics: false  # save all groups group averaging diagnostic plots
+  clipping_residuals: false       # save all groups post clipping residuals
+  varying_group_size: false        # complete investigation into how changing the group size for averaging impacts results
+
