@@ -39,7 +39,7 @@ going into the FOX directory
 
 6. Run the data analysis
 - From the root directory:
-> python scripts/simulation/simulate_run_yaml_working.py configs/simulate_run_working.yaml
+> python scripts/simulation/data_analysis.py configs/data_analysis.yaml
 
 ---
 ### Repository structure
