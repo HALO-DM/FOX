@@ -26,7 +26,7 @@ going into the FOX directory
 - Inside that folder should be a list of .hdf5 files
 
 5. Setup the data analysis
-- In your text editor of choice, open configs/simulate_run_working.yaml
+- In your text editor of choice, open configs/data_analysis.yaml
 - Choose your input mode
     - "convert_data" - converts data from "directory"
         - Make sure you point "directory" to the location of your data
