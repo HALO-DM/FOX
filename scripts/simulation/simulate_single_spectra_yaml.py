@@ -20,8 +20,8 @@ from axion_haloscope.combine    import combine_ml
 from axion_haloscope.rebin      import rebin_ml, grand_spectrum_ml
 from axion_haloscope.lineshape  import shm_maxwell_template
 from axion_haloscope.detection  import threshold_for_detection, find_candidates
-from axion_haloscope.limit      import compute_local_snr_template, coupling_limit, plot_exclusion
-
+from axion_haloscope.limit      import compute_local_snr_template, coupling_limit
+from axion_haloscope.graphs     import plot_exclusion
 
 def _get(d, key, default):
     v = d.get(key, default)
@@ -89,12 +89,14 @@ def main():
         ax = AxionParams(f_axion_hz=float(f_ax), sigma_hz=inj["sigma_hz"], total_power=inj["total_power"])
 
     # 1) simulate
-    specs, fper, rf, rf_map = simulate_spectra(
+        sset = simulate_spectra(
         n_spectra=sim["n_spectra"], n_bins=sim["n_bins"],
         bin_width_hz=sim["bin_width_hz"], f_start_hz=sim["f_start_hz"],
         tune_step_bins=sim["tune_step_bins"], rng_seed=sim["rng_seed"],
-        noise_sigma=sim["noise_sigma"], axion=ax
+        noise_sigma=sim["noise_sigma"], injected_axion=inj
     )
+    specs, fper, rf, rf_map, metadata = sset.spectra, sset.freqs_per_spec, sset.rf_grid, sset.rf_index_map, sset.metadata
+
 
     # Always save one example raw spectrum
     plt.figure(figsize=(9,3))
