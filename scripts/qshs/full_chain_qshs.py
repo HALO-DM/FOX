@@ -20,7 +20,8 @@ from axion_haloscope.combine import combine_ml
 from axion_haloscope.rebin import rebin_ml, grand_spectrum_ml
 from axion_haloscope.lineshape import shm_maxwell_template
 from axion_haloscope.detection import threshold_for_detection, find_candidates
-from axion_haloscope.limit import compute_local_snr_template, coupling_limit, plot_exclusion
+from axion_haloscope.limit import compute_local_snr_template, coupling_limit
+from axion_haloscope.graphs import plot_exclusion
 
 
 
@@ -72,9 +73,6 @@ def main():
         pattern=args.pattern,
         use_shifted_frequency=True,
         sort_frequency=True,
-
-        run_dir=run_dir,
-
     )
 
     print(f"[I/O] Loaded {sset.n_spectra()} QSHS spectra")
@@ -205,7 +203,7 @@ def main():
     C = args.rebin_C
     K = args.K
 
-    Dr, sr, spans = rebin_ml(combined, sigma_c, C=C)
+    Dr, sr, spans = rebin_ml(combined, sigma_c, rebin_width=C)
 
     df = float(np.median(np.diff(sset.rf_grid)))
     freqs_r = sset.rf_grid[:len(Dr) * C:C] + (C // 2) * df
@@ -215,7 +213,7 @@ def main():
     template_f0_hz = 4.45e9  # temporary, approximate RF scale for shifted-frequency analysis
 
     Lq = shm_maxwell_template(
-        K=K,
+        k=K,
         bin_width_hz=C * df,
         f0_hz=template_f0_hz,
     )
