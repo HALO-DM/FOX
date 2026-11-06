@@ -102,10 +102,9 @@ def main():
         pattern=pattern,
         use_shifted_frequency=True,
         sort_frequency=True,
-        run_dir=run_dir,
     )
 
-    print(f"[QSHS] Successfully loaded {sset.n_spectra()}/ {len(sset.metadata['invalid_files']) + sset.n_spectra()} spectra, {len(sset.metadata['invalid_files'])} files are invalid.")
+    print(f"[QSHS] Successfully loaded {sset.n_spectra()}/ {len(sset.metadata.invalid_files) + sset.n_spectra()} spectra, {len(sset.metadata.invalid_files)} files are invalid.")
     print(
         f"[QSHS] Shifted frequency span: "
         f"{sset.rf_grid[0]/1e6:.6f} to {sset.rf_grid[-1]/1e6:.6f} MHz"
@@ -122,7 +121,7 @@ def main():
     # Optional Plotting / Saving
     # ============================
 
-    valid_files = list(sset.metadata["file_name"])
+    valid_files = list(sset.metadata.file_names)
     res_freqs_list = []
     cw_freqs_list = []
     bandwidths_list = []
