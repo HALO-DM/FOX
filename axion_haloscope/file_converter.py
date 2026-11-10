@@ -10,7 +10,7 @@ import queue
 from typing import List, Tuple, Optional
 import numpy as np
 from numpy.fft import fft, rfft
-FILENAME="/work/axion_data/test_runs/run00018.mid.lz4"
+FILENAME="test_runs/run00018.mid.lz4"
  
 
 #putting these classes in for now because importing wasn't working
@@ -343,7 +343,7 @@ def write_midas_to_hdf5(sset: SpectrumSet,
         )
     
 
-new_hdf5=write_midas_to_hdf5(sset=spectrum_set, path="/work/robynw/packages/RAPID/midas_reader_analysis/THISONE/FOX/midas_data/run_18.hdf5")
+new_hdf5=write_midas_to_hdf5(sset=spectrum_set, path="/work/robynw/packages/RAPID/midas_reader_analysis/FOX_daq_interface/midashdf5/run_18.hdf5")
 
 import h5py
 
