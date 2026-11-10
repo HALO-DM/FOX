@@ -112,6 +112,8 @@ def load_yaml_config(
     with path.open("r", encoding="utf-8") as fh:
         raw = yaml.safe_load(fh) or {}
     inp  = raw.get("input",      {}) or {}
+    tag  = raw.get("tagging",    {}) or {}
+    sql  = raw.get("sql",        {}) or {}
     sim  = raw.get("simulation", {}) or {}
     inj  = raw.get("injection",  {}) or {}
     qc   = raw.get("quality",    {}) or {}
@@ -128,6 +130,20 @@ def load_yaml_config(
             "directory":              str(_get(inp, "directory", "scripts/qshs")),
             "input_file_name":        str(_get(inp, "input_file_name", "converted_spectra.h5")),
         },
+        "tagging": {
+            "diagnostic_mode":  bool(_get(tag, "diagnostic_mode", True)),
+            "save_dir": str(_get(tag, "save_dir", "output")),
+            "prescale": int(_get(tag, "prescale", 1)),
+            "cavity": bool(_get(tag, "cavity", False)),
+            "save_error_files": bool(_get(tag, "save_error_files", True)),
+            "upload_to_db": bool(_get(tag, "upload_to_db", False)),
+            },
+        "sql": {
+            "host": str(_get(sql, "host", "host")),
+            "user": str(_get(sql, "user", "user")),
+            "port": int(_get(sql, "port", 0000)),
+            "db": str(_get(sql, "db", "db")),
+            },
         "simulation": {
             "n_spectra":      int(_get(sim, "n_spectra", 80)),
             "n_bins":         int(_get(sim, "n_bins", 8000)),
