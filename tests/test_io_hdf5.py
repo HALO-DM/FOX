@@ -17,11 +17,10 @@ def test_hdf5_roundtrip(tmp_path: Path):
     # Small sim for speed
     n_spectra, n_bins, bw = 4, 1000, 100.0
     f_start, step = 5.70e9, 80
-    spectra, fper, rf, rf_map = simulate_spectra(
+    sset = simulate_spectra(
         n_spectra=n_spectra, n_bins=n_bins, bin_width_hz=bw,
-        f_start_hz=f_start, tune_step_bins=step, rng_seed=11, axion=None
-    )
-    sset = _to_spectrum_set(spectra, fper, rf, rf_map)
+        f_start_hz=f_start, tune_step_bins=step, rng_seed=11 )
+    specs, fper, rf, rf_map = sset.spectra, sset.freqs_per_spec, sset.rf_grid, sset.rf_index_map
 
     # Write & read
     h5file = tmp_path / "spectra.h5"

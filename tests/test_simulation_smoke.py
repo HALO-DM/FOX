@@ -2,16 +2,19 @@ import numpy as np
 from axion_haloscope.simulation import simulate_spectra, AxionParams
 
 def test_simulation_shapes_and_seed():
-    specs1, fper1, rf1, map1 = simulate_spectra(
+    sset1 = simulate_spectra(
         n_spectra=4, n_bins=2000, bin_width_hz=100.0,
         f_start_hz=5.70e9, tune_step_bins=80,
-        noise_sigma=1.0, rng_seed=1234, axion=None
+        noise_sigma=1.0, rng_seed=1234, injected_axion=None
     )
-    specs2, fper2, rf2, map2 = simulate_spectra(
+    specs1, fper1, rf1, map1 = sset1.spectra, sset1.freqs_per_spec, sset1.rf_grid, sset1.rf_index_map
+    sset2 = simulate_spectra(
         n_spectra=4, n_bins=2000, bin_width_hz=100.0,
         f_start_hz=5.70e9, tune_step_bins=80,
-        noise_sigma=1.0, rng_seed=1234, axion=None
+        noise_sigma=1.0, rng_seed=1234, injected_axion=None
     )
+    
+    specs2, fper2, rf2, map2 = sset2.spectra, sset2.freqs_per_spec, sset2.rf_grid,sset2.rf_index_map
 
     assert len(specs1) == 4 and specs1[0].shape == (2000,)
     assert rf1.ndim == 1 and rf1.size == 2000 + 3*80  # global grid size
@@ -30,12 +33,19 @@ def test_axion_injection_produces_local_excess():
     # Put axion roughly mid-span
     rf_total_bins = n_bins + (n_spectra-1)*step
     f_ax = f_start + 0.5*rf_total_bins*bw
-
-    specs, fper, rf, rf_map = simulate_spectra(
+    inj = {
+            "enabled" : True,
+            "f_axion_hz" : f_ax,
+            "sigma_hz" : 2500.0,
+            "total_power" : 30.0
+            }
+    sset = simulate_spectra(
         n_spectra=n_spectra, n_bins=n_bins, bin_width_hz=bw,
         f_start_hz=f_start, tune_step_bins=step, rng_seed=7,
-        axion=AxionParams(f_axion_hz=f_ax, sigma_hz=2500.0, total_power=30.0)
-    )
+        injected_axion=inj
+        )
+
+    specs, fper, rf ,rf_map = sset.spectra,sset.freqs_per_spec,sset.rf_grid,sset.rf_index_map
 
     # Naive RF average (no baseline removal), just to "see" the bump
     summed = np.zeros_like(rf, dtype=float)
