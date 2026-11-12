@@ -20,7 +20,6 @@ def test_hdf5_roundtrip(tmp_path: Path):
     sset = simulate_spectra(
         n_spectra=n_spectra, n_bins=n_bins, bin_width_hz=bw,
         f_start_hz=f_start, tune_step_bins=step, rng_seed=11 )
-    specs, fper, rf, rf_map = sset.spectra, sset.freqs_per_spec, sset.rf_grid, sset.rf_index_map
 
     # Write & read
     h5file = tmp_path / "spectra.h5"

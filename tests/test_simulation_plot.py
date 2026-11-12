@@ -22,7 +22,7 @@ def test_simulated_spectrum_plot(tmp_path):
             "total_power": 15.0,
             }
 
-    sset = simulate_spectra(
+    spectrum = simulate_spectra(
         n_spectra=n_spectra,
         n_bins=n_bins,
         bin_width_hz=bin_width,
@@ -33,17 +33,15 @@ def test_simulated_spectrum_plot(tmp_path):
         injected_axion=ax,
     )
 
-    spectra, freqs_per_spec, rf_grid, rf_index_map = sset.spectra, sset.freqs_per_spec, sset.rf_grid, sset.rf_index_map,
-
     # Basic sanity checks
-    assert len(spectra) == n_spectra
-    assert spectra[0].shape == (n_bins,)
-    assert rf_grid.ndim == 1 and rf_grid.size == n_bins + (n_spectra-1)*tune_step_bins
+    assert len(spectrum.spectra) == n_spectra
+    assert spectrum.spectra[0].shape == (n_bins,)
+    assert spectrum.rf_grid.ndim == 1 and spectrum.rf_grid.size == n_bins + (n_spectra-1)*tune_step_bins
 
     # Plot the first simulated spectrum on its RF axis
     fig, axp = plt.subplots(figsize=(8, 3))
-    idx0 = rf_index_map[0]
-    axp.plot(freqs_per_spec[0]/1e9, spectra[0], lw=0.7)
+    idx0 = spectrum.rf_index_map[0]
+    axp.plot(spectrum.freqs_per_spec[0]/1e9, spectrum.spectra[0], lw=0.7)
     axp.set_xlabel("Frequency [GHz]")
     axp.set_ylabel("Power [arb.]")
     axp.set_title("Simulated haloscope spectrum (toy)")

@@ -225,7 +225,7 @@ def _simulate_one_spectrum(
     file_time=datetime.now().strftime("%Y-%m-%d")
     metadata = {
         "dates": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-        "file_names": f"FOX_simulation_{file_time}_{i:05d}",
+        "file_names": f"FOX_simulation_{datetime.now().strftime('%Y-%m-%d')}_{i:05d}",
         "invalid_files": None,
         "b_vals": None,
         "q_factors": None,
@@ -244,7 +244,7 @@ def simulate_spectra(
     tune_step_bins: int = 60,
     noise_sigma: float = 1.0,
     rng_seed: int | None = 1234,
-    injected_axion: dict | None = None,
+    injected_axion: Optional[dict] | None = None,
     baseline_amp: float = 0.05,
     baseline_corr_bins: int = 400,
     baseline_key: Optional[int] = None,

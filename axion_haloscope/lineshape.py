@@ -119,7 +119,7 @@ def shm_maxwell_profile(
     return prof / s if s > 0 else prof
 
 def shm_maxwell_template(
-    k:int,
+    K:int,
     bin_width_hz: float,
     f0_hz: float,
     v0=220e3,
@@ -149,7 +149,7 @@ def shm_maxwell_template(
     t: np.ndarray
         k-bin template, normalized so `t.sum() == 1`
     """
-    centers = np.arange(k) - (k-1)/2.0
+    centers = np.arange(K) - (K-1)/2.0
     f_grid = f0_hz + centers * bin_width_hz
     t = shm_maxwell_profile(f_grid, f0_hz=f0_hz, v0=v0, v_esc=v_esc, v_earth=v_earth)
     return t / (t.sum() if t.sum() > 0 else 1.0)
