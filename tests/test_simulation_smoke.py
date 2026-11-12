@@ -53,7 +53,7 @@ def test_axion_injection_produces_local_excess():
     for s, idx in zip(specs, rf_map):
         summed[idx] += s
         counts[idx] += 1
-    avg = np.divide(summed, counts, where=counts>0)
+    avg = np.divide(summed, counts, where=counts>0, out=None)
 
     # Build an in-bounds signal window W and a background window Wa far away
     i_ax = int(np.argmin(np.abs(rf - f_ax)))
