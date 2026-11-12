@@ -198,7 +198,8 @@ def main():
     # ----------------------------------------------
     # Set up list of errors and an error directory
     # ----------------------------------------------
-    
+    if not os.path.exists("output/error_files"):
+         os.makedirs("output/error_files")
     os.mkdir(f"output/error_files/error_files_{timestamp}")
     os.mkdir(f"output/error_files/bit_files_{timestamp}")
 
