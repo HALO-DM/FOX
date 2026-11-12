@@ -58,31 +58,60 @@ FOX/                       <-- Project root (where pyproject.toml lives)
 │   ├── cli_example.sh
 │   ├── combine.py
 │   ├── config.py
+│   ├── data_cuts
 │   ├── data_quality.py
+│   ├── data_quality_working.py   <-- metadata aware version of data_quality.py
 │   ├── detection.py
-│   ├── external_noise.py
+│   ├── downmixing.py
+│   ├── file_converter.py     
+│   ├── filter.py
+│   ├── graphs.py
+│   ├── groups.py
 │   ├── how_to_replace_lineshape.py
 │   ├── io.py
+│   ├── io_working.py       <-- metadata aware version of io.py
 │   ├── limit.py
 │   ├── lineshape.py
+│   ├── load_data.py
+│   ├── noise.py
 │   ├── rebin.py
 │   ├── run_pipeline.py
+│   ├── sigma_clipping.py
 │   ├── simulation.py
+│   ├── simulation_working.py
+│   ├── utils.py
+│   ├── wavepacket.py
 │   └── width_fq.py
 ├── configs/                             <-- put your yaml configuration files here
 │   ├── data_analysis.yaml
+│   ├── data_tagging.yaml
+│   ├── midas_tagging.yaml
+│   ├── read_data_and_qc_only.yaml
 │   ├── simulate_run.yaml
+│   ├── simulate_run_haystack.yaml
+│   ├── simulate_run_new_simulation.yaml
 │   └── simulate_spectra_only.yaml
 ├── scripts/                             <-- put run scripts here
-│   ├── full_chain_template.py
-│   ├── read_npz_pipeline.py
-│   ├── read_spectra_npz.py
-│   └── simulation/
-│   └── simulate_run.py
+│   ├── data_analysis/
+│   │   ├── data_analysis_yaml.py
+│   │   ├── data_tagging_yaml.py
+│   │   └── tagging_midas_yaml.py
+│   ├── qshs/
+│   │   ├── convert_qshs_to_FOX.py
+│   │   ├── full_chain_qshs.py
+│   │   ├── read_my_file.py
+│   │   └── read_qshs_dir.py
+│   ├── simulation/
+│   │   ├── simulate_run.py
+│   │   ├── simulate_run_yaml.py
+│   │   ├── simulate_run_yaml_new_simulation.py
+│   │   ├── simulate_single_spectra.py
+│   │   └── simulate_single_spectra_yaml.py
 ├── input/                               <-- put data here (gitignored)
 ├── output/                              <-- generated results from the scripts folder go here (gitignored)
 ├── tests/                               <-- unit & integration tests
 │   ├── test_output/                         <-- generated results of the unit tests (gitignored)
+│   ├── test_baseline.py
 │   ├── test_combine.py
 │   ├── test_data_quality.py
 │   ├── test_detection.py
@@ -91,7 +120,6 @@ FOX/                       <-- Project root (where pyproject.toml lives)
 │   ├── test_simulation_plot.py
 │   └── test_simulation_smoke.py
 ```
-
 
 ### A word on pyproject.toml
 pyproject.toml is the main project configuration file to setup and build Python package. Here we define:
