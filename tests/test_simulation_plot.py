@@ -15,11 +15,12 @@ def test_simulated_spectrum_plot(tmp_path):
     f_start = 5.70e9
     tune_step_bins = 100
 
-    ax = AxionParams(
-        f_axion_hz = f_start + 0.45*(n_bins + (n_spectra-1)*tune_step_bins)*bin_width,
-        sigma_hz   = 2500.0,
-        total_power= 15.0,
-    )
+    ax = {
+            "enabled": True,
+            "f_axion_hz": f_start + 0.45*(n_bins + (n_spectra-1)*tune_step_bins)*bin_width,
+            "sigma_hz": 2500.0,
+            "total_power": 15.0,
+            }
 
     spectrum = simulate_spectra(
         n_spectra=n_spectra,
@@ -59,13 +60,22 @@ def test_simulated_spectrum_plot(tmp_path):
 
 
 def test_plot_first_spectrum(tmp_path):
-    spectrum = simulate_spectra(
+    ax= {
+            "enabled": True,
+            "f_axion_hz": 5.705e9,
+            "sigma_hz": 2500.0,
+            "total_power": 20.0
+            }
+
+    sset = simulate_spectra(
         n_spectra=3, n_bins=3000, bin_width_hz=100.0,
         f_start_hz=5.70e9, tune_step_bins=80, rng_seed=42,
-        injected_axion=AxionParams(5.705e9, 2500.0, 20.0)
+        injected_axion=ax
     )
+    
+    specs,fper,rf,rf_map=sset.spectra,sset.freqs_per_spec,sset.rf_grid,sset.rf_index_map
     fig, ax = plt.subplots(figsize=(8,3))
-    ax.plot(spectrum.freqs_per_spec[0]/1e9, spectrum.spectra[0], lw=0.7)
+    ax.plot(fper[0]/1e9, specs[0], lw=0.7)
     ax.set(xlabel="Frequency [GHz]", ylabel="Power [arb.]",
            title="Simulated spectrum (toy)")
     out = tmp_path / "sim_spectrum.png"

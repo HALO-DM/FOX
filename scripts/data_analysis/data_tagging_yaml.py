@@ -11,22 +11,14 @@ import pandas as pd
 import datetime, os, sys
 import json
 from pathlib import Path
-from tabulate import tabulate
 matplotlib.use("Agg")
-import matplotlib.pyplot as plt
 from typing import Dict
 import pathlib
-import matplotlib.cm as cm
 from tqdm import tqdm
 import shutil
-import hickle as hkl
 from dataclasses import dataclass
 
 
-from axion_haloscope.simulation import simulate_spectra
-from axion_haloscope.io_working import SpectrumSet, read_qshs_hdf5_dir, read_hdf5, write_hdf5, read_qshs_hdf5
-from axion_haloscope.convert_qshs_to_FOX import inspect, print_hdf5_structure, hdf5_to_object, flatten_to_kv, main
-from axion_haloscope.load_data import load_data
 from axion_haloscope.data_quality_working import power_too_high, small_bandwidth, metadata_is_zeros, too_noisy
 from axion_haloscope.utils                import create_directory, find_project_root, load_yaml_config
 
@@ -206,7 +198,8 @@ def main():
     # ----------------------------------------------
     # Set up list of errors and an error directory
     # ----------------------------------------------
-    
+    if not os.path.exists("output/error_files"):
+         os.makedirs("output/error_files")
     os.mkdir(f"output/error_files/error_files_{timestamp}")
     os.mkdir(f"output/error_files/bit_files_{timestamp}")
 

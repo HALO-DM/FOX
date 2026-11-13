@@ -23,7 +23,8 @@ from axion_haloscope.combine      import combine_ml
 from axion_haloscope.data_quality import filter_spectrum_set, too_noisy
 from axion_haloscope.detection    import threshold_for_detection, find_candidates
 from axion_haloscope.io           import SpectrumSet
-from axion_haloscope.limit        import compute_local_snr_template, coupling_limit, plot_exclusion
+from axion_haloscope.limit        import compute_local_snr_template, coupling_limit
+from axion_haloscope.graphs       import plot_exclusion
 from axion_haloscope.lineshape    import shm_maxwell_template
 from axion_haloscope.rebin        import rebin_ml, grand_spectrum_ml
 from axion_haloscope.simulation_working   import simulate_spectra
@@ -194,12 +195,15 @@ def main():
     
     
     # 1) simulate
-    specs, fper, rf, rf_map = simulate_spectra(
+    sset = simulate_spectra(
         n_spectra=sim["n_spectra"], n_bins=sim["n_bins"],
         freq_axion=sim["freq_axion"], freq_downmixed=sim["freq_downmixed"],
-        samples_per_cycle=sim["samples_per_cycle"], amplitude=sim["amplitude"],
+        samples_per_cycle=sim["samples_per_cycle"],
         run_dir = run_dir
-    )
+        )
+    specs, fper, rf, rf_map, metadata = sset.spectra, sset.freqs_per_spec, sset.rf_grid, sset.rf_index_map, sset.metadata
+
+
 
 
     # Always save one example raw spectrum
@@ -352,7 +356,7 @@ def main():
 
     # 4) rebin + grand spectrum (SHM template)
     C, K = rb["C"], rb["K"]
-    Dr, sr, _ = rebin_ml(combined, sigma_c, C=C)
+    Dr, sr, _ = rebin_ml(combined, sigma_c, rebin_width=C)
     freqs_r = rf[:len(Dr)*C:C] + (C//2)*sim["bin_width_hz"]
 
     plt.figure(figsize=(10,3))
@@ -363,7 +367,7 @@ def main():
 
 
     f0 = freqs_r[len(freqs_r)//2]
-    Lq = shm_maxwell_template(K=K, bin_width_hz=C*sim["bin_width_hz"], f0_hz=f0)
+    Lq = shm_maxwell_template(k=K, bin_width_hz=C*sim["bin_width_hz"], f0_hz=f0)
     Dg, sg = grand_spectrum_ml(Dr, sr, Lq)
 
 

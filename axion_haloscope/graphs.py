@@ -13,6 +13,7 @@ import matplotlib.colors as mcolors
 from matplotlib.colors import Normalize 
 import matplotlib.cm as cm
 import pandas as pd
+from typing import Optional
 
 
 def make_colouriser(values, cmap=plt.cm.viridis, vmin=None, vmax=None):
@@ -127,7 +128,7 @@ def plot_spectrum(x: np.array,
                 y: np.array,
                 title: str,
                 output_loc: str,
-                label: str | None = None,
+                label: Optional[str]  = None,
                 ):
     """
     Plot of a spectrum against frequency
@@ -684,7 +685,8 @@ def plot_data_cleaning(freq, spec,metadata, baseline, threshold, residuals, spec
 
     ax2.plot(freq[unmasked]/1e6, residuals[unmasked], lw=1.0, alpha=0.75, color=color, label="Masked Residuals")
     ax2.plot(freq/1e6, residuals, lw=1.0, alpha=0.35, color=color, label="Unmasked Residuals")
-    ax2.axhline(threshold, alpha=0.35, color="red", linestyle="dashed",label=f"{base["sigma_cut"]}σ Threshold")
+    sigma_thresh=base["sigma_cut"]
+    ax2.axhline(threshold, alpha=0.35, color="red", linestyle="dashed",label=f"{sigma_thresh}σ Threshold")
     ax2.axhline(-threshold, alpha=0.35, color="red", linestyle="dashed")
     max_vals = [np.max(spec[masked_this_iteration])] if masked_this_iteration.any() else []
     if masked_previously.any():

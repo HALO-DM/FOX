@@ -1,0 +1,18 @@
+input:
+  input_mode: "read_data"              # "read_data", "convert_data", or "simulation"
+  directory: "raw_midas"                        # location of data to be read 
+  input_file_name: "run00017.mid.lz4 " # name of file to be read. Only used on "read_data" input_mode
+
+tagging:
+  diagnostic_mode : True    #for error tables and colour plot
+  save_dir : "output"     #where to save to
+  prescale : 1
+  cavity: True         #whether you're taking data with a cavity in chain
+  save_error_files: False   # if you want to save the bit strings to disk
+  upload_to_db: False      # ONLY IF YOU WANT TO UPLOAD TO DATABASE
+
+sql:
+  host: "host"  #put in your database details here
+  user: "user"
+  port: 0000
+  db: "db"

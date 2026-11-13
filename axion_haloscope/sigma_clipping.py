@@ -4,7 +4,7 @@ Iterative Sigma Clipping
 All Algoithms used in the sigma clipping part of the warm baseline removal. No clipping takes
 place here, just the passing of masks so that the clipping can occur in the data analysis
 """
-from typing import Tuple, List
+from typing import Tuple, List, Optional
 import warnings
 
 import numpy as np
@@ -272,10 +272,10 @@ def general_clipping(
     sg_window: int,
     sg_order: int,
     sigma_cut: float,
-    freqs: np.ndarray | None = None,
-    baseline: np.ndarray | None = None,
-    current_mask: np.ndarray | None = None,
-    iteration: int | None = None
+    freqs: Optional[np.ndarray] = None,
+    baseline: Optional[np.ndarray] = None,
+    current_mask: Optional[np.ndarray] = None,
+    iteration: Optional[int] = None
 ) -> Tuple[np.ndarray, np.ndarray, np.ndarray, float, float]:
     """
     A general clipping algorithm. Cleans each spectra by performing 

@@ -4,7 +4,7 @@ from axion_haloscope.lineshape import shm_speed_pdf, shm_maxwell_profile, shm_ma
 
 def test_shm_template_normalizes():
     K =  nine = 9
-    T = shm_maxwell_template(K=9, bin_width_hz=1000.0, f0_hz=5.7e9)
+    T = shm_maxwell_template(k=9, bin_width_hz=1000.0, f0_hz=5.7e9)
     assert np.isclose(T.sum(), 1.0, rtol=1e-6)
 
 def test_profile_support_is_one_sided():
@@ -40,7 +40,7 @@ def test_extreme_params_do_not_crash():
     assert np.isclose(np.trapezoid(p, v), 1.0, rtol=1e-5)
 
     # Large K but reasonable bin width
-    T = shm_maxwell_template(K=51, bin_width_hz=1_000.0, f0_hz=5.7e9)
+    T = shm_maxwell_template(k=51, bin_width_hz=1_000.0, f0_hz=5.7e9)
     assert np.isfinite(T).all() and np.all(T >= 0) and np.isclose(T.sum(), 1.0, rtol=1e-6)
 
 def test_profile_monotone_below_f0_zero_above_nonzero():
@@ -53,7 +53,7 @@ def test_profile_monotone_below_f0_zero_above_nonzero():
 
 
 def test_template_length_and_sum():
-    T = shm_maxwell_template(K=9, bin_width_hz=1_000.0, f0_hz=5.7e9)
+    T = shm_maxwell_template(k=9, bin_width_hz=1_000.0, f0_hz=5.7e9)
     assert len(T) == 9
     assert np.all(T >= 0)
     assert np.isclose(T.sum(), 1.0, rtol=1e-6, atol=1e-12)
@@ -62,7 +62,7 @@ def test_template_length_and_sum():
 # tests/test_lineshape.py (patch)
 def test_template_behavior_near_f0():
     K = 15
-    T = shm_maxwell_template(K=K, bin_width_hz=2_000.0, f0_hz=5.7e9)
+    T = shm_maxwell_template(k=K, bin_width_hz=2_000.0, f0_hz=5.7e9)
     c = K // 2
 
     # 1) Exactly at f0 should be ~0

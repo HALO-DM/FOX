@@ -315,11 +315,12 @@ def main():
     time_array_index = qc["time_array_index"]
 
     old_sset = sset
-    sset = cut_by_datetime(
-        sset,
-        time_array[time_array_index][0],
-        time_array[time_array_index][1],
-    )
+    if qc["bad_time_filter"]:
+        sset = cut_by_datetime(
+            sset,
+            time_array[time_array_index][0],
+            time_array[time_array_index][1],
+        )
     if diagnostic_mode:
         print("-" * 60)
         print("Applying Time Cuts")
@@ -614,7 +615,8 @@ def main():
             for group in grand_group
         ]
     else:
-        raise ValueError(f"Clipping mode {base["clipping_mode"]} no found. Did you enter the correct name?")
+        clipping_base=base["clipping_mode"]
+        raise ValueError(f"Clipping mode {clipping_base} no found. Did you enter the correct name?")
 
     sigma_cut = base["sigma_cut"]
     n_iterations = base["n_iterations"]
@@ -663,7 +665,8 @@ def main():
     if out["save_data"]:
         save_masks_to_csv(grand_group_masks, fper[0], base["clipping_mode"].lower(), data_dir)
         if diagnostic_mode:
-            print(f"[OUT]: Masked Bins CSV saved to: {data_dir/f'{base["clipping_mode"].lower()}_masked_bin_summary.csv'}")
+            clipping_base=base["clipping_mode"].lower()
+            print(f"[OUT]: Masked Bins CSV saved to: {data_dir/f'{clipping_base}_masked_bin_summary.csv'}")
 
     # --------------------
     # Residuals Plotting

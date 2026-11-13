@@ -2,25 +2,28 @@ import numpy as np
 from axion_haloscope.simulation import simulate_spectra, AxionParams
 
 def test_simulation_shapes_and_seed():
-    spectrum_1 = simulate_spectra(
+    sset1 = simulate_spectra(
         n_spectra=4, n_bins=2000, bin_width_hz=100.0,
         f_start_hz=5.70e9, tune_step_bins=80,
         noise_sigma=1.0, rng_seed=1234, injected_axion=None
     )
-    spectrum_2 = simulate_spectra(
+    specs1, fper1, rf1, map1 = sset1.spectra, sset1.freqs_per_spec, sset1.rf_grid, sset1.rf_index_map
+    sset2 = simulate_spectra(
         n_spectra=4, n_bins=2000, bin_width_hz=100.0,
         f_start_hz=5.70e9, tune_step_bins=80,
         noise_sigma=1.0, rng_seed=1234, injected_axion=None
     )
+    
+    specs2, fper2, rf2, map2 = sset2.spectra, sset2.freqs_per_spec, sset2.rf_grid,sset2.rf_index_map
 
-    assert len(spectrum_1.spectra) == 4 and spectrum_1.spectra[0].shape == (2000,)
-    assert spectrum_1.rf_grid.ndim == 1 and spectrum_1.rf_grid.size == 2000 + 3*80  # global grid size
+    assert len(specs1) == 4 and specs1[0].shape == (2000,)
+    assert rf1.ndim == 1 and rf1.size == 2000 + 3*80  # global grid size
     # deterministic with same seed
-    for a,b in zip(spectrum_1.spectra, spectrum_2.spectra):
+    for a,b in zip(specs1, specs2):
         assert np.allclose(a, b)
     # RF bookkeeping consistent
-    for i, idx in enumerate(spectrum_1.rf_index_map):
-        assert np.allclose(spectrum_1.freqs_per_spec[i], spectrum_1.rf_grid[idx])
+    for i, idx in enumerate(map1):
+        assert np.allclose(fper1[i], rf1[idx])
 
 
 
@@ -30,37 +33,44 @@ def test_axion_injection_produces_local_excess():
     # Put axion roughly mid-span
     rf_total_bins = n_bins + (n_spectra-1)*step
     f_ax = f_start + 0.5*rf_total_bins*bw
-
-    spectrum = simulate_spectra(
+    inj = {
+            "enabled" : True,
+            "f_axion_hz" : f_ax,
+            "sigma_hz" : 2500.0,
+            "total_power" : 30.0
+            }
+    sset = simulate_spectra(
         n_spectra=n_spectra, n_bins=n_bins, bin_width_hz=bw,
         f_start_hz=f_start, tune_step_bins=step, rng_seed=7,
-        injected_axion=AxionParams(f_axion_hz=f_ax, sigma_hz=2500.0, total_power=30.0)
-    )
+        injected_axion=inj
+        )
+
+    specs, fper, rf ,rf_map = sset.spectra,sset.freqs_per_spec,sset.rf_grid,sset.rf_index_map
 
     # Naive RF average (no baseline removal), just to "see" the bump
-    summed = np.zeros_like(spectrum.rf_grid, dtype=float)
-    counts = np.zeros_like(spectrum.rf_grid, dtype=int)
-    for s, idx in zip(spectrum.spectra, spectrum.rf_index_map):
+    summed = np.zeros_like(rf, dtype=float)
+    counts = np.zeros_like(rf, dtype=int)
+    for s, idx in zip(specs, rf_map):
         summed[idx] += s
         counts[idx] += 1
-    avg = np.divide(summed, counts, where=counts>0)
+    avg = np.divide(summed, counts, where=counts>0, out=None)
 
     # Build an in-bounds signal window W and a background window Wa far away
-    i_ax = int(np.argmin(np.abs(spectrum.rf_grid - f_ax)))
+    i_ax = int(np.argmin(np.abs(rf - f_ax)))
     # half-width ~ 15 kHz window -> bins:
     half_w = max(1, int(15_000.0 / bw))
     a = max(0, i_ax - half_w)
-    b = min(len(spectrum.rf_grid), i_ax + half_w + 1)
-    W = np.zeros_like(spectrum.rf_grid, dtype=bool); W[a:b] = True
+    b = min(len(rf), i_ax + half_w + 1)
+    W = np.zeros_like(rf, dtype=bool); W[a:b] = True
 
     # background window: shift by ~30*half_w bins (far but in-bounds)
     shift = 30 * half_w
     a_bg = a + shift
     b_bg = b + shift
-    if b_bg > len(spectrum.rf_grid):  # if off the right edge, move to the left instead
+    if b_bg > len(rf):  # if off the right edge, move to the left instead
         a_bg = max(0, a - shift)
         b_bg = max(b - shift, a_bg + 1)
-    Wa = np.zeros_like(spectrum.rf_grid, dtype=bool); Wa[a_bg:b_bg] = True
+    Wa = np.zeros_like(rf, dtype=bool); Wa[a_bg:b_bg] = True
 
     # sanity: both windows non-empty and disjoint
     assert W.any() and Wa.any() and not np.any(W & Wa)

@@ -73,7 +73,8 @@ def pass_filter(
     y_linear = 10**pchip(np.clip(freqs/1e6, x[0], x[-1]))
 
     plt.figure(figsize=(7, 5))
-    plt.loglog(x, y_linear, marker='o', linestyle='')
+    #commented out until proper troubleshooting
+    #plt.loglog(x, y_linear, marker='o', linestyle='')
     plt.loglog(x_int, y_int, linestyle='-', linewidth=0.75, color='k')
 
     plt.xlabel("Frequency (MHz)")
