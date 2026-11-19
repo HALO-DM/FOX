@@ -127,7 +127,7 @@ def remove_baseline(
     if diagnostic:
         cfg = {} if diagnostic is True else dict(diagnostic)
         x = freqs_hz if (freqs_hz is not None) else np.arange(len(spectrum))
-        xlab = "Frequency [GHz]" if freqs_hz is not None else "Bin"
+        xlab = "Frequency [Hz]" if freqs_hz is not None else "Bin"
         if freqs_hz is not None:
             x = np.asarray(freqs_hz, float)
 
