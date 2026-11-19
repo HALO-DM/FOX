@@ -801,7 +801,7 @@ def main():
     # =======================================================================
     rebin_width, template_width = rb["C"], rb["K"]
     data_rebinned, sigma_dr, _ = rebin_ml(combined, sigma_c, rebin_width=rebin_width)
-    feqs_rebinned = rf[:len(data_rebinned)*rebin_width:rebin_width] + (rebin_width//2)* (fper[0][1] - fper[0][0])
+    feqs_rebinned = rf[:len(data_rebinned)*rebin_width:rebin_width] + (rebin_width//2)* (rf[1] - rf[0])
     f0 = feqs_rebinned[len(feqs_rebinned)//2]
     f0 = np.average(metadata.res_freqs) * 1e9
 
