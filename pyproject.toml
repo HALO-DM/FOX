@@ -40,7 +40,7 @@ dependencies = [
   "pyparsing==3.2.3",
   "pytest==8.4.2",
   "python-dateutil==3.0.0",
-  "pytokens=-0.1.10",
+  "pytokens==0.1.10",
   "pytz==2026.6",
   "PyYAML==6.0.3",
   "scipy==1.13.1",
