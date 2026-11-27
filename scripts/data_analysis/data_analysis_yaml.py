@@ -117,236 +117,240 @@ def main():
     # =======================================================================
     # Quality Control
     # =======================================================================
-
-    if diagnostic_mode:
-        print("=" * 60) 
-        print("Quality Control")
-        print("=" * 60)
-
-        qc_run_dir = create_directory(diag_run_dir, "quality_control")
-
-    invalid_files = sset.metadata.invalid_files
-
-
-    bad_zero_power = []
-    bad_no_metadata = []
-
-    for f in invalid_files:
-        if f[1] == "power spectra is zeros":
-            bad_zero_power.append(f)
-        elif f[1] == "metadata is missing":
-            bad_no_metadata.append(f)
-    if diagnostic_mode:
-        print(f"[QC]: {len(bad_no_metadata)} spectra were removed as files were missing metadata.")
-        print(f"[QC]: {len(bad_zero_power)} spectra were removed as power data were arrays of zeros.")
-
-    step = max(1, int(out["plots_step"]))
-    max_plots = None if out["max_plots"] is None else int(out["max_plots"])
-
-    # QC: Cut spectra with power above threshold
-    if qc["max_power_filter"]:
-        sset, sset_power, kept, bad_power = filter_spectrum_set(sset,
-            predicate=lambda s, f, md, i: power_too_high(s, f, md, i, p_max=qc["p_max"]))
-        
-        for idx, s in enumerate(bad_power):
-            invalid_files.append([sset_power.metadata.file_names[idx], "power is too high", sset_power.metadata.dates[idx]])
-        # Seperate invalid power spectra to plot
-        specs_invalid_power, fper_invalid_power = sset_power.spectra, sset_power.freqs_per_spec
-        if len(specs_invalid_power) != 0 and diagnostic_mode:
-            print(f"[QC]: {len(bad_power)} spectra were removed as power is too high.")
-            graphs.plot_spectrum(fper_invalid_power[0]/1e9, specs_invalid_power[0],
-                        "Example invalid raw spectrum (high power)", qc_run_dir/"invalid_power_raw_spectrum_first.png")
-
-            graphs.plot_spectrum(fper_invalid_power[-1]/1e9, specs_invalid_power[-1],
-                        "Example invalid raw spectrum (high power)", qc_run_dir/"invalid_power_raw_spectrum_last.png")
-
-
-    # QC: Cut spectra that have rms values above threshold
-    if qc["noise_filter"]:
-        sset, sset_noise, kept, bad_noise = filter_spectrum_set(sset,
-            predicate=lambda s, f, md, i: too_noisy(s, f, md, i, rms_max=qc["rms_max"]))
-        
-        for idx, s in enumerate(bad_noise):
-            invalid_files.append([sset_noise.metadata.file_names[idx], "too noisy", sset_noise.metadata.dates[idx]])
-        # Seperate invalid noise spectra to plot
-        specs_invalid_noise, fper_invalid_noise = sset_noise.spectra, sset_noise.freqs_per_spec
-        if len(specs_invalid_noise) != 0 and diagnostic_mode:
-            print(f"[QC]: {len(bad_noise)} spectra were removed as too noisy.")
-            
-            graphs.plot_spectrum(fper_invalid_noise[0]/1e9, specs_invalid_noise[0],
-                        "Example invalid raw spectrum (too noisey)", qc_run_dir/"invalid_noise_raw_spectrum_first.png")
-
-            graphs.plot_spectrum(fper_invalid_noise[-1]/1e9, specs_invalid_noise[-1],
-                        "Example invalid raw spectrum (too noisey)", qc_run_dir/"invalid_noise_raw_spectrum_last.png")
-
-            step = max(1, int(out["plots_step"]))
-            max_plots = None if out["max_plots"] is None else int(out["max_plots"])
-
-
-    # QC: Cut spectra that are within known bad times
-    if qc["bad_time_filter"]:
-        total_bad_time_filter = 0
-        if len(qc["start_time"]) != len(qc["end_time"]):
-            raise ValueError("The lists of start times and end times for cutting data are different lengths, please resolve this issue.")
-
-        for t in range(len(qc["start_time"])):
-            sset, sset_time_filtered, kept, bad_time_filter = filter_spectrum_set(sset,
-                predicate=lambda s, f, md, i: time_filter(s, f, md, i, start_time = qc["start_time"][t], end_time = qc["end_time"][t]))
-            total_bad_time_filter += len(bad_time_filter)
-            for idx, s in enumerate(bad_time_filter):
-                invalid_files.append([sset_time_filtered.metadata.file_names[idx], 
-                                      f"known bad data ({qc['start_time'][t]}-{qc['end_time'][t]})" , sset_time_filtered.metadata.dates[idx]])
-            
-            specs_invalid_time, fper_invalid_time = sset_time_filtered.spectra, sset_time_filtered.freqs_per_spec
-            if len(specs_invalid_time) != 0 and diagnostic_mode:
-                
-                start_safe = str(qc['start_time'][t]).replace(":", "-").replace(" ", "_")
-                end_safe = str(qc['end_time'][t]).replace(":", "-").replace(" ", "_")
-
-                graphs.plot_spectrum(fper_invalid_time[0]/1e9, specs_invalid_time[0],
-                            f"Example invalid raw spectrum (invalid time {qc['start_time'][t]}-{qc['end_time'][t]})",
-                            qc_run_dir/f"invalid_time_raw_spectrum_first_{start_safe}-{end_safe}.png")
-
-                graphs.plot_spectrum(fper_invalid_time[-1]/1e9, specs_invalid_time[-1],
-                            f"Example invalid raw spectrum (invalid time {qc['start_time'][t]}-{qc['end_time'][t]})",
-                            qc_run_dir/f"invalid_time_raw_spectrum_last_{start_safe}-{end_safe}.png")
-
-                step = max(1, int(out["plots_step"]))
-                max_plots = None if out["max_plots"] is None else int(out["max_plots"])
-        if diagnostic_mode:    
-            print(f"[QC]: {total_bad_time_filter} spectra were removed as within known bad data times.")
-
-
-    # QC: Cut spectra that have bandwidth values below the threshold value
-    if qc["small_bandwidth_filter"]:
-        sset, sset_bandwidth, kept, bad_bandwidth = filter_spectrum_set(sset,
-            predicate=lambda s, f, md, i: small_bandwidth(s, f, md, i, bw_min=qc["bw_min"]))
-        
-        for idx, s in enumerate(bad_bandwidth):
-            invalid_files.append([sset_bandwidth.metadata.file_names[idx], "bandwidth is too small", sset_bandwidth.metadata.dates[idx]])
-        # Seperate invalid bandwidth spectra to plot
-        specs_invalid_bandwidth, fper_invalid_bandwidth = sset_bandwidth.spectra, sset_bandwidth.freqs_per_spec
-        if len(specs_invalid_bandwidth) != 0 and diagnostic_mode:
-            print(f"[QC]: {len(bad_bandwidth)} spectra were removed as bandwidth is too small.")
-            
-            graphs.plot_spectrum(fper_invalid_bandwidth[0]/1e9, specs_invalid_bandwidth[0],
-                        f"Example invalid raw spectrum (invalid bandwidth)", qc_run_dir/f"invalid_bandwidth_spectrum_first.png")
-
-            graphs.plot_spectrum(fper_invalid_bandwidth[-1]/1e9, specs_invalid_bandwidth[-1],
-                                    f"Example invalid raw spectrum (invalid bandwidth)", qc_run_dir/f"invalid_bandwidth_spectrum_last.png")
-
-            step = max(1, int(out["plots_step"]))
-            max_plots = None if out["max_plots"] is None else int(out["max_plots"])
-            
-
-            # Plot bandwidth againist date to show which are below the threshold
-            good_bandwidths = np.array(sset.metadata.bandwidths)
-            good_dates = pd.to_datetime(sset.metadata.dates)
-            good_order = np.argsort(good_dates)
-            bad_bandwidths = np.array(sset_bandwidth.metadata.bandwidths)
-            bad_dates = pd.to_datetime(sset_bandwidth.metadata.dates)
-
-            order = np.argsort(bad_dates)
-            bad_dates_sorted = bad_dates[order]
-            bad_bandwidths_sorted = bad_bandwidths[order]
-
-            graphs.plot_bandwidth(bad_dates_sorted, bad_bandwidths_sorted, good_dates, good_bandwidths, good_order, qc_run_dir, qc)
-
-
-    # QC: Cut spectra that have a res_freq value of zero
-    if qc["res_freq_zeros_filter"]:
-        sset, sset_zeros_res_freq, kept, bad_zeros_res_freq = filter_spectrum_set(sset,
-            predicate=lambda s, f, md, i: metadata_is_zeros(s, f, md, i, item = "res_freqs"))
-        for idx, s in enumerate(bad_zeros_res_freq):
-            invalid_files.append([sset_zeros_res_freq.metadata.file_names[idx], "res_freq data is zeros", sset_zeros_res_freq.metadata.dates[idx]])
-        if len(bad_zeros_res_freq) != 0 and diagnostic_mode:
-            print(f"[QC]: {len(bad_zeros_res_freq)} spectra were removed as given res_freq is zero.")
-
-
-    # QC: Cut spectra that have no injected axion (cw_freq = 0)
-    if qc["cw_freq_zeros_filter"]:
-        no_inj_files = []
-        sset, sset_zeros_cw_freq, kept, bad_zeros_cw_freq = filter_spectrum_set(sset,
-            predicate=lambda s, f, md, i: metadata_is_zeros(s, f, md, i, item = "cw_freqs"))
-        for idx, s in enumerate(bad_zeros_cw_freq):
-            no_inj_files.append([sset_zeros_cw_freq.metadata.file_names[idx], sset_zeros_cw_freq.metadata.dates[idx]])
-        if len(bad_zeros_cw_freq) != 0 and diagnostic_mode:
-            print(f"[QC]: {len(bad_zeros_cw_freq)} spectra have no injected axion (cw_freq = 0)")
-
-
-    print(f"[QC]: {len(kept)} / {len(kept) + len(invalid_files)} files are valid and suitable for anaylsis, {len(invalid_files)} files are invalid.")
-    # replace arrays with filtered ones for the rest of the chain
-    specs, fper, rf, rf_map, metadata = sset.spectra, sset.freqs_per_spec, sset.rf_grid, sset.rf_index_map, sset.metadata
-
     if diagnostic_mode:
         raw_run_dir = create_directory(diag_run_dir, "raw_spectra_plots")
 
-    # ----------------------------
-    # Plotting of filtered data
-    # ----------------------------
-
-    # Plot histogram of data againist time
-    if diagnostic_mode:
-        time_cut_dir = create_directory(diag_run_dir, "time_cuts")
-        graphs.plot_filtered_data(metadata, invalid_files, "pre_time_cut", time_cut_dir)
-        graphs.plot_rms_against_time(sset, time_cut_dir)
+    
+    if "simulation" not in inp["input_mode"] :
+        if diagnostic_mode:
+            print("=" * 60) 
+            print("Quality Control")
+            print("=" * 60)
+    
+            qc_run_dir = create_directory(diag_run_dir, "quality_control")
+    
+        invalid_files = sset.metadata.invalid_files
+    
+    
+        bad_zero_power = []
+        bad_no_metadata = []
+    
+        for f in invalid_files:
+            if f[1] == "power spectra is zeros":
+                bad_zero_power.append(f)
+            elif f[1] == "metadata is missing":
+                bad_no_metadata.append(f)
+        if diagnostic_mode:
+            print(f"[QC]: {len(bad_no_metadata)} spectra were removed as files were missing metadata.")
+            print(f"[QC]: {len(bad_zero_power)} spectra were removed as power data were arrays of zeros.")
+    
+        step = max(1, int(out["plots_step"]))
+        max_plots = None if out["max_plots"] is None else int(out["max_plots"])
+    
+        # QC: Cut spectra with power above threshold
+        if qc["max_power_filter"]:
+            sset, sset_power, kept, bad_power = filter_spectrum_set(sset,
+                predicate=lambda s, f, md, i: power_too_high(s, f, md, i, p_max=qc["p_max"]))
+            
+            for idx, s in enumerate(bad_power):
+                invalid_files.append([sset_power.metadata.file_names[idx], "power is too high", sset_power.metadata.dates[idx]])
+            # Seperate invalid power spectra to plot
+            specs_invalid_power, fper_invalid_power = sset_power.spectra, sset_power.freqs_per_spec
+            if len(specs_invalid_power) != 0 and diagnostic_mode:
+                print(f"[QC]: {len(bad_power)} spectra were removed as power is too high.")
+                graphs.plot_spectrum(fper_invalid_power[0]/1e9, specs_invalid_power[0],
+                            "Example invalid raw spectrum (high power)", qc_run_dir/"invalid_power_raw_spectrum_first.png")
+    
+                graphs.plot_spectrum(fper_invalid_power[-1]/1e9, specs_invalid_power[-1],
+                            "Example invalid raw spectrum (high power)", qc_run_dir/"invalid_power_raw_spectrum_last.png")
+    
+    
+        # QC: Cut spectra that have rms values above threshold
+        if qc["noise_filter"]:
+            sset, sset_noise, kept, bad_noise = filter_spectrum_set(sset,
+                predicate=lambda s, f, md, i: too_noisy(s, f, md, i, rms_max=qc["rms_max"]))
+            
+            for idx, s in enumerate(bad_noise):
+                invalid_files.append([sset_noise.metadata.file_names[idx], "too noisy", sset_noise.metadata.dates[idx]])
+            # Seperate invalid noise spectra to plot
+            specs_invalid_noise, fper_invalid_noise = sset_noise.spectra, sset_noise.freqs_per_spec
+            if len(specs_invalid_noise) != 0 and diagnostic_mode:
+                print(f"[QC]: {len(bad_noise)} spectra were removed as too noisy.")
+                
+                graphs.plot_spectrum(fper_invalid_noise[0]/1e9, specs_invalid_noise[0],
+                            "Example invalid raw spectrum (too noisey)", qc_run_dir/"invalid_noise_raw_spectrum_first.png")
+    
+                graphs.plot_spectrum(fper_invalid_noise[-1]/1e9, specs_invalid_noise[-1],
+                        "Example invalid raw spectrum (too noisey)", qc_run_dir/"invalid_noise_raw_spectrum_last.png")
+    
+                step = max(1, int(out["plots_step"]))
+                max_plots = None if out["max_plots"] is None else int(out["max_plots"])
+    
+    
+        # QC: Cut spectra that are within known bad times
+        if qc["bad_time_filter"]:
+            total_bad_time_filter = 0
+            if len(qc["start_time"]) != len(qc["end_time"]):
+                raise ValueError("The lists of start times and end times for cutting data are different lengths, please resolve this issue.")
+    
+            for t in range(len(qc["start_time"])):
+                sset, sset_time_filtered, kept, bad_time_filter = filter_spectrum_set(sset,
+                    predicate=lambda s, f, md, i: time_filter(s, f, md, i, start_time = qc["start_time"][t], end_time = qc["end_time"][t]))
+                total_bad_time_filter += len(bad_time_filter)
+                for idx, s in enumerate(bad_time_filter):
+                    invalid_files.append([sset_time_filtered.metadata.file_names[idx], 
+                                          f"known bad data ({qc['start_time'][t]}-{qc['end_time'][t]})" , sset_time_filtered.metadata.dates[idx]])
+                
+                specs_invalid_time, fper_invalid_time = sset_time_filtered.spectra, sset_time_filtered.freqs_per_spec
+                if len(specs_invalid_time) != 0 and diagnostic_mode:
+                    
+                    start_safe = str(qc['start_time'][t]).replace(":", "-").replace(" ", "_")
+                    end_safe = str(qc['end_time'][t]).replace(":", "-").replace(" ", "_")
+    
+                    graphs.plot_spectrum(fper_invalid_time[0]/1e9, specs_invalid_time[0],
+                                f"Example invalid raw spectrum (invalid time {qc['start_time'][t]}-{qc['end_time'][t]})",
+                                qc_run_dir/f"invalid_time_raw_spectrum_first_{start_safe}-{end_safe}.png")
+    
+                    graphs.plot_spectrum(fper_invalid_time[-1]/1e9, specs_invalid_time[-1],
+                                f"Example invalid raw spectrum (invalid time {qc['start_time'][t]}-{qc['end_time'][t]})",
+                                qc_run_dir/f"invalid_time_raw_spectrum_last_{start_safe}-{end_safe}.png")
+    
+                    step = max(1, int(out["plots_step"]))
+                    max_plots = None if out["max_plots"] is None else int(out["max_plots"])
+            if diagnostic_mode:    
+                print(f"[QC]: {total_bad_time_filter} spectra were removed as within known bad data times.")
+    
+    
+        # QC: Cut spectra that have bandwidth values below the threshold value
+        if qc["small_bandwidth_filter"]:
+            sset, sset_bandwidth, kept, bad_bandwidth = filter_spectrum_set(sset,
+                predicate=lambda s, f, md, i: small_bandwidth(s, f, md, i, bw_min=qc["bw_min"]))
+            
+            for idx, s in enumerate(bad_bandwidth):
+                invalid_files.append([sset_bandwidth.metadata.file_names[idx], "bandwidth is too small", sset_bandwidth.metadata.dates[idx]])
+            # Seperate invalid bandwidth spectra to plot
+            specs_invalid_bandwidth, fper_invalid_bandwidth = sset_bandwidth.spectra, sset_bandwidth.freqs_per_spec
+            if len(specs_invalid_bandwidth) != 0 and diagnostic_mode:
+                print(f"[QC]: {len(bad_bandwidth)} spectra were removed as bandwidth is too small.")
+                
+                graphs.plot_spectrum(fper_invalid_bandwidth[0]/1e9, specs_invalid_bandwidth[0],
+                            f"Example invalid raw spectrum (invalid bandwidth)", qc_run_dir/f"invalid_bandwidth_spectrum_first.png")
+    
+                graphs.plot_spectrum(fper_invalid_bandwidth[-1]/1e9, specs_invalid_bandwidth[-1],
+                                        f"Example invalid raw spectrum (invalid bandwidth)", qc_run_dir/f"invalid_bandwidth_spectrum_last.png")
+    
+                step = max(1, int(out["plots_step"]))
+                max_plots = None if out["max_plots"] is None else int(out["max_plots"])
+                
+    
+                # Plot bandwidth againist date to show which are below the threshold
+                good_bandwidths = np.array(sset.metadata.bandwidths)
+                good_dates = pd.to_datetime(sset.metadata.dates)
+                good_order = np.argsort(good_dates)
+                bad_bandwidths = np.array(sset_bandwidth.metadata.bandwidths)
+                bad_dates = pd.to_datetime(sset_bandwidth.metadata.dates)
+    
+                order = np.argsort(bad_dates)
+                bad_dates_sorted = bad_dates[order]
+                bad_bandwidths_sorted = bad_bandwidths[order]
+    
+                graphs.plot_bandwidth(bad_dates_sorted, bad_bandwidths_sorted, good_dates, good_bandwidths, good_order, qc_run_dir, qc)
+    
+    
+        # QC: Cut spectra that have a res_freq value of zero
+        if qc["res_freq_zeros_filter"]:
+            sset, sset_zeros_res_freq, kept, bad_zeros_res_freq = filter_spectrum_set(sset,
+                predicate=lambda s, f, md, i: metadata_is_zeros(s, f, md, i, item = "res_freqs"))
+            for idx, s in enumerate(bad_zeros_res_freq):
+                invalid_files.append([sset_zeros_res_freq.metadata.file_names[idx], "res_freq data is zeros", sset_zeros_res_freq.metadata.dates[idx]])
+            if len(bad_zeros_res_freq) != 0 and diagnostic_mode:
+                print(f"[QC]: {len(bad_zeros_res_freq)} spectra were removed as given res_freq is zero.")
+    
+    
+        # QC: Cut spectra that have no injected axion (cw_freq = 0)
+        if qc["cw_freq_zeros_filter"]:
+            no_inj_files = []
+            sset, sset_zeros_cw_freq, kept, bad_zeros_cw_freq = filter_spectrum_set(sset,
+                predicate=lambda s, f, md, i: metadata_is_zeros(s, f, md, i, item = "cw_freqs"))
+            for idx, s in enumerate(bad_zeros_cw_freq):
+                no_inj_files.append([sset_zeros_cw_freq.metadata.file_names[idx], sset_zeros_cw_freq.metadata.dates[idx]])
+            if len(bad_zeros_cw_freq) != 0 and diagnostic_mode:
+                print(f"[QC]: {len(bad_zeros_cw_freq)} spectra have no injected axion (cw_freq = 0)")
+    
+    
+        print(f"[QC]: {len(kept)} / {len(kept) + len(invalid_files)} files are valid and suitable for anaylsis, {len(invalid_files)} files are invalid.")
+        # replace arrays with filtered ones for the rest of the chain
+        specs, fper, rf, rf_map, metadata = sset.spectra, sset.freqs_per_spec, sset.rf_grid, sset.rf_index_map, sset.metadata
+    
+        if diagnostic_mode:
+            raw_run_dir = create_directory(diag_run_dir, "raw_spectra_plots")
+    
+        # ----------------------------
+        # Plotting of filtered data
+        # ----------------------------
+    
+        # Plot histogram of data againist time
+        if diagnostic_mode:
+            time_cut_dir = create_directory(diag_run_dir, "time_cuts")
+            graphs.plot_filtered_data(metadata, invalid_files, "pre_time_cut", time_cut_dir)
+            graphs.plot_rms_against_time(sset, time_cut_dir)
+    
+        
+        # Export the spectrum set of all valid files
+        if out["save_data"]:
+            out_h5 = f"{data_dir}/valid_converted_spectra.h5"
+            write_hdf5(sset, out_h5)
+            print(f"[OUT]: Valid files SpectrumSet saved to: {out_h5}")
+    
+    
+        # =======================================================================
+        # TIME CUTTING
+        # =======================================================================
+    
+        # Imported from Claude's Code
+        time_array = [
+        ["2026-01-27 00:00:00", "2026-01-31 09:55:41"], #-10 run, folder is Jan
+        ["2026-01-27 14:30:00", "2026-01-28 04:50:00"],
+        ['2026-02-01 00:10:58', '2026-02-10 18:10:58'], #-20 run, change to Feb
+        ['2026-02-01 00:10:58', '2026-02-05 19:10:58'], #one small jmup
+        ['2026-02-05 00:10:58', '2026-02-05 19:10:58'], #full linear section
+        ['2026-02-01 00:10:58', '2026-02-04 22:30:58'] #low freq linear section
+        ]
+        time_array_index = qc["time_array_index"]
+    
+        old_sset = sset
+        if qc["bad_time_filter"]:
+            sset = cut_by_datetime(
+                sset,
+                time_array[time_array_index][0],
+                time_array[time_array_index][1],
+            )
+        if diagnostic_mode:
+            print("-" * 60)
+            print("Applying Time Cuts")
+            print("-" * 60)
+            print("[TF]:", time_array[time_array_index][0], "-->", time_array[time_array_index][1])
+        if len(sset.spectra) == 0 and len(old_sset.spectra) != 0:
+            raise ValueError("Time Cut has returned 0 Spectra - Please ensure the time filter is selecting the correct data")
+        print(f"[TF]: {len(sset.metadata.file_names)} files kept after time filter "
+           f"(removed {len(metadata.file_names) - len(sset.metadata.file_names)})")
+        
+        # replace arrays with filtered ones for the rest of the chain
+        specs, fper, rf, rf_map, metadata = sset.spectra, sset.freqs_per_spec, sset.rf_grid, sset.rf_index_map, sset.metadata
 
     
-    # Export the spectrum set of all valid files
-    if out["save_data"]:
-        out_h5 = f"{data_dir}/valid_converted_spectra.h5"
+        out_h5 = f"{data_dir}/converted_spectra.h5"
         write_hdf5(sset, out_h5)
-        print(f"[OUT]: Valid files SpectrumSet saved to: {out_h5}")
-
-
-    # =======================================================================
-    # TIME CUTTING
-    # =======================================================================
-
-    # Imported from Claude's Code
-    time_array = [
-    ["2026-01-27 00:00:00", "2026-01-31 09:55:41"], #-10 run, folder is Jan
-    ["2026-01-27 14:30:00", "2026-01-28 04:50:00"],
-    ['2026-02-01 00:10:58', '2026-02-10 18:10:58'], #-20 run, change to Feb
-    ['2026-02-01 00:10:58', '2026-02-05 19:10:58'], #one small jmup
-    ['2026-02-05 00:10:58', '2026-02-05 19:10:58'], #full linear section
-    ['2026-02-01 00:10:58', '2026-02-04 22:30:58'] #low freq linear section
-    ]
-    time_array_index = qc["time_array_index"]
-
-    old_sset = sset
-    if qc["bad_time_filter"]:
-        sset = cut_by_datetime(
-            sset,
-            time_array[time_array_index][0],
-            time_array[time_array_index][1],
-        )
-    if diagnostic_mode:
-        print("-" * 60)
-        print("Applying Time Cuts")
-        print("-" * 60)
-        print("[TF]:", time_array[time_array_index][0], "-->", time_array[time_array_index][1])
-    if len(sset.spectra) == 0 and len(old_sset.spectra) != 0:
-        raise ValueError("Time Cut has returned 0 Spectra - Please ensure the time filter is selecting the correct data")
-    print(f"[TF]: {len(sset.metadata.file_names)} files kept after time filter "
-       f"(removed {len(metadata.file_names) - len(sset.metadata.file_names)})")
+        print(f"[OUT]: Post Time Cut SpectrumSet saved to: {out_h5}")
     
-    # replace arrays with filtered ones for the rest of the chain
-    specs, fper, rf, rf_map, metadata = sset.spectra, sset.freqs_per_spec, sset.rf_grid, sset.rf_index_map, sset.metadata
-
+        # ----------------------------
+        # Plotting of time cut data
+        # ----------------------------
+        if diagnostic_mode:
+            graphs.plot_filtered_data2(metadata, invalid_files, "post_time_cut", time_cut_dir)
     cw_freqs = np.array(metadata.cw_freqs)
     res_freqs = np.array(metadata.res_freqs)
 
-    out_h5 = f"{data_dir}/converted_spectra.h5"
-    write_hdf5(sset, out_h5)
-    print(f"[OUT]: Post Time Cut SpectrumSet saved to: {out_h5}")
-
-    # ----------------------------
-    # Plotting of time cut data
-    # ----------------------------
-    if diagnostic_mode:
-        graphs.plot_filtered_data2(metadata, invalid_files, "post_time_cut", time_cut_dir)
-   
     # =============================================================
     # Spectra Plotting
     # =============================================================
@@ -410,8 +414,8 @@ def main():
     # =======================================================================
     # SPECTRUM CUTS
     # =======================================================================
-
-    sset = cut_by_values(sset, cut_min_val = -0.3e6, cut_max_val = 2.3e6)
+    if "simulation" not in inp["input_mode"]:
+        sset = cut_by_values(sset, cut_min_val = -0.3e6, cut_max_val = 2.3e6)
     specs, fper, rf, rf_map, metadata = sset.spectra, sset.freqs_per_spec, sset.rf_grid, sset.rf_index_map, sset.metadata
 
     if diagnostic_mode:
@@ -512,9 +516,10 @@ def main():
     # -----------------------------------------------------------------------
     # Creating groups
     # -----------------------------------------------------------------------
-
-    grand_group, group_avg_spectra, group_sg_fits = group_creation(date_times, spacing_minutes, specs, fper, metadata, base)
-
+    if "simulation" not in inp["input_mode"]:
+        grand_group, group_avg_spectra, group_sg_fits = group_creation(date_times, spacing_minutes, specs, fper, metadata, base)
+    else:
+        grand_group, group_avg_spectra, group_sg_fits = group_creation_sim(date_times, specs, fper, metadata, base)
     # -----------------------------------------------------------------------
     # Plotting
     # -----------------------------------------------------------------------
