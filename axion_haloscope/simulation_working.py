@@ -199,7 +199,7 @@ def simulate_spectra(
 
         spectra.append(psd_filt[mask_show].astype(np.float64))
         dates.append(datetime.now().strftime("%Y-%m-%d %H:%M:%S"))
-        datettimenow=datetime.now().strftime("%Y-%m-%d")
+        datetimenow=datetime.now().strftime("%Y-%m-%d")
         file_names.append(f"FOX_simulation_{datetimenow}_{i:05d}")
         invalid_files.append(None)
         b_vals.append(None)
