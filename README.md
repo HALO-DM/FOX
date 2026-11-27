@@ -34,12 +34,12 @@ going into the FOX directory
         - Make sure you point "directory" to the location of the converted file 
 (usually in the run directory, in the "data" folder under the name "converted_data.hdf5")
     - "simulation" - generates a simulation (great if you haven't got any data)
-        - Make sure ou have filled out the simulation section of the YAML file for a custom simulation.
+        - Make sure you have filled out the simulation section of the YAML file for a custom simulation.
 
 
 6. Run the data analysis
 - From the root directory:
-> python scripts/simulation/data_analysis.py configs/data_analysis.yaml
+> python scripts/simulation/data_analysis_yaml.py configs/data_analysis.yaml
 
 ---
 ### Repository structure
