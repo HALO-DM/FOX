@@ -33,7 +33,7 @@ from axion_haloscope.limit                import compute_local_snr_template, cou
 from axion_haloscope.lineshape            import shm_maxwell_template
 from axion_haloscope.load_data            import load_data
 from axion_haloscope.rebin                import rebin_ml, grand_spectrum_ml
-from axion_haloscope.groups               import group_creation, group_spectra
+from axion_haloscope.groups               import group_creation, group_creation_sim, group_spectra
 from axion_haloscope.sigma_clipping       import claude_clipping, blue_clipping, finalise_specs, general_clipping
 from axion_haloscope.utils                import create_directory, find_project_root, load_yaml_config
 
