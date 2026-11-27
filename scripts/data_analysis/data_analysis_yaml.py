@@ -38,11 +38,11 @@ from axion_haloscope.sigma_clipping       import claude_clipping, blue_clipping,
 from axion_haloscope.utils                import create_directory, find_project_root, load_yaml_config
 
 mpl.use("Agg")
-mpl.rcParams.update({
-    "font.family": "serif",
-    "font.serif":  ["Times New Roman"],
-    "font.size":   16,
-})
+#mpl.rcParams.update({
+ #   "font.family": "serif",
+  #  "font.serif":  ["Times New Roman"],
+   # "font.size":   16,
+#})
 
 def main():
 
