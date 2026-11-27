@@ -58,6 +58,28 @@ def group_spectra(
         i = j
     return grand_group
 
+def group_spectra_sim( 
+    dts: List,
+    specs: np.ndarray,
+    fper: np.ndarray,
+    metadata: SpectrumMetadata
+) -> List[List[Tuple[np.ndarray, np.ndarray, float]]]:
+    """
+    Group spectra into groups by number of spectra. This is used for simulated spectra where all
+    the time stamps are the same
+    """
+    grand_group = []
+    n = len(dts)
+    i = 0
+    while i < n:
+        j = i + 1
+        while j < n and j-i < 6:
+            j += 1
+        grand_group.append([(specs[k], fper[k], metadata.res_freqs[k]) for k in range(i, j)])
+        i = j
+        
+    return grand_group
+
 def group_averaging(
     grand_group: List[List[Tuple[np.ndarray, np.ndarray, float]]]
 ) -> List[Tuple[np.ndarray, np.ndarray]]:
