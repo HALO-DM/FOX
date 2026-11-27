@@ -151,3 +151,33 @@ def group_creation(
     group_avg_spectra = group_averaging(grand_group)
     group_sg_fits = group_average_baseline_fitting(group_avg_spectra, base)
     return grand_group, group_avg_spectra, group_sg_fits
+
+def group_creation_sim(
+    dts: List,
+    specs: np.ndarray,
+    fper: np.ndarray,
+    metadata: SpectrumMetadata,
+    base: Dict
+) -> Tuple:
+    """
+    Group observations into groups, average each group's spectra, and fit a
+    baseline to each group's averaged spectrum. 
+
+    Parameters
+    ==========
+    dts, spacing_minutes, specs, fper, metadata: see `group_spectra`
+    base: see `group_average_baseline_fitting`
+
+    Returns
+    =======
+    grand_group: list of list of tuple
+        See `group_spectra`
+    group_avg_spectra: list of tuple
+        See `group_averaging`
+    group_sg_fits: list of np.ndarray or None
+        See `group_average_baseline_fitting`
+    """
+    grand_group = group_spectra_sim(dts, specs, fper, metadata)
+    group_avg_spectra = group_averaging(grand_group)
+    group_sg_fits = group_average_baseline_fitting(group_avg_spectra, base)
+    return grand_group, group_avg_spectra, group_sg_fits
