@@ -5,6 +5,21 @@ input:
                                           # or location of file to be read (for input_mode = "read_data")
   input_file_name: "converted_spectra.h5" # name of file to be read. Only used on "read_data" input_mode
 
+simulation:
+  n_spectra: 318
+  n_bins: 4097  # Elena's eyeballed estimation from Ben's thesis
+  bin_width_hz: 763.0
+  f_start_hz: 5.7171e9
+  tune_step_bins: 100
+  rng_seed: 1234
+  noise_sigma: 1.0
+
+injection:
+  enabled: true
+  f_axion_hz: 5.718e9   # optional; if omitted, placed at mid-span
+  sigma_hz: 500.0
+  total_power: 50.0
+
 quality:
   max_power_filter: true              # filter the spectra for max mean power 
   p_max: 1e-8                         # max power allowed

@@ -58,6 +58,28 @@ def group_spectra(
         i = j
     return grand_group
 
+def group_spectra_sim( 
+    dts: List,
+    specs: np.ndarray,
+    fper: np.ndarray,
+    metadata: SpectrumMetadata
+) -> List[List[Tuple[np.ndarray, np.ndarray, float]]]:
+    """
+    Group spectra into groups by number of spectra. This is used for simulated spectra where all
+    the time stamps are the same
+    """
+    grand_group = []
+    n = len(dts)
+    i = 0
+    while i < n:
+        j = i + 1
+        while j < n and j-i < 6:
+            j += 1
+        grand_group.append([(specs[k], fper[k], metadata.res_freqs[k]) for k in range(i, j)])
+        i = j
+        
+    return grand_group
+
 def group_averaging(
     grand_group: List[List[Tuple[np.ndarray, np.ndarray, float]]]
 ) -> List[Tuple[np.ndarray, np.ndarray]]:
@@ -148,6 +170,36 @@ def group_creation(
         See `group_average_baseline_fitting`
     """
     grand_group = group_spectra(dts, spacing_minutes, specs, fper, metadata)
+    group_avg_spectra = group_averaging(grand_group)
+    group_sg_fits = group_average_baseline_fitting(group_avg_spectra, base)
+    return grand_group, group_avg_spectra, group_sg_fits
+
+def group_creation_sim(
+    dts: List,
+    specs: np.ndarray,
+    fper: np.ndarray,
+    metadata: SpectrumMetadata,
+    base: Dict
+) -> Tuple:
+    """
+    Group observations into groups, average each group's spectra, and fit a
+    baseline to each group's averaged spectrum. 
+
+    Parameters
+    ==========
+    dts, spacing_minutes, specs, fper, metadata: see `group_spectra`
+    base: see `group_average_baseline_fitting`
+
+    Returns
+    =======
+    grand_group: list of list of tuple
+        See `group_spectra`
+    group_avg_spectra: list of tuple
+        See `group_averaging`
+    group_sg_fits: list of np.ndarray or None
+        See `group_average_baseline_fitting`
+    """
+    grand_group = group_spectra_sim(dts, specs, fper, metadata)
     group_avg_spectra = group_averaging(grand_group)
     group_sg_fits = group_average_baseline_fitting(group_avg_spectra, base)
     return grand_group, group_avg_spectra, group_sg_fits
